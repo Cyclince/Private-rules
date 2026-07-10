@@ -6,6 +6,8 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "./dist/client"
 binding = "ASSETS"
+# 让 /admin/login、/rules/* 等动态路由先由 Worker 处理；其余请求再回退到静态资源。
+run_worker_first = true
 
 [[d1_databases]]
 binding = "DB"

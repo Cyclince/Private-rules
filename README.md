@@ -96,6 +96,8 @@ https://你的-worker.你的-workers-dev-子域.workers.dev/admin/login
 
 **D1 未连接**：第一次部署后等待片刻并刷新。仍无效时，打开 Worker 的 **Settings → Bindings**，应能看到名称为 `DB` 的 D1 binding。
 
+**访问 `/admin/login` 显示 404**：确认 GitHub 仓库已包含最新版 `wrangler.toml`，并在 Cloudflare 的 **Deployments** 页面重新部署最新提交。该配置会让登录和订阅等动态地址优先交给 Worker 处理。
+
 ### 本地开发（可选）
 
 ```bash
