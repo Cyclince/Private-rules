@@ -23,20 +23,20 @@ export const FRIENDLY_RULE_TYPE: Record<DomainRuleType, string> = {
 };
 
 export const FRIENDLY_RULE_TYPES = [
-  { type: '', label: '自动识别', description: '系统根据输入内容自动判断。' },
+  { type: '', label: '自动识别', description: '系统根据输入内容自动判断' },
   ...RULE_TYPES.map((type) => ({ type, label: FRIENDLY_RULE_TYPE[type], description: ruleTypeDescription(type) })),
 ] as const;
 
 function ruleTypeDescription(type: DomainRuleType) {
   const descriptions: Record<DomainRuleType, string> = {
-    DOMAIN: '只匹配完整域名。',
-    'DOMAIN-SUFFIX': '匹配该域名及其子域名。',
-    'DOMAIN-KEYWORD': '匹配包含该关键词的域名。',
-    'IP-CIDR': '匹配 IP 地址或网段。',
-    'SRC-IP-CIDR': '匹配来源 IP 网段。',
-    'IP-ASN': '匹配网络自治系统编号。',
-    GEOSITE: '匹配客户端内置的站点集合。',
-    GEOIP: '匹配客户端内置的国家或地区 IP。',
+    DOMAIN: '只匹配完整域名',
+    'DOMAIN-SUFFIX': '匹配该域名及其子域名',
+    'DOMAIN-KEYWORD': '匹配包含该关键词的域名',
+    'IP-CIDR': '匹配 IP 地址或网段',
+    'SRC-IP-CIDR': '匹配来源 IP 网段',
+    'IP-ASN': '匹配网络自治系统编号',
+    GEOSITE: '匹配客户端内置的站点集合',
+    GEOIP: '匹配客户端内置的国家或地区 IP',
   };
   return descriptions[type];
 }

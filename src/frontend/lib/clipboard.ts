@@ -13,5 +13,5 @@ export async function copyText(text: string) {
   textarea.select();
   const copied = document.execCommand('copy');
   textarea.remove();
-  if (!copied) throw new Error('浏览器拒绝了剪贴板访问，请手动复制。');
+  if (!copied) throw new Error('浏览器拒绝了剪贴板访问，请手动复制');
 }

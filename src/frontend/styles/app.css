@@ -2,6 +2,7 @@
 @import './admin.css';
 @import './admin-interactions.css';
 @import './admin-extras.css';
+@import './neko-ui.css';
 
 #root {
   min-height: 100vh;

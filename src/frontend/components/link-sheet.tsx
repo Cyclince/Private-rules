@@ -15,7 +15,7 @@ export function LinkSheet({
 
   async function copy(url: string) {
     if (!url) {
-      onToast('当前未启用可用的订阅链接，请检查设置和 RULE_TOKEN。');
+      onToast('当前没有可用订阅链接，请检查访问策略和 RULE_TOKEN');
       return;
     }
     try {
@@ -23,7 +23,7 @@ export function LinkSheet({
       onToast('链接已复制');
       onClose();
     } catch (error) {
-      onToast(error instanceof Error ? error.message : '复制失败，请手动复制。');
+      onToast(error instanceof Error ? error.message : '复制失败，请手动复制');
     }
   }
 
@@ -40,7 +40,7 @@ export function LinkSheet({
       <section className="link-sheet" onClick={(event) => event.stopPropagation()}>
         <div className="sheet-handle" />
         <h2>选择你的代理软件</h2>
-        <p>点击复制即可获得适合该客户端的链接。默认推荐 Token 私密链接，也可以预览生成内容。</p>
+        <p>复制适合该客户端的订阅链接，私密访问会自动携带密钥</p>
         <div className="client-grid">
           {links.map((link) => (
             <div className="client-row" key={link.id}>

@@ -1,9 +1,12 @@
 import { useState } from 'react';
+import privateRulesAvatar from '../assets/private-rules-avatar.png';
 
 export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [wallpaper, setWallpaper] = useState('https://uapis.cn/api/v1/random/image?category=acg&type=pc');
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -14,27 +17,30 @@ export function LoginPage() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ password }),
     });
-    setLoading(false);
     if (!response.ok) {
+      setLoading(false);
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      setError(payload.error ?? '登录失败。');
+      setError(payload.error ?? '登录失败');
       return;
     }
-    window.location.href = '/admin';
+    setLeaving(true);
+    window.setTimeout(() => window.location.assign('/admin?enter=login'), 620);
   }
 
   return (
-    <main className="login-page">
+    <main className={`login-page login-immersive ${leaving ? 'login-leaving' : ''}`}>
+      <img className="login-wallpaper" src={wallpaper} alt="" aria-hidden="true" onError={() => { if (!wallpaper.includes('paugram')) setWallpaper('https://api.paugram.com/bing/'); }} />
+      <div className="login-wallpaper-shade" />
       <form className="login-card" onSubmit={submit}>
-        <span className="eyebrow">Private Rules</span>
+        <div className="login-brand"><img src={privateRulesAvatar} alt="Private Rules 规则守护者"/><div><strong>Private Rules</strong><span>规则控制台</span></div></div>
         <h1>登录后台</h1>
-        <p>请输入服务端配置的后台密码</p>
+        <p>输入后台密码后继续管理私有规则</p>
         <input
           autoComplete="current-password"
           autoFocus
           className="app-input"
           onChange={(event) => setPassword(event.target.value)}
-          placeholder="ADMIN_PASSWORD"
+          placeholder="使用后台密码登录"
           type="password"
           value={password}
         />

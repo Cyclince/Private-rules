@@ -16,6 +16,7 @@
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.11.6",
     "hono": "^4.8.5",
+    "opencc-js": "^1.4.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

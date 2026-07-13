@@ -19,6 +19,8 @@ import { parseBulkImport } from './lib/parser';
 import { error, json, textFile } from './lib/response';
 import { linksByCategory } from './lib/links';
 import { resolveFile } from './lib/formatters';
+import { syncRuleSources } from './lib/sync';
+import { searchGeoSources } from './lib/geosite';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 type AppContext = Context<{ Bindings: Env; Variables: AppVariables }>;
@@ -32,13 +34,20 @@ function withLinks(c: AppContext, data: Awaited<ReturnType<typeof getRulesData>>
   return { data, links: linksByCategory(data, c.req.url, c.env.RULE_TOKEN) };
 }
 
-function adminApp(c: AppContext) {
+async function adminApp(c: AppContext) {
   const url = new URL(c.req.url);
   // Assets canonicalises /index.html to /. Fetching / directly avoids a
   // redirect back into the application's authenticated root route.
   url.pathname = '/';
   url.search = '';
-  return c.env.ASSETS.fetch(new Request(url, c.req.raw));
+  const response = await c.env.ASSETS.fetch(new Request(url, c.req.raw));
+  const headers = new Headers(response.headers);
+  headers.set('cache-control', 'no-store, no-cache, must-revalidate, max-age=0');
+  headers.set('pragma', 'no-cache');
+  headers.set('expires', '0');
+  headers.delete('etag');
+  headers.delete('last-modified');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
 app.onError((err) => {
@@ -72,8 +81,16 @@ app.post('/api/auth/logout', async (c) => {
 
 app.get('/api/categories', requireAuth, async (c) => json(withLinks(c, await getRulesData(c.env))));
 
+app.get('/api/geo/search', requireAuth, async (c) => json({ results: await searchGeoSources(c.req.query('q') ?? '') }));
+
 app.post('/api/categories', requireAuth, async (c) => {
-  const data = await createCategory(c.env, await c.req.json().catch(() => ({})));
+  const input = await c.req.json<{ name?: string; sourceUrls?: string[]; geositeNames?: string[]; geoipNames?: string[] }>().catch(() => ({} as { name?: string; sourceUrls?: string[]; geositeNames?: string[]; geoipNames?: string[] }));
+  let data = await createCategory(c.env, input);
+  if (input.sourceUrls?.length || input.geositeNames?.length || input.geoipNames?.length) {
+    const created = data.categories.find((category) => category.name === input.name) ?? [...data.categories].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+    if (created) await syncRuleSources(c.env, created.id);
+    data = await getRulesData(c.env);
+  }
   return json(withLinks(c, data), { status: 201 });
 });
 
@@ -136,6 +153,16 @@ app.get('/api/links', requireAuth, async (c) => {
   return json({ links: linksByCategory(data, c.req.url, c.env.RULE_TOKEN) });
 });
 
+app.post('/api/sync', requireAuth, async (c) => {
+  const results = await syncRuleSources(c.env);
+  return json({ results, ...withLinks(c, await getRulesData(c.env)) });
+});
+
+app.post('/api/categories/:id/sync', requireAuth, async (c) => {
+  const results = await syncRuleSources(c.env, c.req.param('id'));
+  return json({ results, ...withLinks(c, await getRulesData(c.env)) });
+});
+
 app.get('/api/data', requireAuth, async (c) => json(await getRulesData(c.env)));
 
 app.put('/api/data', requireAuth, async (c) => {
@@ -144,24 +171,23 @@ app.put('/api/data', requireAuth, async (c) => {
   return json(withLinks(c, await importRulesData(c.env, data)));
 });
 
-async function subscription(c: AppContext, file: string) {
+async function subscription(c: AppContext, file: string, access: 'public' | 'token') {
   if (!safeFileName(file)) return c.notFound();
   const data = await getRulesData(c.env);
   const result = resolveFile(data, file);
   if (!result) return c.notFound();
+  if (access === 'public' && (result.category.tokenLinksEnabled !== false || result.category.publicLinksEnabled === false)) return c.notFound();
+  if (access === 'token' && result.category.tokenLinksEnabled === false) return c.notFound();
   return textFile(result.body, result.contentType);
 }
 
 app.get('/rules/:file', async (c) => {
-  const data = await getRulesData(c.env);
-  if (!data.settings.publicLinksEnabled) return c.notFound();
-  return subscription(c, c.req.param('file'));
+  return subscription(c, c.req.param('file'), 'public');
 });
 
 app.get('/sub/:token/:file', async (c) => {
-  const data = await getRulesData(c.env);
-  if (!data.settings.tokenLinksEnabled || !tokenMatches(c.env, c.req.param('token'))) return c.notFound();
-  return subscription(c, c.req.param('file'));
+  if (!tokenMatches(c.env, c.req.param('token'))) return c.notFound();
+  return subscription(c, c.req.param('file'), 'token');
 });
 
 app.get('/', async (c) => {
@@ -177,4 +203,9 @@ app.get('/admin', async (c) => {
 app.get('/admin/login', (c) => adminApp(c));
 app.get('*', async (c) => c.env.ASSETS.fetch(c.req.raw));
 
-export default app;
+export default {
+  fetch: app.fetch,
+  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(ensureDatabase(env).then(() => syncRuleSources(env, undefined, false)).then(() => undefined));
+  },
+};

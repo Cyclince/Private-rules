@@ -25,6 +25,19 @@ function ruleLine(rule: DomainRule) {
   return `${rule.type},${rule.value}`;
 }
 
+function updatedLabel(category: RuleCategory) {
+  const parsed = new Date(category.updatedAt);
+  if (Number.isNaN(parsed.getTime())) return category.updatedAt;
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).format(parsed);
+}
+
+function generationHeader(category: RuleCategory) {
+  return [`# Generated for ${category.name} by Private Rules`, `# UPDATED: ${updatedLabel(category)}`];
+}
+
 function commentLines(note?: string, indent = '') {
   if (!note?.trim()) return [];
   return note
@@ -44,11 +57,17 @@ function ruleNote(note?: string, indent = '') {
 }
 
 function enabled(category: RuleCategory) {
-  return category.rules.filter((rule) => rule.enabled);
+  const seen = new Set<string>();
+  return category.rules.filter((rule) => {
+    const key = `${rule.type}:${rule.value}`.toLowerCase();
+    if (!rule.enabled || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export function yaml(category: RuleCategory) {
-  const lines = ['payload:'];
+  const lines = [...generationHeader(category), 'payload:'];
   lines.push(...commentLines(category.note || category.description, '  '));
   for (const rule of enabled(category)) {
     lines.push(...ruleNote(rule.note, '  '));
@@ -58,7 +77,7 @@ export function yaml(category: RuleCategory) {
 }
 
 export function list(category: RuleCategory) {
-  const lines: string[] = [];
+  const lines: string[] = generationHeader(category);
   lines.push(...commentLines(category.note || category.description));
   for (const rule of enabled(category)) {
     lines.push(...ruleNote(rule.note));
@@ -76,7 +95,7 @@ function qxType(type: DomainRule['type']) {
 
 export function quantumultX(category: RuleCategory, data: RulesData) {
   const policy = data.settings.policyName.trim();
-  const lines: string[] = [];
+  const lines: string[] = generationHeader(category);
   lines.push(...commentLines(category.note || category.description));
   for (const rule of enabled(category)) {
     lines.push(...ruleNote(rule.note));
@@ -91,6 +110,8 @@ export function json(category: RuleCategory) {
     {
       category: category.name,
       slug: category.slug,
+      generatedBy: 'Private Rules',
+      updatedAt: updatedLabel(category),
       note: category.note ?? '',
       rules: enabled(category).map((rule) => ({
         type: rule.type,
@@ -104,7 +125,7 @@ export function json(category: RuleCategory) {
 }
 
 export function url(category: RuleCategory) {
-  return `${enabled(category)
+  return `${generationHeader(category).join('\n')}\n${enabled(category)
     .map((rule) => rule.value)
     .join('\n')}\n`;
 }

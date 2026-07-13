@@ -19,6 +19,31 @@ export type DomainRule = {
   sortOrder?: number;
   createdAt: string;
   updatedAt: string;
+  sourceId?: string;
+  sourceName?: string;
+};
+
+export type RuleSource = {
+  id: string;
+  categoryId: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  lastSyncedAt?: string;
+  lastStatus?: 'success' | 'error' | 'pending';
+  lastCount?: number;
+  lastError?: string;
+  syncIntervalMinutes: number;
+  sourceType?: 'url' | 'geosite' | 'geoip';
+  geositeName?: string;
+  geoipName?: string;
+};
+
+export type GeoSourceSuggestion = {
+  name: string;
+  sourceType: 'geosite' | 'geoip';
+  recommended: boolean;
+  description: string;
 };
 
 export type RuleCategory = {
@@ -33,6 +58,11 @@ export type RuleCategory = {
   rules: DomainRule[];
   createdAt?: string;
   updatedAt: string;
+  publicLinksEnabled?: boolean;
+  tokenLinksEnabled?: boolean;
+  sources?: RuleSource[];
+  lastSyncedAt?: string;
+  syncIntervalMinutes?: number;
 };
 
 export type RuleSettings = {
@@ -40,6 +70,8 @@ export type RuleSettings = {
   policyName: string;
   publicLinksEnabled: boolean;
   tokenLinksEnabled: boolean;
+  customIconPackUrls: string[];
+  customIconPackNames: Record<string, string>;
 };
 
 export type RulesData = {
@@ -53,6 +85,7 @@ export type RulesData = {
   };
   categories: RuleCategory[];
   updatedAt: string;
+  lastSyncedAt?: string;
 };
 
 export type ClientId =

@@ -9,6 +9,9 @@ binding = "ASSETS"
 # 让 /admin/login、/rules/* 等动态路由先由 Worker 处理；其余请求再回退到静态资源。
 run_worker_first = true
 
+[triggers]
+crons = ["*/5 * * * *"]
+
 [[d1_databases]]
 binding = "DB"
 # 留空资源 ID，让 Cloudflare Workers Builds 在首次部署时自动创建 D1。
