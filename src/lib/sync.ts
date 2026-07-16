@@ -21,7 +21,7 @@ function normalizeUpstreamText(text: string) {
     value = value.replace(/^[-]\s*/, '').replace(/^['"]|['"]$/g, '').trim();
     value = value.replace(/^(HOST-SUFFIX|HOST-KEYWORD|HOST),/i, (type) => `${type.toUpperCase() === 'HOST' ? 'DOMAIN' : type.toUpperCase().replace('HOST', 'DOMAIN')},`);
     const parts = value.split(',').map((part) => part.trim());
-    if (/^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|IP-CIDR|SRC-IP-CIDR|IP-ASN|GEOSITE|GEOIP)$/i.test(parts[0]) && parts.length > 2) {
+    if (/^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|IP-CIDR|SRC-IP-CIDR|IP-ASN|DST-PORT|GEOSITE|GEOIP)$/i.test(parts[0]) && parts.length > 2) {
       value = `${parts[0]},${parts[1]}`;
     }
     return value;

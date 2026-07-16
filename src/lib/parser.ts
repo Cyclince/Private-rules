@@ -8,6 +8,7 @@ const IP_PATTERN = /^(?:\d{1,3}\.){3}\d{1,3}$/;
 const CIDR_PATTERN = /^(?:\d{1,3}\.){3}\d{1,3}\/(?:[0-9]|[1-2][0-9]|3[0-2])$/;
 const IPV6_PATTERN = /^[0-9a-f:]+$/i;
 const IPV6_CIDR_PATTERN = /^[0-9a-f:]+\/(?:\d|[1-9]\d|1[01]\d|12[0-8])$/i;
+const PORT_PATTERN = /^\d{1,5}(?:-\d{1,5})?$/;
 
 function validIp(value: string) {
   const [ip] = value.split('/');
@@ -20,6 +21,14 @@ function validIpv6(value: string) {
   const groups = address.split(':').filter(Boolean);
   if (!groups.every((group) => /^[0-9a-f]{1,4}$/i.test(group))) return false;
   return address.includes('::') ? groups.length < 8 : groups.length === 8;
+}
+
+function validDestinationPort(value: string) {
+  if (!PORT_PATTERN.test(value)) return false;
+  const [startText, endText = startText] = value.split('-');
+  const start = Number(startText);
+  const end = Number(endText);
+  return start >= 1 && end <= 65535 && start <= end;
 }
 
 export function normalizeRuleValue(value: string) {
@@ -53,6 +62,7 @@ export function parseRuleInput(input: string, forcedType?: DomainRuleType, note?
 
   if (!type) {
     if (((CIDR_PATTERN.test(normalized) || IP_PATTERN.test(normalized)) && validIp(normalized)) || ((IPV6_PATTERN.test(normalized) || IPV6_CIDR_PATTERN.test(normalized)) && validIpv6(normalized))) type = 'IP-CIDR';
+    else if (validDestinationPort(normalized)) type = 'DST-PORT';
     else if (DOMAIN_PATTERN.test(normalized)) type = 'DOMAIN-SUFFIX';
     else if (KEYWORD_PATTERN.test(normalized)) type = 'DOMAIN-KEYWORD';
   }
@@ -71,6 +81,9 @@ export function parseRuleInput(input: string, forcedType?: DomainRuleType, note?
   }
   if (type === 'DOMAIN-KEYWORD' && !KEYWORD_PATTERN.test(value)) {
     throw new Error('关键词只能包含字母、数字、短横线或下划线');
+  }
+  if (type === 'DST-PORT' && !validDestinationPort(value)) {
+    throw new Error('目标端口格式不正确，请输入 1-65535 范围内的端口或端口区间');
   }
 
   if (wildcard && type === 'DOMAIN-SUFFIX') displayType = '通配域名';

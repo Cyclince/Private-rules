@@ -5,6 +5,7 @@ export type DomainRuleType =
   | 'IP-CIDR'
   | 'SRC-IP-CIDR'
   | 'IP-ASN'
+  | 'DST-PORT'
   | 'GEOSITE'
   | 'GEOIP';
 

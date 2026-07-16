@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatters } from '../../src/lib/formatters';
-import { parseBulkImport } from '../../src/lib/parser';
+import { parseBulkImport, parseRuleInput } from '../../src/lib/parser';
+import { RULE_TYPES } from '../../src/lib/rule-types';
 import { isSourceDue } from '../../src/lib/sync';
 import { normalizeUserAgent } from '../../src/lib/db';
 import type { RuleCategory, RulesData } from '../../src/types/domain-rules';
@@ -25,6 +26,34 @@ describe('rule parsing and subscriptions', () => {
       expect(output.match(/b\.example/g)).toHaveLength(1);
       expect(output).not.toContain('a.example');
     }
+  });
+
+  it('supports destination ports between ASN and site collections', () => {
+    const preview = parseBulkImport('DST-PORT,1-79\nDST-PORT,81-442\nDST-PORT,444-65535', []);
+    expect(preview.rules.map((rule) => `${rule.type},${rule.value}`)).toEqual([
+      'DST-PORT,1-79',
+      'DST-PORT,81-442',
+      'DST-PORT,444-65535',
+    ]);
+    expect(RULE_TYPES.slice(RULE_TYPES.indexOf('IP-ASN'), RULE_TYPES.indexOf('GEOSITE') + 1)).toEqual(['IP-ASN', 'DST-PORT', 'GEOSITE']);
+  });
+
+  it('auto-detects and validates destination port ranges', () => {
+    expect(parseRuleInput('443').type).toBe('DST-PORT');
+    expect(parseRuleInput('1-79').type).toBe('DST-PORT');
+    expect(() => parseRuleInput('0', 'DST-PORT')).toThrow('目标端口格式不正确');
+    expect(() => parseRuleInput('80-79', 'DST-PORT')).toThrow('目标端口格式不正确');
+    expect(() => parseRuleInput('65536', 'DST-PORT')).toThrow('目标端口格式不正确');
+  });
+
+  it('keeps destination port types in formatted subscriptions', () => {
+    const category: RuleCategory = { id: 'ports', name: 'Ports', slug: 'ports', updatedAt: '2026-01-01T00:00:00.000Z', rules: [
+      { id: 'port-1', value: '1-79', type: 'DST-PORT', enabled: true, createdAt: '', updatedAt: '' },
+    ] };
+    const data = { settings: { policyName: '', baseUrl: '', publicLinksEnabled: true, tokenLinksEnabled: true, customIconPackUrls: [], customIconPackNames: {} } } as RulesData;
+    expect(formatters.yaml.format(category, data)).toContain('DST-PORT,1-79');
+    expect(formatters.general.format(category, data)).toContain('DST-PORT,1-79');
+    expect(formatters.json.format(category, data)).toContain('"type": "DST-PORT"');
   });
 });
 
