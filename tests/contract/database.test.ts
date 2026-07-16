@@ -7,6 +7,7 @@ import { D1DatabaseAdapter } from '../../src/infrastructure/database/d1/adapter'
 import { SqliteDatabaseAdapter } from '../../src/infrastructure/database/sqlite/adapter';
 import { applySqliteMigrations } from '../../src/infrastructure/database/sqlite/migrations';
 import { addRule, createCategory, deleteCategory, getBackupData, getRulesData, importRulesData, insertRule, updateCategory } from '../../src/lib/db';
+import { syncRuleSources } from '../../src/lib/sync';
 import type { Env } from '../../src/types';
 import type { DatabasePort } from '../../src/application/ports/database';
 
@@ -54,6 +55,39 @@ function contract(name: string, setup: () => Promise<{ database: DatabasePort; c
       expect(restoredCategory.sources?.find((item) => item.sourceType === 'url')).toMatchObject({ url: 'https://example.com/rules.list', lastStatus: 'pending', lastCount: 0 });
       expect(restoredCategory.sources?.find((item) => item.sourceType === 'geosite')).toMatchObject({ geositeName: 'telegram', url: 'https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/telegram' });
       expect(restoredCategory.sources?.find((item) => item.sourceType === 'geoip')).toMatchObject({ geoipName: 'telegram', url: 'https://raw.githubusercontent.com/Loyalsoldier/geoip/release/text/telegram.txt' });
+    });
+    it('cancels a stale source sync when its category is deleted during download', async () => {
+      const data = await createCategory(env, { name: `${name}-stale-sync`, sourceUrls: ['https://example.com/rules.list'] });
+      const category = data.categories.find((item) => item.name === `${name}-stale-sync`)!;
+      const originalFetch = globalThis.fetch;
+      let signalRequestStarted!: () => void;
+      let releaseResponse!: (response: Response) => void;
+      const requestStarted = new Promise<void>((resolve) => { signalRequestStarted = resolve; });
+      const responsePending = new Promise<Response>((resolve) => { releaseResponse = resolve; });
+      globalThis.fetch = async () => {
+        signalRequestStarted();
+        return responsePending;
+      };
+
+      try {
+        const syncing = syncRuleSources(env, category.id);
+        await requestStarted;
+        await deleteCategory(env, category.id);
+        releaseResponse(new Response('DOMAIN-SUFFIX,example.com', { status: 200 }));
+        await expect(syncing).resolves.toEqual([
+          expect.objectContaining({
+            sourceId: category.sources![0].id,
+            categoryId: category.id,
+            ok: false,
+            count: 0,
+            error: '来源已删除或所属分类已变更，已取消同步',
+          }),
+        ]);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+
+      expect(await database.prepare('SELECT id FROM rules WHERE category_id = ?').bind(category.id).all()).toMatchObject({ results: [] });
     });
     it('rolls back a failed batch atomically', async () => {
       const timestamp = new Date().toISOString();

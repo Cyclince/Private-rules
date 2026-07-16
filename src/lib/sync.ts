@@ -8,6 +8,8 @@ import { loadGeositeRules } from './geosite';
 type SourceRecord = { id: string; category_id: string; name: string; url: string; last_synced_at: string | null; sync_interval_minutes: number | null; user_agent: string | null; source_type: 'url' | 'geosite' | 'geoip' | null; geosite_name: string | null; geoip_name: string | null };
 export type SyncResult = { sourceId: string; categoryId: string; name: string; ok: boolean; count: number; error?: string; syncedAt: string };
 
+const staleSourceError = '来源已删除或所属分类已变更，已取消同步';
+
 export function isSourceDue(source: Pick<SourceRecord, 'last_synced_at' | 'sync_interval_minutes'>, force = false, nowMs = Date.now()) {
   if (force || !source.last_synced_at) return true;
   const lastSync = Date.parse(source.last_synced_at);
@@ -30,8 +32,19 @@ function normalizeUpstreamText(text: string) {
 
 function ruleStatement(env: Env, source: SourceRecord, rule: DomainRule, index: number) {
   return env.DB.prepare(
-    'INSERT OR IGNORE INTO rules (id, category_id, value, type, display_type, note, enabled, sort_order, source_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)',
-  ).bind(id('rule'), source.category_id, rule.value, rule.type, rule.displayType ?? '', rule.note ?? '', Date.now() + index, source.id, rule.createdAt, rule.updatedAt);
+    `INSERT OR IGNORE INTO rules (id, category_id, value, type, display_type, note, enabled, sort_order, source_id, created_at, updated_at)
+     SELECT ?, category_id, ?, ?, ?, ?, 1, ?, id, ?, ?
+     FROM category_sources
+     WHERE id = ? AND category_id = ? AND enabled = 1`,
+  ).bind(id('rule'), rule.value, rule.type, rule.displayType ?? '', rule.note ?? '', Date.now() + index, rule.createdAt, rule.updatedAt, source.id, source.category_id);
+}
+
+async function sourceStillExists(env: Env, source: SourceRecord) {
+  return Boolean(await env.DB.prepare('SELECT 1 AS present FROM category_sources WHERE id = ? AND category_id = ? AND enabled = 1').bind(source.id, source.category_id).first());
+}
+
+function staleSourceResult(source: SourceRecord, syncedAt: string): SyncResult {
+  return { sourceId: source.id, categoryId: source.category_id, name: source.name, ok: false, count: 0, error: staleSourceError, syncedAt };
 }
 
 async function syncSource(env: Env, source: SourceRecord): Promise<SyncResult> {
@@ -57,12 +70,14 @@ async function syncSource(env: Env, source: SourceRecord): Promise<SyncResult> {
     if (text.length > 5_000_000) throw new Error('上游文件超过 5MB 限制');
     const preview = parseBulkImport(source.source_type === 'geosite' || source.source_type === 'geoip' ? text : normalizeUpstreamText(text), []);
     if (!preview.rules.length) throw new Error('未从上游识别出有效规则');
+    if (!await sourceStillExists(env, source)) return staleSourceResult(source, syncedAt);
     await env.DB.prepare('DELETE FROM rules WHERE source_id = ?').bind(source.id).run();
     for (let offset = 0; offset < preview.rules.length; offset += 80) {
       await env.DB.batch(preview.rules.slice(offset, offset + 80).map((rule, index) => ruleStatement(env, source, rule, offset + index)));
     }
+    if (!await sourceStillExists(env, source)) return staleSourceResult(source, syncedAt);
     await env.DB.batch([
-      env.DB.prepare("UPDATE category_sources SET last_synced_at = ?, last_status = 'success', last_count = ?, last_error = NULL, updated_at = ? WHERE id = ?").bind(syncedAt, preview.rules.length, syncedAt, source.id),
+      env.DB.prepare("UPDATE category_sources SET last_synced_at = ?, last_status = 'success', last_count = ?, last_error = NULL, updated_at = ? WHERE id = ? AND category_id = ?").bind(syncedAt, preview.rules.length, syncedAt, source.id, source.category_id),
       env.DB.prepare('UPDATE categories SET updated_at = ? WHERE id = ?').bind(syncedAt, source.category_id),
     ]);
     return { sourceId: source.id, categoryId: source.category_id, name: source.name, ok: true, count: preview.rules.length, syncedAt };
