@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { ClientLink, RulesData } from '../../types/domain-rules';
 import type { useDomainAdmin } from '../hooks/use-domain-admin';
 import { copyText } from '../lib/clipboard';
+import { preferHttpsLink } from '../lib/links';
 import { CategoryIcon } from './category-icon';
 import { SortToolbar, sortCategoryEntries, usePersistentSort } from './sort-toolbar';
 import { UiIcon } from './ui-icon';
@@ -24,7 +25,7 @@ export function LinksPanel({ api, data, links, onToast }: { api: ReturnType<type
 
   async function copy(link?: ClientLink) {
     if (!link?.recommendedUrl) { onToast('此规则当前未开放可用的订阅链接'); return; }
-    await copyText(link.recommendedUrl);
+    await copyText(preferHttpsLink(link.recommendedUrl));
     onToast('订阅链接已复制');
   }
   async function setAccess(policy: AccessPolicy) {

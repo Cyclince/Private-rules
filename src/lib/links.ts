@@ -22,7 +22,16 @@ const clients: Array<Omit<ClientLink, 'fileName' | 'publicUrl' | 'tokenUrl' | 'r
 ];
 
 function siteBase(requestUrl: string, data: RulesData) {
-  return data.settings.baseUrl.trim().replace(/\/+$/, '') || new URL(requestUrl).origin;
+  const request = new URL(requestUrl);
+  const configured = data.settings.baseUrl.trim().replace(/\/+$/, '');
+  if (!configured) return request.origin;
+  try {
+    const base = new URL(configured);
+    if (request.protocol === 'https:' && base.protocol === 'http:') base.protocol = 'https:';
+    return base.toString().replace(/\/+$/, '');
+  } catch {
+    return request.origin;
+  }
 }
 
 export function linksForCategory(category: RuleCategory, data: RulesData, requestUrl: string, ruleToken?: string): ClientLink[] {

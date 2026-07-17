@@ -2,7 +2,15 @@ import { createContext, useContext, useLayoutEffect, useMemo, useState, type Rea
 import { flushSync } from 'react-dom';
 
 export type AppLocale = 'system' | 'zh-CN' | 'zh-TW' | 'en';
-type ResolvedLocale = Exclude<AppLocale, 'system'>;
+export type ResolvedLocale = Exclude<AppLocale, 'system'>;
+
+const UI_MESSAGES = {
+  'optimization.off': { 'zh-CN': '关闭', 'zh-TW': '關閉', en: 'Off' },
+} as const;
+
+export function translateUiMessage(key: keyof typeof UI_MESSAGES, locale: ResolvedLocale) {
+  return UI_MESSAGES[key][locale];
+}
 
 export function resolveSystemLocale(languages: readonly string[]): ResolvedLocale {
   const normalized = (languages[0] ?? '').toLowerCase();
@@ -82,6 +90,19 @@ const ENGLISH_PHRASES: Array<[string, string]> = [
   ['选择从零构建或引用持续维护的上游规则', 'Build from scratch or use continuously maintained upstream rules'],
   ['统一管理基础配置、界面主题和数据备份', 'Manage site settings, appearance, and backups in one place'],
   ['配置订阅地址与生成规则时使用的默认策略组', 'Configure the subscription base URL and default policy group'],
+  ['配置订阅地址、GitHub 改写与生成规则时使用的默认策略组', 'Configure the subscription base URL, GitHub rewrite, and default policy group'],
+  ['同步时改写 GitHub 文件地址；jsDelivr 地址会自动使用 /gh/，自定义地址可使用 {url} 模板', 'Rewrite GitHub file URLs during sync; jsDelivr automatically uses /gh/, and custom URLs can use the {url} template'],
+  ['同步时改写 GitHub 文件地址；jsDelivr 地址会自动使用 /gh/，自定义地址可使用', 'Rewrite GitHub file URLs during sync; jsDelivr automatically uses /gh/, and custom URLs can use a'],
+  ['将永久删除该规则、上游来源和其中的', 'This will permanently delete the rule, its upstream sources, and'],
+  ['条内容，此操作无法撤销', 'items. This action cannot be undone'],
+  ['保存站点地址、GitHub 改写、策略组和自定义图标包设置', 'Save the site URL, GitHub rewrite, policy group, and custom icon packs'],
+  ['默认选项，完整保留上游规则', 'Default; keep all upstream rules unchanged'],
+  ['不生成关键词，只合并至少四段的域名后缀', 'Do not generate keywords; only merge domain suffixes with at least four labels'],
+  ['允许生成关键词与较宽后缀，压缩率更高但可能误匹配', 'Allow generated keywords and broader suffixes for higher compression, with possible false matches'],
+  ['GitHub 地址改写', 'GitHub URL rewrite'], ['自定义地址', 'Custom URL'],
+  ['jsDelivr Cloudflare 测试', 'jsDelivr Cloudflare testing'],
+  ['上游规则精简', 'Upstream rule optimization'], ['保守精简', 'Conservative optimization'], ['激进精简', 'Aggressive optimization'], ['保守', 'Conservative'], ['激进', 'Aggressive'],
+  ['条，共', ' of '], ['· 上游：', '· Upstream:'], ['的订阅链接', "'s subscription links"], ['模板', 'template'], ['个', ''],
   ['主题会同步调整卡片、表单和交互控件', 'The theme updates cards, forms, and controls together'],
   ['主题与语言会应用到整个管理界面', 'Theme and language apply to the entire admin UI'],
   ['保留 Qure Color，自定义图标包可随时修改名称和订阅地址', 'Keep Qure Color and edit custom icon pack names or URLs anytime'],
@@ -223,7 +244,8 @@ const TRADITIONAL_PHRASES: Array<[string, string]> = [
   ['訂閱地址', '訂閱網址'], ['數據庫', '資料庫'], ['自定義', '自訂'], ['默認', '預設'],
   ['圖標', '圖示'], ['文件', '檔案'], ['後臺', '後台'], ['站點', '網站'], ['界面', '介面'],
   ['設置', '設定'], ['數據', '資料'], ['添加', '新增'], ['保存', '儲存'], ['恢復', '還原'],
-  ['導出', '匯出'], ['訪問', '存取'], ['鏈接', '連結'],
+  ['導出', '匯出'], ['訪問', '存取'], ['鏈接', '連結'], ['地址', '位址'], ['模板', '範本'], ['關鍵詞', '關鍵字'],
+  ['配置', '設定'], ['生成', '產生'], ['創建', '建立'], ['遠程', '遠端'], ['連接', '連線'], ['搜索', '搜尋'], ['加載', '載入'], ['信息', '資訊'], ['合並', '合併'],
 ];
 type TrackedText = { source: string; rendered: string };
 const trackedText = new WeakMap<Text, TrackedText>();
@@ -281,6 +303,12 @@ function localizeNode(root: Node, locale: ResolvedLocale) {
     return;
   }
   if (!(root instanceof Element) || root.matches('script, style, code, pre, [data-no-translate]')) return;
+  const messageKey = root.getAttribute('data-i18n-key') as keyof typeof UI_MESSAGES | null;
+  if (messageKey && messageKey in UI_MESSAGES) {
+    const rendered = translateUiMessage(messageKey, locale);
+    if (root.textContent !== rendered) root.textContent = rendered;
+    return;
+  }
   for (const name of ['placeholder', 'aria-label', 'title']) translateAttribute(root, name, locale);
   for (const child of root.childNodes) localizeNode(child, locale);
 }

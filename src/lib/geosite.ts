@@ -1,4 +1,5 @@
 import type { GeoSourceSuggestion } from '../types/domain-rules';
+import { rewriteGithubUrl } from './github-mirror';
 
 const REPOSITORY = 'https://raw.githubusercontent.com/v2fly/domain-list-community/master/data';
 const TREE_API = 'https://api.github.com/repos/v2fly/domain-list-community/git/trees/master?recursive=1';
@@ -77,11 +78,11 @@ function normalizeGeositeLine(line: string, requiredAttrs: string[], excludedAtt
   return '';
 }
 
-async function resolveGeosite(name: string, visited: Set<string>, depth: number, requiredAttrs: string[] = [], excludedAttrs: string[] = []): Promise<string[]> {
+async function resolveGeosite(name: string, visited: Set<string>, depth: number, mirrorUrl: string, requiredAttrs: string[] = [], excludedAttrs: string[] = []): Promise<string[]> {
   const visitKey = `${name}|${requiredAttrs.join(',')}|${excludedAttrs.join(',')}`;
   if (visited.has(visitKey) || depth > 10) return [];
   visited.add(visitKey);
-  const response = await fetch(`${REPOSITORY}/${encodeURIComponent(name)}`, { headers: { accept: 'text/plain' } });
+  const response = await fetch(rewriteGithubUrl(`${REPOSITORY}/${encodeURIComponent(name)}`, mirrorUrl), { headers: { accept: 'text/plain' } });
   if (!response.ok) throw new Error(`GeoSite ${name} 返回 HTTP ${response.status}`);
   const text = await response.text();
   const lines = text.split(/\r?\n/);
@@ -93,11 +94,11 @@ async function resolveGeosite(name: string, visited: Set<string>, depth: number,
       excluded: parts.slice(1).filter((part) => part.startsWith('@-')).map((part) => part.slice(2)),
     };
   });
-  const nested = await Promise.all(includes.map((include) => resolveGeosite(include.name, visited, depth + 1, include.required, include.excluded)));
+  const nested = await Promise.all(includes.map((include) => resolveGeosite(include.name, visited, depth + 1, mirrorUrl, include.required, include.excluded)));
   return [...lines.map((line) => normalizeGeositeLine(line, requiredAttrs, excludedAttrs)).filter(Boolean), ...nested.flat()];
 }
 
-export async function loadGeositeRules(name: string) {
-  const rules = await resolveGeosite(name, new Set(), 0);
+export async function loadGeositeRules(name: string, mirrorUrl = '') {
+  const rules = await resolveGeosite(name, new Set(), 0, mirrorUrl);
   return [...new Set(rules)].join('\n');
 }

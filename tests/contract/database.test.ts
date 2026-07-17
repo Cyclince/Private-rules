@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { D1DatabaseAdapter } from '../../src/infrastructure/database/d1/adapter';
 import { SqliteDatabaseAdapter } from '../../src/infrastructure/database/sqlite/adapter';
 import { applySqliteMigrations } from '../../src/infrastructure/database/sqlite/migrations';
-import { addRule, createCategory, deleteCategory, getBackupData, getRulesData, getRulesOverview, importRulesData, insertRule, listRules, updateCategory } from '../../src/lib/db';
+import { addRule, createCategory, deleteCategory, getBackupData, getRulesData, getRulesOverview, importRulesData, insertRule, listRules, saveSettings, updateCategory } from '../../src/lib/db';
 import { syncRuleSources } from '../../src/lib/sync';
 import type { Env } from '../../src/types';
 import type { DatabasePort } from '../../src/application/ports/database';
@@ -33,7 +33,7 @@ function contract(name: string, setup: () => Promise<{ database: DatabasePort; c
       expect(restored.meta?.ruleTokenConfigured).toBe(true);
     });
     it('keeps custom rules and source configuration in compact backups', async () => {
-      let data = await createCategory(env, { name: `${name}-compact-backup`, sourceUrls: ['https://example.com/rules.list'], geositeNames: ['telegram'], geoipNames: ['telegram'], syncIntervalMinutes: 360, userAgent: 'Clash' });
+      let data = await createCategory(env, { name: `${name}-compact-backup`, sourceUrls: ['https://example.com/rules.list'], geositeNames: ['telegram'], geoipNames: ['telegram'], syncIntervalMinutes: 360, userAgent: 'Clash', ruleOptimization: 'conservative' });
       const category = data.categories.find((item) => item.name === `${name}-compact-backup`)!;
       data = await addRule(env, category.id, { value: 'custom.example' });
       const source = data.categories.find((item) => item.id === category.id)!.sources!.find((item) => item.sourceType === 'url')!;
@@ -44,7 +44,7 @@ function contract(name: string, setup: () => Promise<{ database: DatabasePort; c
       const backup = await getBackupData(env);
       const backedUpCategory = backup.categories.find((item) => item.id === category.id)!;
       expect(backedUpCategory.rules.map((rule) => rule.value)).toEqual(['custom.example']);
-      expect(backedUpCategory.sources?.find((item) => item.sourceType === 'url')).toEqual({ url: 'https://example.com/rules.list', enabled: true, syncIntervalMinutes: 360, userAgent: 'Clash', sourceType: 'url' });
+      expect(backedUpCategory.sources?.find((item) => item.sourceType === 'url')).toEqual({ url: 'https://example.com/rules.list', enabled: true, syncIntervalMinutes: 360, userAgent: 'Clash', ruleOptimization: 'conservative', sourceType: 'url' });
       expect(backedUpCategory.sources?.find((item) => item.sourceType === 'geosite')).toEqual({ geositeName: 'telegram', enabled: true, syncIntervalMinutes: 360, sourceType: 'geosite' });
       expect(backedUpCategory.sources?.find((item) => item.sourceType === 'geoip')).toEqual({ geoipName: 'telegram', enabled: true, syncIntervalMinutes: 360, sourceType: 'geoip' });
       expect(JSON.stringify(backup).length).toBeLessThan(JSON.stringify(full).length);
@@ -52,7 +52,7 @@ function contract(name: string, setup: () => Promise<{ database: DatabasePort; c
       const restored = await importRulesData(env, backup);
       const restoredCategory = restored.categories.find((item) => item.id === category.id)!;
       expect(restoredCategory.rules.map((rule) => rule.value)).toEqual(['custom.example']);
-      expect(restoredCategory.sources?.find((item) => item.sourceType === 'url')).toMatchObject({ url: 'https://example.com/rules.list', lastStatus: 'pending', lastCount: 0 });
+      expect(restoredCategory.sources?.find((item) => item.sourceType === 'url')).toMatchObject({ url: 'https://example.com/rules.list', lastStatus: 'pending', lastCount: 0, ruleOptimization: 'conservative' });
       expect(restoredCategory.sources?.find((item) => item.sourceType === 'geosite')).toMatchObject({ geositeName: 'telegram', url: 'https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/telegram' });
       expect(restoredCategory.sources?.find((item) => item.sourceType === 'geoip')).toMatchObject({ geoipName: 'telegram', url: 'https://raw.githubusercontent.com/Loyalsoldier/geoip/release/text/telegram.txt' });
     });
@@ -73,6 +73,26 @@ function contract(name: string, setup: () => Promise<{ database: DatabasePort; c
       expect(overviewCategory.rules).toHaveLength(1000);
       expect(await listRules(env, { categoryId: category.id, source: 'upstream' })).toHaveLength(1000);
       expect(await listRules(env, { query: 'speed', limit: 0 })).toHaveLength(1005);
+    });
+    it('persists and applies the GitHub rewrite setting during sync', async () => {
+      await saveSettings(env, { githubMirrorUrl: 'https://fastly.jsdelivr.net/' });
+      expect((await getRulesData(env)).settings.githubMirrorUrl).toBe('https://fastly.jsdelivr.net');
+      const rawUrl = 'https://raw.githubusercontent.com/ddgksf2013/Filter/refs/heads/master/AppleIntelligence.list';
+      const data = await createCategory(env, { name: `${name}-github-mirror`, sourceUrls: [rawUrl] });
+      const category = data.categories.find((item) => item.name === `${name}-github-mirror`)!;
+      const originalFetch = globalThis.fetch;
+      let requestedUrl = '';
+      globalThis.fetch = async (input) => {
+        requestedUrl = String(input);
+        return new Response('DOMAIN-SUFFIX,example.com', { status: 200 });
+      };
+      try {
+        await expect(syncRuleSources(env, category.id)).resolves.toEqual([expect.objectContaining({ ok: true, count: 1 })]);
+      } finally {
+        globalThis.fetch = originalFetch;
+        await saveSettings(env, { githubMirrorUrl: '' });
+      }
+      expect(requestedUrl).toBe('https://fastly.jsdelivr.net/gh/ddgksf2013/Filter@master/AppleIntelligence.list');
     });
     it('cancels a stale source sync when its category is deleted during download', async () => {
       const data = await createCategory(env, { name: `${name}-stale-sync`, sourceUrls: ['https://example.com/rules.list'] });

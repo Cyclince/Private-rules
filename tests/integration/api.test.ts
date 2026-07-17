@@ -84,4 +84,46 @@ describe('HTTP API behavior', () => {
     expect(searched.rules).toHaveLength(1005);
     expect(await (await request('/rules/large-rule-set.yaml')).text()).toContain('speed-1004.example');
   });
+
+  it('applies aggressive compaction to an opted-in remote subscription', async () => {
+    const login = await request('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password: 'correct-password' }) });
+    cookie = login.headers.get('set-cookie')?.split(';')[0] ?? cookie;
+    const originalFetch = globalThis.fetch;
+    const upstreamRules = [
+      ...Array.from({ length: 12 }, (_, index) => `DOMAIN,speedtest-${index}.carrier${index}.example`),
+      'DOMAIN,server-a.ookla.com',
+      'DOMAIN,server-b.ookla.com',
+      'DOMAIN,unrelated.example.org',
+    ].join('\n');
+    globalThis.fetch = async (input, init) => {
+      if (String(input) === 'https://rules.example/speedtest.list') return new Response(upstreamRules, { status: 200 });
+      return originalFetch(input, init);
+    };
+
+    try {
+      const response = await request('/api/categories', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: 'aggressive-speedtest',
+          sourceUrls: ['https://rules.example/speedtest.list'],
+          ruleOptimization: 'aggressive',
+          tokenLinksEnabled: false,
+          publicLinksEnabled: true,
+        }),
+      });
+      expect(response.status).toBe(201);
+      const payload = await response.json() as { data: { categories: Array<{ name: string; rules: Array<{ type: string; value: string }>; sources?: Array<{ ruleOptimization?: string; lastCount?: number; lastOriginalCount?: number }> }> } };
+      const category = payload.data.categories.find((item) => item.name === 'aggressive-speedtest')!;
+      expect(category.sources?.[0]).toMatchObject({ ruleOptimization: 'aggressive', lastOriginalCount: 15 });
+      expect(category.sources?.[0].lastCount).toBeLessThan(15);
+      expect(category.rules).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type: 'DOMAIN-KEYWORD', value: 'speedtest' }),
+        expect.objectContaining({ type: 'DOMAIN-SUFFIX', value: 'ookla.com' }),
+        expect.objectContaining({ type: 'DOMAIN', value: 'unrelated.example.org' }),
+      ]));
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

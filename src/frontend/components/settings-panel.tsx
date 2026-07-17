@@ -5,11 +5,15 @@ import { UiIcon } from './ui-icon';
 import { PRESET_ICON_PACKS } from './icon-picker';
 import { useLocale } from '../i18n';
 import { copyText } from '../lib/clipboard';
+import { GITHUB_MIRROR_PRESETS } from '../../lib/github-mirror';
 
 export function SettingsPanel({ api, data, theme, onThemeChange, onToast }: { api: ReturnType<typeof useDomainAdmin>; data: RulesData; theme: string; onThemeChange: (theme: string) => void; onToast: (message: string) => void }) {
   const { locale, setLocale } = useLocale();
   const [baseUrl, setBaseUrl] = useState(data.settings.baseUrl);
   const [policyName, setPolicyName] = useState(data.settings.policyName);
+  const initialMirrorUrl = data.settings.githubMirrorUrl ?? '';
+  const [githubMirrorMode, setGithubMirrorMode] = useState(initialMirrorUrl && !GITHUB_MIRROR_PRESETS.includes(initialMirrorUrl as typeof GITHUB_MIRROR_PRESETS[number]) ? 'custom' : initialMirrorUrl);
+  const [githubMirrorUrl, setGithubMirrorUrl] = useState(initialMirrorUrl);
   const [customIconPackUrls, setCustomIconPackUrls] = useState(data.settings.customIconPackUrls ?? []);
   const [customIconPackNames, setCustomIconPackNames] = useState(data.settings.customIconPackNames ?? {});
   const [iconPackNameInput, setIconPackNameInput] = useState('');
@@ -21,7 +25,7 @@ export function SettingsPanel({ api, data, theme, onThemeChange, onToast }: { ap
   const fileInput = useRef<HTMLInputElement>(null);
 
   async function save() {
-    await api.updateSettings({ baseUrl, policyName, customIconPackUrls, customIconPackNames });
+    await api.updateSettings({ baseUrl, policyName, githubMirrorUrl, customIconPackUrls, customIconPackNames });
     onToast('设置已保存');
   }
   async function addIconPack() {
@@ -102,8 +106,8 @@ export function SettingsPanel({ api, data, theme, onThemeChange, onToast }: { ap
   return <div className="page-stack unified-page">
     <header className="page-title"><div><span className="eyebrow">PREFERENCES</span><h1>设置</h1><p>统一管理基础配置、界面主题和数据备份</p></div></header>
     <section className="soft-card unified-card settings-section">
-      <div className="card-title"><span className="metric-icon blue"><UiIcon name="settings"/></span><div><h2>基础配置</h2><p>配置订阅地址与生成规则时使用的默认策略组</p></div></div>
-      <div className="settings-form compact-settings-form"><label><span>站点基础 URL</span><input className="app-input" placeholder="https://example.com" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)}/></label><label><span>默认策略组名称</span><input className="app-input" placeholder="可留空" value={policyName} onChange={(event) => setPolicyName(event.target.value)}/></label></div>
+      <div className="card-title"><span className="metric-icon blue"><UiIcon name="settings"/></span><div><h2>基础配置</h2><p>配置订阅地址、GitHub 改写与生成规则时使用的默认策略组</p></div></div>
+      <div className="settings-form compact-settings-form"><label><span>站点基础 URL</span><input className="app-input" placeholder="https://example.com" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)}/></label><label><span>默认策略组名称</span><input className="app-input" placeholder="可留空" value={policyName} onChange={(event) => setPolicyName(event.target.value)}/></label><label className="github-mirror-setting"><span>GitHub 地址改写</span><select className="app-input" value={githubMirrorMode} onChange={(event) => { const mode = event.target.value; setGithubMirrorMode(mode); if (mode !== 'custom') setGithubMirrorUrl(mode); }}><option value="" data-i18n-key="optimization.off">关闭</option><option value="https://cdn.jsdelivr.net">jsDelivr CDN</option><option value="https://fastly.jsdelivr.net">jsDelivr Fastly</option><option value="https://testingcf.jsdelivr.net">jsDelivr Cloudflare 测试</option><option value="custom">自定义地址</option></select>{githubMirrorMode === 'custom' && <input className="app-input" placeholder="https://mirror.example/{url}" value={githubMirrorUrl} onChange={(event) => setGithubMirrorUrl(event.target.value)}/>}<small>同步时改写 GitHub 文件地址；jsDelivr 地址会自动使用 /gh/，自定义地址可使用 {'{url}'} 模板</small></label></div>
     </section>
     <section className="soft-card unified-card settings-section"><div className="card-title"><span className="metric-icon purple"><UiIcon name="settings"/></span><div><h2>外观</h2><p>主题与语言会应用到整个管理界面</p></div></div><div className="appearance-settings-grid"><label><span className="field-label">主题</span><select className="app-input" value={theme} onChange={(event) => onThemeChange(event.target.value)}><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label><label><span className="field-label">语言</span><select className="app-input" value={locale} onChange={(event) => setLocale(event.target.value as typeof locale)}><option value="system">跟随系统</option><option value="zh-CN">简体中文</option><option value="zh-TW">繁体中文</option><option value="en">English</option></select></label></div></section>
     <section className="soft-card unified-card settings-section"><div className="card-title"><span className="metric-icon cyan"><UiIcon name="domain"/></span><div><h2>图标包</h2><p>保留 Qure Color，自定义图标包可随时修改名称和订阅地址</p></div></div><div className="icon-pack-list">{PRESET_ICON_PACKS.map((pack) => <div key={pack.url}><span className="rule-state on"/><span><strong>{pack.label}</strong><small>{pack.url}</small></span><em>预置</em></div>)}{customIconPackUrls.map((url, index) => <div className="custom-icon-pack-row editable-pack-row" key={index}><span className="rule-state on"/><span><input className="app-input icon-pack-name-input" aria-label={`${url} 的图标包名称`} value={customIconPackNames[url] ?? ''} placeholder="图标包名称" onChange={(event) => setCustomIconPackNames((current) => ({ ...current, [url]: event.target.value }))}/><input className="app-input icon-pack-url-input" aria-label={`${customIconPackNames[url] || '自定义图标包'} 的订阅地址`} value={url} placeholder="https://example.com/icons.json" onChange={(event) => updateIconPackUrl(index, event.target.value)}/></span><button className="danger-icon-button" aria-label="移除自定义图标包" onClick={() => removeIconPack(url)}><UiIcon name="trash" size={16}/></button></div>)}</div><div className="add-pack-row named-pack-row"><input className="app-input" placeholder="图标包名称" value={iconPackNameInput} onChange={(event) => setIconPackNameInput(event.target.value)}/><input className="app-input" placeholder="https://example.com/icons.json" value={iconPackInput} onChange={(event) => setIconPackInput(event.target.value)}/><button className="subtle-action icon-action add-pack-button" disabled={!/^https?:\/\//i.test(iconPackInput.trim())} onClick={addIconPack}><UiIcon name="plus" size={17}/><span>添加图标包</span><UiIcon name="chevronRight" size={17}/></button></div></section>
@@ -124,6 +128,6 @@ export function SettingsPanel({ api, data, theme, onThemeChange, onToast }: { ap
       </div>
     </section>
     <section className="soft-card unified-card settings-section"><div className="card-title"><span className="metric-icon orange"><UiIcon name="database"/></span><div><h2>服务状态</h2><p>这里只显示配置状态，不展示敏感值</p></div></div><div className="service-grid"><span><i className={api.meta.d1Ready ? 'ok' : ''}/>应用数据库<strong>{api.meta.d1Ready ? '已连接' : '未连接'}</strong></span><span><i className={api.meta.passwordConfigured ? 'ok' : ''}/>后台密码<strong>{api.meta.passwordConfigured ? '已配置' : '未配置'}</strong></span><span><i className={api.meta.ruleTokenConfigured ? 'ok' : ''}/>RULE_TOKEN<strong>{api.meta.ruleTokenConfigured ? '已配置' : '未配置'}</strong></span><span><i className={api.meta.sessionSecretConfigured ? 'ok' : ''}/>SESSION_SECRET<strong>{api.meta.sessionSecretConfigured ? '已配置' : '未配置'}</strong></span></div></section>
-    <div className="settings-savebar"><span>保存站点地址、策略组和自定义图标包设置</span><button className="primary-action icon-action" onClick={save}><UiIcon name="download" size={17}/>保存全部设置</button></div>
+    <div className="settings-savebar"><span>保存站点地址、GitHub 改写、策略组和自定义图标包设置</span><button className="primary-action icon-action" onClick={save}><UiIcon name="download" size={17}/>保存全部设置</button></div>
   </div>;
 }

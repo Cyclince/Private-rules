@@ -1,6 +1,7 @@
 import type { ClientLink } from '../../types/domain-rules';
 import { useState } from 'react';
 import { copyText } from '../lib/clipboard';
+import { preferHttpsLink } from '../lib/links';
 
 export function LinkSheet({
   links,
@@ -19,7 +20,7 @@ export function LinkSheet({
       return;
     }
     try {
-      await copyText(url);
+      await copyText(preferHttpsLink(url));
       onToast('链接已复制');
       onClose();
     } catch (error) {
@@ -28,7 +29,7 @@ export function LinkSheet({
   }
 
   async function showPreview(link: ClientLink) {
-    const response = await fetch(link.publicUrl);
+    const response = await fetch(preferHttpsLink(link.publicUrl));
     setPreview({
       title: `${link.name} 预览`,
       content: await response.text(),

@@ -18,7 +18,7 @@ const demoCategories = ['AI', 'Apple', 'Google', 'YouTube', 'GitHub', 'Cloudflar
 
 const localDemoData: RulesData = {
   version: 1,
-  settings: { baseUrl: '', policyName: 'PROXY', publicLinksEnabled: true, tokenLinksEnabled: true, customIconPackUrls: [], customIconPackNames: {} },
+  settings: { baseUrl: '', policyName: 'PROXY', githubMirrorUrl: '', publicLinksEnabled: true, tokenLinksEnabled: true, customIconPackUrls: [], customIconPackNames: {} },
   meta: { d1Ready: false, adminPasswordConfigured: true, ruleTokenConfigured: true, sessionSecretConfigured: true, apiKeyConfigured: false },
   categories: demoCategories,
   updatedAt: '2026-07-13T00:00:00.000Z',
@@ -113,7 +113,7 @@ export function useDomainAdmin() {
     meta,
     apiKeys,
     refresh,
-    createCategory: (input: { name: string; icon?: string; description?: string; sourceUrls?: string[]; geositeNames?: string[]; geoipNames?: string[]; syncIntervalMinutes?: number; userAgent?: string; tokenLinksEnabled?: boolean; publicLinksEnabled?: boolean }) =>
+    createCategory: (input: { name: string; icon?: string; description?: string; sourceUrls?: string[]; geositeNames?: string[]; geoipNames?: string[]; syncIntervalMinutes?: number; userAgent?: string; ruleOptimization?: 'none' | 'conservative' | 'aggressive'; tokenLinksEnabled?: boolean; publicLinksEnabled?: boolean }) =>
       mutate('/api/categories', { method: 'POST', body: JSON.stringify(input) }),
     updateCategory: (id: string, input: Record<string, unknown>) =>
       mutate(`/api/categories/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),

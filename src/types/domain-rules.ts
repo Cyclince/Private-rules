@@ -1,5 +1,7 @@
 export const UPSTREAM_RULE_PREVIEW_LIMIT = 1000;
 
+export type RuleOptimizationMode = 'none' | 'conservative' | 'aggressive';
+
 export type DomainRuleType =
   | 'DOMAIN'
   | 'DOMAIN-SUFFIX'
@@ -36,12 +38,14 @@ export type RuleSource = {
   lastSyncedAt?: string;
   lastStatus?: 'success' | 'error' | 'pending';
   lastCount?: number;
+  lastOriginalCount?: number;
   lastError?: string;
   syncIntervalMinutes: number;
   userAgent?: string;
   sourceType?: 'url' | 'geosite' | 'geoip';
   geositeName?: string;
   geoipName?: string;
+  ruleOptimization?: RuleOptimizationMode;
 };
 
 export type GeoSourceSuggestion = {
@@ -78,6 +82,7 @@ export type RuleCategory = {
 export type RuleSettings = {
   baseUrl: string;
   policyName: string;
+  githubMirrorUrl: string;
   publicLinksEnabled: boolean;
   tokenLinksEnabled: boolean;
   customIconPackUrls: string[];
