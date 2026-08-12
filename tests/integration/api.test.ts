@@ -7,6 +7,7 @@ import { applySqliteMigrations } from '../../src/infrastructure/database/sqlite/
 import { addRule, createCategory, insertRule } from '../../src/lib/db';
 import { createApp } from '../../src/server/app';
 import type { Env } from '../../src/types';
+import { PRESET_ICON_PACK_URLS } from '../../src/lib/icon-packs';
 
 describe('HTTP API behavior', () => {
   let directory: string; let database: SqliteDatabaseAdapter; let env: Env; let cookie = '';
@@ -68,6 +69,26 @@ describe('HTTP API behavior', () => {
     env.TRUST_PROXY = false;
     const untrusted = await request('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-proto': 'https' }, body: JSON.stringify({ password: 'correct-password' }) });
     expect(untrusted.headers.get('set-cookie')).not.toContain('Secure');
+  });
+
+  it('updates and serves cached icon packs with persisted automatic intervals', async () => {
+    const login = await request('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password: 'correct-password' }) });
+    cookie = login.headers.get('set-cookie')?.split(';')[0] ?? '';
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      if (String(input) === PRESET_ICON_PACK_URLS[0]) return new Response(JSON.stringify([{ name: 'AI', url: 'https://icons.example/ai.png' }]), { headers: { 'content-type': 'application/json' } });
+      return originalFetch(input, init);
+    };
+    try {
+      const settings = await request('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ iconPackAutoUpdate: true, iconPackUpdateIntervalHours: 72 }) });
+      expect(await settings.json()).toMatchObject({ data: { settings: { iconPackAutoUpdate: true, iconPackUpdateIntervalHours: 72 } } });
+      const refreshed = await request('/api/icon-packs/refresh', { method: 'POST' });
+      expect(await refreshed.json()).toMatchObject({ results: [{ ok: true, count: 1 }] });
+      const cached = await request(`/api/icon-packs/content?url=${encodeURIComponent(PRESET_ICON_PACK_URLS[0])}`);
+      expect(await cached.json()).toMatchObject({ count: 1, icons: [{ name: 'AI', url: 'https://icons.example/ai.png' }] });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('returns a 1000-rule preview while counts, expansion, search, and subscriptions use the full set', async () => {

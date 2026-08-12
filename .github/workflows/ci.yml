@@ -20,6 +20,7 @@ jobs:
       - run: pnpm test:unit
       - run: pnpm test:contract
       - run: pnpm test:api
+      - run: pnpm test:telegram
       - run: pnpm build
       - run: pnpm wrangler deploy --dry-run --keep-vars
       - run: pnpm exec playwright install --with-deps chromium

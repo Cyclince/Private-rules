@@ -124,7 +124,16 @@ export function singBoxJson(category: RuleCategory) {
   }
 
   const rules = [destination, source, ports].filter((rule) => Object.keys(rule).length > 0);
-  return `${JSON.stringify({ version: 2, rules }, null, 2)}\n`;
+  return `${JSON.stringify({
+    _meta: {
+      generatedFor: category.name,
+      generatedBy: 'Private Rules',
+      updatedAt: updatedLabel(category),
+      description: category.note?.trim() || category.description?.trim() || `${category.name}规则`,
+    },
+    version: 2,
+    rules,
+  }, null, 2)}\n`;
 }
 
 export function url(category: RuleCategory) {

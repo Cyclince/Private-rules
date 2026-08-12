@@ -16,7 +16,6 @@ curl -fsSL https://raw.githubusercontent.com/Cyclince/Private_rules/main/.env.ex
 
 ```dotenv
 ADMIN_PASSWORD=设置后台登录密码
-SESSION_SECRET=设置至少32个字符的随机密钥
 RULE_TOKEN=设置私密订阅Token
 ```
 
@@ -43,7 +42,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Compose 默认使用 `cyclince/private-rules:latest`，每次执行 `docker compose pull` 即可获取最新版本。需要固定版本时可以改用 `cyclince/private-rules:1.0.0`。镜像支持 `linux/amd64` 与 `linux/arm64`。
+Compose 默认在线拉取固定版本 `cyclince/private-rules:1.0.4`，该版本也发布为 `latest`。镜像支持 `linux/amd64` 与 `linux/arm64`。
 
 详细步骤请查看 [Docker Compose 从零部署](https://github.com/Cyclince/Private_rules/wiki/Docker-Compose-Deployment)。
 

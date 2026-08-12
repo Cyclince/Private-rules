@@ -4,6 +4,21 @@
 @import './admin-extras.css';
 @import './neko-ui.css';
 
+.telegram-session-state {
+  align-items: center;
+  background: var(--tg-bg-color, #f6f7fb);
+  color: var(--tg-text-color, #182033);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+[data-telegram='true'] {
+  --surface-background: var(--tg-secondary-bg-color, #f6f7fb);
+}
+
 #root {
   min-height: 100vh;
 }

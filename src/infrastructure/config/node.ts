@@ -1,4 +1,5 @@
 import { normalizeBaseUrl, type AppConfig, type LogLevel } from './types';
+import { parseTelegramConfig } from '../../integrations/telegram/config';
 type RawEnvironment = Record<string, string | undefined>;
 
 function booleanValue(env: RawEnvironment, name: string, fallback: boolean) {
@@ -24,8 +25,7 @@ export function parseNodeConfig(env: RawEnvironment): AppConfig {
   const adminPassword = env.ADMIN_PASSWORD?.trim() ?? '';
   const sessionSecret = env.SESSION_SECRET?.trim() ?? '';
   if (!adminPassword) throw new Error('ADMIN_PASSWORD 必须配置。');
-  if (!sessionSecret) throw new Error('SESSION_SECRET 必须配置。');
-  if (nodeEnv === 'production' && sessionSecret.length < 32) throw new Error('生产环境 SESSION_SECRET 至少需要 32 个字符。');
+  if (sessionSecret && nodeEnv === 'production' && sessionSecret.length < 32) throw new Error('生产环境自定义 SESSION_SECRET 至少需要 32 个字符。');
   const logLevel = (env.LOG_LEVEL?.trim().toLowerCase() || 'info') as LogLevel;
   if (!['debug', 'info', 'warn', 'error'].includes(logLevel)) throw new Error('LOG_LEVEL 无效。');
   return {
@@ -34,5 +34,6 @@ export function parseNodeConfig(env: RawEnvironment): AppConfig {
     host: env.HOST?.trim() || '0.0.0.0', port: integerValue(env, 'PORT', 5173, 1, 65_535), nodeEnv,
     scheduler: { enabled: booleanValue(env, 'SCHEDULER_ENABLED', true), intervalSeconds: integerValue(env, 'SCHEDULER_INTERVAL_SECONDS', 60, 1, 86_400) },
     trustProxy: booleanValue(env, 'TRUST_PROXY', false), logLevel,
+    telegram: parseTelegramConfig(env, nodeEnv === 'production'),
   };
 }

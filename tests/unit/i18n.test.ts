@@ -23,8 +23,23 @@ describe('English UI translations', () => {
     '允许生成关键词与较宽后缀，压缩率更高但可能误匹配',
     'GitHub 地址改写',
     '同步时改写 GitHub 文件地址；jsDelivr 地址会自动使用 /gh/，自定义地址可使用 {url} 模板',
+    '将同步消息合并为摘要，或按需静音、关闭通知',
+    '当前未配置 Telegram 环境参数，推送功能已禁用',
+    '发现重复或冲突规则',
+    '关键词规则会覆盖另一条规则的匹配范围',
+    'IP 网段的匹配范围互相包含或重叠',
+    '合并重复与被更宽规则覆盖的手动维护域名规则',
+    '仅在同一分类和相同启用状态内处理，不影响上游只读规则',
+    '确认后将移除被保留规则完整覆盖的冗余项，此操作无法撤销',
+    '规则优化完成，已移除 2 条冗余规则',
+    '规则优化',
+    '开始优化',
   ])('does not leave Chinese text in %s', (source) => {
     expect(hasHanCharacters(translateUiText(source, 'en'))).toBe(false);
+  });
+
+  it('uses natural Traditional Chinese wording for settings', () => {
+    expect(translateUiText('设置 Telegram 推送', 'zh-TW')).toBe('設定 Telegram 推播');
   });
 
   it('translates the dynamic domain suffix description naturally', () => {

@@ -24,6 +24,7 @@ const ABOUT_META = { label: '关于', english: 'ABOUT' };
 function initialView(): View {
   if (typeof window === 'undefined') return 'dashboard';
   const candidate = new URLSearchParams(window.location.search).get('view') ?? localStorage.getItem('rule-admin-view');
+  if (candidate === 'sources') return 'rules';
   return ['dashboard', 'rules', 'links', 'settings', 'about'].includes(candidate ?? '') ? candidate as View : 'dashboard';
 }
 
@@ -75,7 +76,7 @@ export function DomainAdmin() {
 
   async function logout() {
     setActionDialog(null);
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await fetch(api.meta.authType === 'telegram' ? '/api/telegram/session/logout' : '/api/auth/logout', { method: 'POST' });
     document.documentElement.classList.add('session-leaving');
     window.setTimeout(() => { window.location.href = '/admin/login'; }, 520);
   }
@@ -87,10 +88,13 @@ export function DomainAdmin() {
   }
 
   useEffect(() => {
-    setTheme(localStorage.getItem('rule-admin-theme') ?? 'system');
+    if (document.documentElement.dataset.telegram !== 'true') {
+      setTheme(localStorage.getItem('rule-admin-theme') ?? 'system');
+    }
   }, []);
 
   useEffect(() => {
+    if (document.documentElement.dataset.telegram === 'true') return;
     const applyTheme = () => {
       const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       document.documentElement.dataset.theme = dark ? 'dark' : 'light';
@@ -147,7 +151,7 @@ export function DomainAdmin() {
   }, [loginArrival]);
 
   return (
-    <div className={`app-shell ${loginArrival ? 'login-arrival' : ''}`}>
+    <div className={`app-shell ${loginArrival ? 'login-arrival' : ''} ${api.meta.authType === 'telegram' ? 'telegram-session' : ''}`}>
       <aside className="desktop-sidebar">
         <div className="sidebar-brand">
           <img src={privateRulesAvatar} alt="Private Rules 规则守护者" />
@@ -158,14 +162,14 @@ export function DomainAdmin() {
             <UiIcon name={item.icon} />{item.label}
           </button>
         ))}
-        <div className="sidebar-status"><span className="status-dot" />服务运行正常</div>
+        <div className="sidebar-status"><span className="status-dot" /><span><strong>服务运行正常</strong><small>v{api.meta.appVersion}</small></span></div>
       </aside>
       <main className="app-main">
         <header className="app-topbar">
           <div className="mobile-brand"><img src={privateRulesAvatar} alt="" /><div><strong>Private Rules</strong><span>规则控制台</span></div></div>
           <div className="topbar-title"><span>{pageMeta.english}</span><strong>{pageMeta.label}</strong></div>
           <div className="topbar-actions"><span className="sync-status"><span className="status-dot" />已同步{api.data?.lastSyncedAt ? ` · ${new Date(api.data.lastSyncedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ' · 暂无上游'}</span><button className="icon-button" aria-label="更多操作" onClick={() => setProfileOpen((open) => !open)}><UiIcon name="more" /></button></div>
-          {profileOpen && <div className="profile-menu"><div className="mobile-sync-menu-meta"><span className="status-dot"/><span><strong>上游同步</strong><small>{api.data?.lastSyncedAt ? `最后同步 ${new Date(api.data.lastSyncedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}` : '暂无同步记录'}</small></span></div><button disabled={syncing} onClick={() => { setProfileOpen(false); setActionDialog('sync'); }}><UiIcon name="sync" size={19}/>手动同步</button><button onClick={() => navigate('about')}><UiIcon name="info" size={18}/>关于</button><button className="danger-menu" onClick={() => { setProfileOpen(false); setActionDialog('logout'); }}><UiIcon name="logout" size={18}/>退出登录</button></div>}
+          {profileOpen && <div className="profile-menu"><div className="mobile-sync-menu-meta"><span className="status-dot"/><span><strong>上游同步</strong><small>{api.data?.lastSyncedAt ? `最后同步 ${new Date(api.data.lastSyncedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}` : '暂无同步记录'}</small></span></div>{api.can('sync') && <button disabled={syncing} onClick={() => { setProfileOpen(false); setActionDialog('sync'); }}><UiIcon name="sync" size={19}/>手动同步</button>}<button onClick={() => navigate('about')}><UiIcon name="info" size={18}/>关于</button><div className="mobile-version-info"><span>当前版本</span><strong>v{api.meta.appVersion}</strong></div><button className="danger-menu" onClick={() => { setProfileOpen(false); setActionDialog('logout'); }}><UiIcon name="logout" size={18}/>退出登录</button></div>}
         </header>
         {api.loading || !api.data ? (
           <div className="skeleton-card" />
@@ -174,7 +178,7 @@ export function DomainAdmin() {
             {view === 'dashboard' && <DashboardPanel data={api.data} onOpenCategory={openCategory} />}
             {view === 'rules' && <RulesPanel api={api} categories={api.data.categories} category={selectedCategory} onSelectCategory={setSelectedId} onToast={showToast} />}
             {view === 'links' && <LinksPanel api={api} data={api.data} links={api.links} onToast={showToast} />}
-            {view === 'settings' && <SettingsPanel api={api} data={api.data} onThemeChange={changeTheme} onToast={showToast} theme={theme} />}
+            {view === 'settings' && (api.meta.authType === 'telegram' ? <div className="empty-state"><strong>Telegram 会话不能访问管理员设置</strong></div> : <SettingsPanel api={api} data={api.data} onThemeChange={changeTheme} onToast={showToast} theme={theme} />)}
             {view === 'about' && <AboutPanel />}
           </div>
         )}

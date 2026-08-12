@@ -1,14 +1,17 @@
 services:
   private-rules:
-    image: cyclince/private-rules:latest
+    image: cyclince/private-rules:1.0.4
+    container_name: private-rules
     restart: unless-stopped
     ports:
       - "5173:5173"
     environment:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
-      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env}
       RULE_TOKEN: ${RULE_TOKEN:?Set RULE_TOKEN in .env}
       TRUST_PROXY: "true"
+      BASE_URL: ${BASE_URL:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_USER_ID: ${TELEGRAM_USER_ID:-}
     volumes:
       - private-rules-data:/app/data
     healthcheck:

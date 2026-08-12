@@ -17,6 +17,10 @@ export default defineConfig({
       PORT: '5180',
       NODE_ENV: 'test',
       SCHEDULER_ENABLED: 'false',
+      TELEGRAM_BOT_TOKEN: '123456:e2e-test-token',
+      TELEGRAM_WEBHOOK_SECRET: 'e2e-webhook-secret',
+      TELEGRAM_USER_ID: '2001',
+      BASE_URL: 'http://127.0.0.1:5180',
     },
   },
 });

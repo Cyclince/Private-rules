@@ -18,5 +18,5 @@
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
-  "exclude": ["node_modules", "dist", ".wrangler"]
+  "exclude": ["node_modules", "dist", ".wrangler", "src/**/*-翀のMacBook Air.ts", "src/**/*-翀のMacBook Air.tsx"]
 }

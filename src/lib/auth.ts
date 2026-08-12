@@ -3,6 +3,7 @@ import { getCookie, setCookie } from 'hono/cookie';
 import type { AppVariables, Env } from '../types';
 import { error } from './response';
 import { id, slugify } from './slug';
+import { currentTelegramSession } from '../integrations/telegram/session';
 
 const COOKIE_NAME = 'private_rules_session';
 const maxAgeSeconds = 60 * 60 * 24 * 14;
@@ -118,7 +119,7 @@ export async function currentSessionId(c: Context<{ Bindings: Env; Variables: Ap
 }
 
 export async function isAuthenticated(c: Context<{ Bindings: Env; Variables: AppVariables }>) {
-  return Boolean(await currentSessionId(c));
+  return Boolean(await currentSessionId(c) || await currentTelegramSession(c));
 }
 
 export const requireSessionAuth: MiddlewareHandler<{ Bindings: Env; Variables: AppVariables }> = async (c, next) => {
@@ -134,6 +135,13 @@ export const requireAuth: MiddlewareHandler<{ Bindings: Env; Variables: AppVaria
   if (sessionId) {
     c.set('sessionId', sessionId);
     c.set('authType', 'session');
+    await next();
+    return;
+  }
+  const telegramSession = await currentTelegramSession(c);
+  if (telegramSession) {
+    c.set('authType', 'telegram');
+    c.set('telegramUserId', telegramSession.telegramUserId);
     await next();
     return;
   }

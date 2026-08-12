@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="src/frontend/assets/private-rules-avatar.png" alt="Private Rules" width="112" height="112">
+<img src="src/frontend/assets/private-rules-favicon.png" alt="Private Rules" width="112" height="112">
 
 # Private Rules
 
@@ -78,11 +78,13 @@ pnpm db:migrate:remote
 
 在 **Settings → Variables and Secrets** 中添加：
 
-| Secret | 用途 | 必需 |
+| 变量或 Secret | 用途 | 必需 |
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | 登录管理后台 | 是 |
-| `SESSION_SECRET` | 签名登录会话，建议至少 32 个随机字符 | 是 |
 | `RULE_TOKEN` | 生成私密订阅地址 | 使用私密访问时 |
+| `BASE_URL` | 站点的公网 HTTPS 地址 | 否 |
+| `TELEGRAM_BOT_TOKEN` | BotFather 提供的 Bot Token | 否 |
+| `TELEGRAM_USER_ID` | 唯一允许使用 Bot 的数字用户 ID | 否 |
 
 部署完成后访问：
 
@@ -92,20 +94,36 @@ https://<your-worker-domain>/admin/login
 
 如需自定义域名，在 Worker 的 **Domains & Routes** 中添加域名，再到后台“设置”填写相同的站点基础 URL。
 
+### 可选：启用 Telegram Bot
+
+先通过 BotFather 创建 Bot，再填写 `BASE_URL`、`TELEGRAM_BOT_TOKEN` 与 `TELEGRAM_USER_ID`。Worker 会自动生成并持久化会话密钥和 Webhook 密钥，并在首次请求或 Cron 触发时注册命令、Webhook 和 Mini App。Bot 仅接受配置用户的私聊；部署完成后发送 `/start` 即可使用。
+
 ## 部署到 Docker
 
 Docker 部署直接使用 Docker Hub 上的多架构镜像，适合 VPS、NAS 和本地服务器。
 
 ```bash
 mkdir -p private-rules && cd private-rules
-curl -fsSLO https://raw.githubusercontent.com/Cyclince/Private_rules/main/docker-compose.yml
-curl -fsSL https://raw.githubusercontent.com/Cyclince/Private_rules/main/.env.example -o .env
-# 编辑 .env，填写 ADMIN_PASSWORD、SESSION_SECRET 和 RULE_TOKEN
+curl -fsSLO https://raw.githubusercontent.com/Cyclince/Private-rules/main/docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/Cyclince/Private-rules/main/.env.example -o .env
+# 编辑 .env，填写 ADMIN_PASSWORD 和按需使用的 RULE_TOKEN
 docker compose pull
 docker compose up -d
 ```
 
-默认拉取 `cyclince/private-rules:latest` 获取最新版本，访问 `http://服务器地址:5173/admin/login`。
+访问 `http://服务器地址:5173/admin/login` 即可。
+
+### 可选：启用 Telegram Bot
+
+先通过 BotFather 创建 Bot，再在 `.env` 中填写：
+
+```env
+BASE_URL=https://rules.example.com
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_USER_ID=123456789
+```
+
+重启容器后会自动注册命令、Webhook 和 Mini App，无需执行额外命令。`BASE_URL` 必须是下面反向代理提供的公网 HTTPS 地址。Bot 仅接受配置用户的私聊；启动完成后发送 `/start` 即可使用。
 
 ### 使用 Caddy 反向代理
 
@@ -204,44 +222,20 @@ pnpm build
 
 ## 订阅格式
 
-同一规则按文件后缀适配不同客户端，不再为每个软件重复生成入口。
+同一规则按文件后缀适配不同客户端，以适配多端。
 
 | 后缀 | 适用范围 |
 | --- | --- |
 | `.yaml` | Mihomo、Clash、OpenClash、Stash |
 | `.list` | Loon、Surge、Shadowrocket、Egern 等 |
+| `.json` | sing-box source Rule Set |
 | `.txt` | 纯文本规则，便于脚本继续处理 |
-| `.json` | sing-box source Rule Set（在 `rule_set` 中使用 `format: "source"`） |
 
 ```text
 /rules/emby.yaml
 /sub/<RULE_TOKEN>/emby.yaml
 /sub/<RULE_TOKEN>/emby.list
 /sub/<RULE_TOKEN>/emby.json
-```
-
-sing-box 远程订阅示例：
-
-```json
-{
-  "route": {
-    "rules": [
-      { "rule_set": "emby", "outbound": "proxy" }
-    ],
-    "rule_set": [
-      {
-        "tag": "emby",
-        "type": "remote",
-        "format": "source",
-        "url": "https://example.com/sub/<RULE_TOKEN>/emby.json",
-        "update_interval": "1d"
-      }
-    ]
-  },
-  "experimental": {
-    "cache_file": { "enabled": true }
-  }
-}
 ```
 
 文本规则文件包含生成来源与最后修改时间：

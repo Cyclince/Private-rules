@@ -8,8 +8,8 @@ describe('release version', () => {
     expect(APP_VERSION).toBe(packageMetadata.version);
   });
 
-  it('uses the rolling latest tag in the default Compose deployment', async () => {
+  it('pins the default Compose deployment to the application version', async () => {
     const compose = await readFile(new URL('../../docker-compose.yml', import.meta.url), 'utf8');
-    expect(compose).toContain('cyclince/private-rules:latest');
+    expect(compose).toContain(`cyclince/private-rules:${packageMetadata.version}`);
   });
 });

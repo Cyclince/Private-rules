@@ -28,24 +28,23 @@ chmod 600 .env
 
 ## 3. 填写密钥
 
-生成两个随机值：
+如需私密订阅，生成一个随机 Token：
 
 ```bash
-openssl rand -hex 32
 openssl rand -hex 24
 ```
 
-编辑 `.env`，只需填写三个值：
+编辑 `.env`，填写后台密码与可选的私密订阅 Token：
 
 ```dotenv
 ADMIN_PASSWORD=设置一个独立的高强度后台密码
-SESSION_SECRET=粘贴第一个随机值
-RULE_TOKEN=粘贴第二个随机值
+RULE_TOKEN=粘贴上面的随机值
 ```
 
 - `ADMIN_PASSWORD`：登录管理后台使用。
-- `SESSION_SECRET`：签名登录会话，必须至少 32 个字符。
 - `RULE_TOKEN`：生成私密订阅地址，请勿公开。
+
+登录会话密钥和 Telegram Webhook 密钥由后端首次启动时自动生成，并保存在应用数据库中，无需写入 `.env`。
 
 ## 4. 启动服务
 
@@ -95,7 +94,7 @@ docker compose down -v
 
 ## 6. 升级
 
-项目的 `docker-compose.yml` 默认使用 `cyclince/private-rules:latest`。升级时重新拉取镜像：
+项目的 `docker-compose.yml` 默认在线拉取固定版本 `cyclince/private-rules:1.0.4`，该版本也发布为 `latest`。升级到新版本后重新拉取镜像：
 
 ```bash
 cd /opt/private-rules
@@ -119,7 +118,7 @@ docker compose ps
 docker compose logs --tail=200 private-rules
 ```
 
-重点检查 `SESSION_SECRET` 是否至少 32 个字符，以及端口 `5173` 是否被其他程序占用。
+重点检查 `ADMIN_PASSWORD` 是否已填写，以及端口 `5173` 是否被其他程序占用。
 
 ### 无法打开页面
 

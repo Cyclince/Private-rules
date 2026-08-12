@@ -1,4 +1,17 @@
 import { expect, test } from '@playwright/test';
+import { createHmac } from 'node:crypto';
+
+function telegramInitData() {
+  const params = new URLSearchParams({
+    auth_date: String(Math.floor(Date.now() / 1000)),
+    query_id: `e2e-${Date.now()}`,
+    user: JSON.stringify({ id: 2001, first_name: 'Admin', username: 'admin' }),
+  });
+  const check = [...params.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join('\n');
+  const secret = createHmac('sha256', 'WebAppData').update('123456:e2e-test-token').digest();
+  params.set('hash', createHmac('sha256', secret).update(check).digest('hex'));
+  return params.toString();
+}
 
 test('admin login, session persistence, SPA refresh, and logout', async ({ page }) => {
   const consoleErrors: string[] = [];
@@ -25,4 +38,41 @@ test('unknown API is not served by the SPA fallback', async ({ request }) => {
   const response = await request.get('/api/does-not-exist');
   expect(response.status()).toBe(404);
   expect(await response.text()).not.toContain('<html');
+});
+
+test('private Telegram session, theme, deep links, and write access', async ({ page, request }) => {
+  await request.post('/api/auth/login', { data: { password: 'e2e-password' } });
+  const name = `Telegram-${Date.now()}`;
+  const created = await request.post('/api/categories', { data: { name, tokenLinksEnabled: false, publicLinksEnabled: true } });
+  expect(created.status()).toBe(201);
+  const payload = await created.json() as { data: { categories: Array<{ id: string; name: string }> } };
+  const category = payload.data.categories.find((item) => item.name === name)!;
+  await request.post('/api/auth/logout');
+
+  const initData = telegramInitData();
+  await page.addInitScript((value) => {
+    (window as Window & { Telegram: unknown }).Telegram = {
+      WebApp: {
+        initData: value,
+        colorScheme: 'dark',
+        themeParams: { bg_color: '#101010', text_color: '#f5f5f5', secondary_bg_color: '#202020' },
+        ready() {},
+        expand() {},
+      },
+    };
+  }, initData);
+  const errors: string[] = [];
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('response', (response) => { if (response.status() >= 500) errors.push(`${response.status()} ${response.url()}`); });
+  await page.goto(`/admin?view=sources&category=${category.id}`);
+  await expect(page.getByRole('heading', { name: '上游来源' })).toBeVisible();
+  expect(await page.locator('html').getAttribute('data-telegram')).toBe('true');
+  expect(await page.locator('html').getAttribute('data-theme')).toBe('dark');
+  await expect(page.getByRole('button', { name: /新增来源/ })).toBeVisible();
+  const allowed = await page.evaluate(async () => (await fetch('/api/sync', { method: 'POST' })).status);
+  expect(allowed).toBe(200);
+  errors.length = 0;
+  await page.goto('/admin?view=links&category=missing-category');
+  await expect(page.getByRole('heading', { name: '订阅中心' })).toBeVisible();
+  expect(errors).toEqual([]);
 });

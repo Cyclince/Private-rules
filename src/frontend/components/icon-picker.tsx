@@ -33,10 +33,10 @@ export function IconPicker({ value, name, customPackUrls, customPackNames, onCha
     if (!packUrl) return;
     const controller = new AbortController();
     setStatus('正在加载图标包');
-    fetch(packUrl, { signal: controller.signal }).then(async (response) => {
+    fetch(`/api/icon-packs/content?url=${encodeURIComponent(packUrl)}`, { signal: controller.signal }).then(async (response) => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = await response.json() as unknown;
-      setIcons(readPackIcons(payload).filter((icon) => icon.name && /^https?:\/\//i.test(icon.url)));
+      const payload = await response.json() as { icons?: unknown };
+      setIcons(readPackIcons(payload.icons).filter((icon) => icon.name && /^https?:\/\//i.test(icon.url)));
       setStatus('');
     }).catch((error) => { if (error.name !== 'AbortError') setStatus(`图标包加载失败：${error.message}`); });
     return () => controller.abort();

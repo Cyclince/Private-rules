@@ -11,5 +11,6 @@ export interface DatabasePort {
   prepare(sql: string): DatabaseStatement;
   batch<T = unknown>(statements: DatabaseStatement[]): Promise<DatabaseResult<T>[]>;
   ping(): Promise<boolean>;
+  transaction?<T>(task: () => Promise<T>): Promise<T>;
   close?(): Promise<void> | void;
 }

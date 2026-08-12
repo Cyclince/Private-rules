@@ -1,6 +1,9 @@
 import type { ClientLink, RulesData } from './types/domain-rules';
 import type { AssetsPort } from './application/ports/assets';
 import type { DatabasePort } from './application/ports/database';
+import type { BackgroundTaskPort } from './application/ports/background-task';
+import type { TelegramClient } from './application/ports/telegram-client';
+import type { TelegramConfig } from './integrations/telegram/config';
 
 export type Env = {
   DB: DatabasePort;
@@ -12,11 +15,15 @@ export type Env = {
   RUNTIME?: 'cloudflare' | 'node';
   APP_VERSION?: string;
   TRUST_PROXY?: boolean;
+  BACKGROUND_TASKS?: BackgroundTaskPort;
+  TELEGRAM?: TelegramConfig;
+  TELEGRAM_CLIENT?: TelegramClient;
 };
 
 export type AppVariables = {
   sessionId?: string;
-  authType?: 'session' | 'apiKey';
+  authType?: 'session' | 'apiKey' | 'telegram';
+  telegramUserId?: string;
 };
 
 export type ApiOk<T> = {

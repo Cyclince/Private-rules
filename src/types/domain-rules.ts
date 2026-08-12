@@ -27,6 +27,31 @@ export type DomainRule = {
   sourceId?: string;
   sourceName?: string;
   sourceType?: 'url' | 'geosite' | 'geoip';
+  sourceEnabled?: boolean;
+};
+
+export type RuleConflict = {
+  id: string;
+  categoryId: string;
+  categoryName: string;
+  value: string;
+  type: DomainRuleType;
+  kind: 'duplicate' | 'conflict';
+  reason: string;
+};
+
+export type ManualRuleOptimizationRemoval = {
+  rule: DomainRule;
+  keptRule: DomainRule;
+  categoryName: string;
+  reason: string;
+};
+
+export type ManualRuleOptimizationPreview = {
+  scanned: number;
+  remaining: number;
+  affectedCategories: number;
+  removals: ManualRuleOptimizationRemoval[];
 };
 
 export type RuleSource = {
@@ -87,6 +112,9 @@ export type RuleSettings = {
   tokenLinksEnabled: boolean;
   customIconPackUrls: string[];
   customIconPackNames: Record<string, string>;
+  iconPackAutoUpdate: boolean;
+  iconPackUpdateIntervalHours: number;
+  iconPackLastUpdatedAt?: string;
 };
 
 export type RulesData = {
@@ -144,4 +172,5 @@ export type ImportPreview = {
   duplicateValues: string[];
   invalidValues: string[];
   comments: string[];
+  conflicts?: Array<{ rule: DomainRule; matches: RuleConflict[] }>;
 };

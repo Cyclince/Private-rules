@@ -60,6 +60,12 @@ describe('rule parsing and subscriptions', () => {
     expect(formatters.yaml.format(category, data)).toContain('DST-PORT,1-79');
     expect(formatters.general.format(category, data)).toContain('DST-PORT,1-79');
     expect(JSON.parse(formatters.json.format(category, data))).toEqual({
+      _meta: {
+        generatedFor: 'Ports',
+        generatedBy: 'Private Rules',
+        updatedAt: '2026-01-01 08:00:00',
+        description: 'Ports规则',
+      },
       version: 2,
       rules: [
         { domain_suffix: ['example.com'], ip_cidr: ['10.0.0.0/8'] },

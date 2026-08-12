@@ -1,3 +1,5 @@
+import type { TelegramConfig } from '../../integrations/telegram/config';
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface AppConfig {
@@ -12,6 +14,7 @@ export interface AppConfig {
   scheduler: { enabled: boolean; intervalSeconds: number };
   trustProxy: boolean;
   logLevel: LogLevel;
+  telegram: TelegramConfig;
 }
 
 export function normalizeBaseUrl(value: string | undefined) {

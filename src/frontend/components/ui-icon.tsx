@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-export type IconName = 'home' | 'rules' | 'domain' | 'links' | 'settings' | 'info' | 'download' | 'upload' | 'database' | 'pulse' | 'clock' | 'chevron' | 'chevronRight' | 'arrowLeft' | 'more' | 'manage' | 'activity' | 'plus' | 'expand' | 'close' | 'check' | 'logout' | 'file' | 'copy' | 'search' | 'refresh' | 'restore' | 'sync' | 'trash' | 'edit' | 'key';
+export type IconName = 'home' | 'rules' | 'domain' | 'links' | 'settings' | 'configuration' | 'appearance' | 'telegram' | 'optimize' | 'optimizeAction' | 'iconPack' | 'updatePack' | 'healthCheck' | 'saveSettings' | 'backup' | 'apiKey' | 'service' | 'info' | 'download' | 'upload' | 'database' | 'pulse' | 'clock' | 'chevron' | 'chevronRight' | 'arrowLeft' | 'more' | 'manage' | 'activity' | 'plus' | 'expand' | 'close' | 'check' | 'logout' | 'file' | 'copy' | 'search' | 'refresh' | 'restore' | 'sync' | 'trash' | 'edit' | 'key';
 
 const paths: Record<IconName, ReactNode> = {
   home: <><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></>,
@@ -8,6 +8,18 @@ const paths: Record<IconName, ReactNode> = {
   domain: <><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.5 3.6 5.5 3.6 9s-1.2 6.5-3.6 9c-2.4-2.5-3.6-5.5-3.6-9S9.6 5.5 12 3z"/></>,
   links: <><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2"/></>,
   settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3A1.7 1.7 0 0 0 14 21v.2h-4V21a1.7 1.7 0 0 0-2.9-1.3l-.1.1L4.2 17l.1-.1A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.3-2.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 2.9 1.3l.1-.1L19.8 7l-.1.1A1.7 1.7 0 0 0 21 10h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/></>,
+  configuration: <><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></>,
+  appearance: <><path d="M12 3a9 9 0 1 0 9 9c0-1.1-.9-2-2-2h-2.1a2 2 0 0 1-1.8-2.9l.5-1A2.1 2.1 0 0 0 13.7 3H12Z"/><circle cx="7.5" cy="11" r=".8" fill="currentColor" stroke="none"/><circle cx="10" cy="7" r=".8" fill="currentColor" stroke="none"/><circle cx="7.8" cy="15" r=".8" fill="currentColor" stroke="none"/></>,
+  telegram: <><path d="m3.2 11.2 16.4-7c.8-.3 1.5.4 1.2 1.2l-5.2 15c-.3.8-1.3.9-1.8.3l-3.4-4.4-3.1 2.4.5-4.8 9.1-6.4-10.7 5.1-3-.4c-.8-.1-1-1-.3-1.4Z"/><path d="m7.8 13.9 9.1-6.4M10.4 16.3l.1-3"/></>,
+  optimize: <><path d="M4 7h9M17 7h3M4 17h5M13 17h7"/><circle cx="15" cy="7" r="2"/><circle cx="11" cy="17" r="2"/><path d="m18.5 11 .5 1.2 1.2.5-1.2.5-.5 1.2-.5-1.2-1.2-.5 1.2-.5z"/></>,
+  optimizeAction: <><path d="M5 5h5l2 2h7v5H5z"/><path d="m7 12-2 7h14l-2-7M9 16h6"/><path d="m18.5 3 .4 1 .9.4-.9.4-.4 1-.4-1-.9-.4.9-.4z"/></>,
+  iconPack: <><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.5"/><path d="m6.5 17 4-4 2.8 2.8 1.7-1.7 2.5 2.9"/></>,
+  updatePack: <><path d="m12 3 8 4.5-8 4.5-8-4.5z"/><path d="m4 12 8 4.5 8-4.5M4 16.5l8 4.5 8-4.5"/><path d="M12 6v5M9.8 8.8 12 11l2.2-2.2"/></>,
+  healthCheck: <><path d="M4 12h3l2-5 3.2 10 2.2-6 1.5 3H20"/><path d="M19 5v3h-3"/><path d="M19 8a8 8 0 1 0 1 8"/></>,
+  saveSettings: <><path d="M5 4h12l2 2v14H5z"/><path d="M8 4v6h8V4M8 15h8"/><path d="m10 17 1.5 1.5L15 15"/></>,
+  backup: <><path d="M5 8h14v12H5zM4 4h16v4H4zM9 12h6"/></>,
+  apiKey: <><path d="M12 3 5 6v5c0 4.6 2.8 8 7 10 4.2-2 7-5.4 7-10V6z"/><circle cx="10" cy="12" r="2"/><path d="M12 12h4M15 12v2"/></>,
+  service: <><ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6M4.5 12v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/><path d="m15.5 17 1.2 1.2 2.3-2.5"/></>,
   info: <><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></>,
   download: <><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 18v2h14v-2"/></>,
   upload: <><path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 18v2h14v-2"/></>,

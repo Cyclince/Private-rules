@@ -1,4 +1,4 @@
-import type { BackupRuleSource, DomainRule, RuleCategory, RuleOptimizationMode, RuleSettings, RuleSource, RulesBackupData, RulesData } from '../types/domain-rules';
+import type { BackupRuleSource, DomainRule, ManualRuleOptimizationPreview, RuleCategory, RuleConflict, RuleOptimizationMode, RuleSettings, RuleSource, RulesBackupData, RulesData } from '../types/domain-rules';
 import { UPSTREAM_RULE_PREVIEW_LIMIT } from '../types/domain-rules';
 import type { Env } from '../types';
 import { normalizeGithubMirrorUrl, sourceNameFromSubscriptionUrl } from './github-mirror';
@@ -34,6 +34,7 @@ type RuleRow = {
   source_id: string | null;
   source_name?: string | null;
   source_type?: 'url' | 'geosite' | 'geoip' | null;
+  source_enabled?: number | null;
   category_name?: string | null;
   category_description?: string | null;
 };
@@ -68,6 +69,9 @@ const defaultSettings: RuleSettings = {
   tokenLinksEnabled: true,
   customIconPackUrls: [],
   customIconPackNames: {},
+  iconPackAutoUpdate: true,
+  iconPackUpdateIntervalHours: 24,
+  iconPackLastUpdatedAt: '',
 };
 
 const readyDatabases = new WeakMap<object, Promise<void>>();
@@ -110,8 +114,69 @@ export function ensureDatabase(env: Env) {
       rule_optimization TEXT DEFAULT 'none', last_original_count INTEGER DEFAULT 0,
       FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
     )`,
+    `CREATE TABLE IF NOT EXISTS telegram_users (
+      id TEXT PRIMARY KEY, telegram_user_id TEXT NOT NULL UNIQUE, username TEXT, display_name TEXT,
+      role TEXT NOT NULL DEFAULT 'admin' CHECK (role = 'admin'),
+      enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled = 1),
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_seen_at TEXT
+    )`,
+    'CREATE TABLE IF NOT EXISTS telegram_processed_updates (update_id TEXT PRIMARY KEY, processed_at TEXT NOT NULL, expires_at TEXT NOT NULL)',
+    `CREATE TABLE IF NOT EXISTS telegram_sessions (
+      id TEXT PRIMARY KEY, telegram_user_id TEXT NOT NULL, session_token_hash TEXT NOT NULL UNIQUE,
+      role TEXT NOT NULL DEFAULT 'admin' CHECK (role = 'admin'), scope TEXT NOT NULL DEFAULT '["admin"]',
+      created_at TEXT NOT NULL, expires_at TEXT NOT NULL, last_used_at TEXT, revoked_at TEXT,
+      FOREIGN KEY (telegram_user_id) REFERENCES telegram_users(telegram_user_id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS telegram_audit_logs (
+      id TEXT PRIMARY KEY, telegram_user_id TEXT NOT NULL, chat_id TEXT, action TEXT NOT NULL,
+      target_type TEXT, target_id TEXT, summary TEXT NOT NULL DEFAULT '',
+      result TEXT NOT NULL CHECK (result IN ('success', 'failure', 'denied', 'started')), created_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS telegram_notifications (
+      id TEXT PRIMARY KEY, chat_id TEXT NOT NULL UNIQUE, sync_failed INTEGER NOT NULL DEFAULT 1,
+      sync_completed INTEGER NOT NULL DEFAULT 1, security_alerts INTEGER NOT NULL DEFAULT 1,
+      enabled INTEGER NOT NULL DEFAULT 1, notification_mode TEXT NOT NULL DEFAULT 'digest',
+      digest_time TEXT NOT NULL DEFAULT '09:00', last_digest_date TEXT, muted INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS telegram_notification_events (
+      id TEXT PRIMARY KEY, chat_id TEXT NOT NULL, summary TEXT NOT NULL, failed INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, delivered_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS telegram_message_deletions (
+      id TEXT PRIMARY KEY, chat_id TEXT NOT NULL, message_id INTEGER NOT NULL,
+      delete_after TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT,
+      created_at TEXT NOT NULL, UNIQUE(chat_id, message_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS icon_pack_cache (
+      url TEXT PRIMARY KEY, payload TEXT, icon_count INTEGER NOT NULL DEFAULT 0,
+      last_status TEXT NOT NULL DEFAULT 'pending', last_error TEXT, updated_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS telegram_conversations (
+      telegram_user_id TEXT NOT NULL, chat_id TEXT NOT NULL, kind TEXT NOT NULL, state TEXT NOT NULL,
+      created_at TEXT NOT NULL, expires_at TEXT NOT NULL, PRIMARY KEY (telegram_user_id, chat_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS telegram_confirmations (
+      nonce TEXT PRIMARY KEY, telegram_user_id TEXT NOT NULL, chat_id TEXT NOT NULL, action TEXT NOT NULL,
+      target_id TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS telegram_rate_limits (
+      identity TEXT NOT NULL, operation TEXT NOT NULL, window_started_at TEXT NOT NULL, hits INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (identity, operation)
+    )`,
+    'CREATE TABLE IF NOT EXISTS telegram_init_data_replays (replay_hash TEXT PRIMARY KEY, telegram_user_id TEXT NOT NULL, expires_at TEXT NOT NULL)',
+    `CREATE TABLE IF NOT EXISTS sync_leases (
+      resource_type TEXT NOT NULL, resource_id TEXT NOT NULL, owner_id TEXT NOT NULL,
+      acquired_at TEXT NOT NULL, expires_at TEXT NOT NULL, PRIMARY KEY (resource_type, resource_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS source_rule_staging (
+      sync_id TEXT NOT NULL, id TEXT NOT NULL, source_id TEXT NOT NULL, category_id TEXT NOT NULL,
+      value TEXT NOT NULL, type TEXT NOT NULL, display_type TEXT, note TEXT, sort_order INTEGER NOT NULL,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (sync_id, id)
+    )`,
     `INSERT OR IGNORE INTO settings (key, value) VALUES
-      ('baseUrl', ''), ('policyName', ''), ('githubMirrorUrl', ''), ('publicLinksEnabled', 'true'), ('tokenLinksEnabled', 'true'), ('customIconPackUrls', '[]'), ('customIconPackNames', '{}')`,
+      ('baseUrl', ''), ('policyName', ''), ('githubMirrorUrl', ''), ('publicLinksEnabled', 'true'), ('tokenLinksEnabled', 'true'), ('customIconPackUrls', '[]'), ('customIconPackNames', '{}'),
+      ('iconPackAutoUpdate', 'true'), ('iconPackUpdateIntervalHours', '24'), ('iconPackLastUpdatedAt', '')`,
   ];
 
   let databaseReady = readyDatabases.get(env.DB as object);
@@ -125,14 +190,16 @@ export function ensureDatabase(env: Env) {
       env.DB.prepare("DELETE FROM settings WHERE key = 'apiKeyHash'"),
       env.DB.prepare("DELETE FROM settings WHERE key = 'apiKeyCreatedAt'"),
     ]);
-    const [categoryColumns, ruleColumns, sourceColumns] = await Promise.all([
+    const [categoryColumns, ruleColumns, sourceColumns, notificationColumns] = await Promise.all([
       env.DB.prepare('PRAGMA table_info(categories)').all<{ name: string }>(),
       env.DB.prepare('PRAGMA table_info(rules)').all<{ name: string }>(),
       env.DB.prepare('PRAGMA table_info(category_sources)').all<{ name: string }>(),
+      env.DB.prepare('PRAGMA table_info(telegram_notifications)').all<{ name: string }>(),
     ]);
     const categoryNames = new Set((categoryColumns.results ?? []).map((column) => column.name));
     const ruleNames = new Set((ruleColumns.results ?? []).map((column) => column.name));
     const sourceNames = new Set((sourceColumns.results ?? []).map((column) => column.name));
+    const notificationNames = new Set((notificationColumns.results ?? []).map((column) => column.name));
     const alters: string[] = [];
     if (!categoryNames.has('public_links_enabled')) alters.push('ALTER TABLE categories ADD COLUMN public_links_enabled INTEGER DEFAULT 0');
     if (!categoryNames.has('token_links_enabled')) alters.push('ALTER TABLE categories ADD COLUMN token_links_enabled INTEGER DEFAULT 1');
@@ -144,6 +211,10 @@ export function ensureDatabase(env: Env) {
     if (!sourceNames.has('geoip_name')) alters.push('ALTER TABLE category_sources ADD COLUMN geoip_name TEXT');
     if (!sourceNames.has('rule_optimization')) alters.push("ALTER TABLE category_sources ADD COLUMN rule_optimization TEXT DEFAULT 'none'");
     if (!sourceNames.has('last_original_count')) alters.push('ALTER TABLE category_sources ADD COLUMN last_original_count INTEGER DEFAULT 0');
+    if (!notificationNames.has('notification_mode')) alters.push("ALTER TABLE telegram_notifications ADD COLUMN notification_mode TEXT NOT NULL DEFAULT 'digest'");
+    if (!notificationNames.has('digest_time')) alters.push("ALTER TABLE telegram_notifications ADD COLUMN digest_time TEXT NOT NULL DEFAULT '09:00'");
+    if (!notificationNames.has('last_digest_date')) alters.push('ALTER TABLE telegram_notifications ADD COLUMN last_digest_date TEXT');
+    if (!notificationNames.has('muted')) alters.push('ALTER TABLE telegram_notifications ADD COLUMN muted INTEGER NOT NULL DEFAULT 0');
     for (const statement of alters) await env.DB.prepare(statement).run();
     await env.DB.prepare("UPDATE category_sources SET url = 'https://raw.githubusercontent.com/Loyalsoldier/geoip/release/text/' || geoip_name || '.txt' WHERE source_type = 'geoip' AND geoip_name IS NOT NULL AND url NOT LIKE '%/text/%.txt'").run();
     await env.DB.batch([
@@ -151,6 +222,13 @@ export function ensureDatabase(env: Env) {
       env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_rules_unique_source_value ON rules(category_id, IFNULL(source_id, ''), type, value)"),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_sources_category ON category_sources(category_id)'),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_rules_source ON rules(source_id)'),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_telegram_updates_expires ON telegram_processed_updates(expires_at)'),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_telegram_sessions_user ON telegram_sessions(telegram_user_id)'),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_telegram_sessions_expires ON telegram_sessions(expires_at)'),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_telegram_audit_created ON telegram_audit_logs(created_at)'),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_source_rule_staging_sync ON source_rule_staging(sync_id)'),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_telegram_notification_events_pending ON telegram_notification_events(chat_id, delivered_at, created_at)'),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_telegram_message_deletions_due ON telegram_message_deletions(delete_after, attempts)'),
       env.DB.prepare('UPDATE categories SET public_links_enabled = 0 WHERE token_links_enabled = 1 AND public_links_enabled = 1'),
     ]);
     })();
@@ -191,7 +269,6 @@ function categoryFromRow(row: CategoryRow, rules: DomainRule[], sources: RuleSou
     icon: row.icon ?? undefined,
     description: row.description ?? undefined,
     note: row.note ?? undefined,
-    enabled: row.enabled !== 0,
     sortOrder: row.sort_order ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -217,18 +294,19 @@ function ruleFromRow(row: RuleRow): DomainRule {
     type: row.type,
     displayType: row.display_type ?? undefined,
     note: row.note ?? undefined,
-    enabled: row.enabled !== 0,
     sortOrder: row.sort_order ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     sourceId: row.source_id ?? undefined,
     sourceName: row.source_name ?? undefined,
     sourceType: row.source_type ?? undefined,
+    sourceEnabled: row.source_id ? row.source_enabled !== 0 : undefined,
+    enabled: row.enabled !== 0 && (!row.source_id || row.source_enabled !== 0),
   };
 }
 
 const deduplicatedRuleCte = `WITH ranked_rules AS (
-  SELECT r.*, s.name AS source_name, COALESCE(s.source_type, 'url') AS source_type,
+  SELECT r.*, s.name AS source_name, COALESCE(s.source_type, 'url') AS source_type, COALESCE(s.enabled, 1) AS source_enabled,
     c.name AS category_name, c.description AS category_description,
     ROW_NUMBER() OVER (
       PARTITION BY r.category_id, LOWER(r.type), LOWER(r.value)
@@ -243,7 +321,7 @@ async function getRuleCounts(env: Env) {
   const rows = await env.DB.prepare(`${deduplicatedRuleCte}
     SELECT category_id,
       COUNT(*) AS rule_count,
-      SUM(CASE WHEN enabled <> 0 THEN 1 ELSE 0 END) AS enabled_rule_count,
+      SUM(CASE WHEN enabled <> 0 AND (source_id IS NULL OR source_enabled <> 0) THEN 1 ELSE 0 END) AS enabled_rule_count,
       SUM(CASE WHEN source_id IS NULL THEN 1 ELSE 0 END) AS manual_rule_count,
       SUM(CASE WHEN source_id IS NOT NULL AND source_type = 'url' THEN 1 ELSE 0 END) AS url_rule_count,
       SUM(CASE WHEN source_id IS NOT NULL AND source_type <> 'url' THEN 1 ELSE 0 END) AS geo_rule_count
@@ -266,6 +344,9 @@ export async function getSettings(env: Env): Promise<RuleSettings> {
     if (row.key === 'customIconPackNames') {
       try { settings.customIconPackNames = JSON.parse(row.value || '{}') as Record<string, string>; } catch { settings.customIconPackNames = {}; }
     }
+    if (row.key === 'iconPackAutoUpdate') settings.iconPackAutoUpdate = row.value !== 'false';
+    if (row.key === 'iconPackUpdateIntervalHours') settings.iconPackUpdateIntervalHours = Math.max(1, Number(row.value) || 24);
+    if (row.key === 'iconPackLastUpdatedAt') settings.iconPackLastUpdatedAt = row.value ?? '';
   }
   return settings;
 }
@@ -280,6 +361,9 @@ export async function saveSettings(env: Env, input: Partial<RuleSettings>) {
     tokenLinksEnabled: input.tokenLinksEnabled ?? current.tokenLinksEnabled,
     customIconPackUrls: input.customIconPackUrls ?? current.customIconPackUrls,
     customIconPackNames: input.customIconPackNames ?? current.customIconPackNames,
+    iconPackAutoUpdate: input.iconPackAutoUpdate ?? current.iconPackAutoUpdate,
+    iconPackUpdateIntervalHours: Math.max(1, Math.min(720, Number(input.iconPackUpdateIntervalHours ?? current.iconPackUpdateIntervalHours) || 24)),
+    iconPackLastUpdatedAt: input.iconPackLastUpdatedAt ?? current.iconPackLastUpdatedAt,
   };
   await env.DB.batch(
     Object.entries(next).map(([key, value]) =>
@@ -311,6 +395,8 @@ export async function getRulesData(env: Env): Promise<RulesData> {
     const source = sourceById.get(rule.sourceId);
     rule.sourceName = source?.name;
     rule.sourceType = source?.sourceType ?? 'url';
+    rule.sourceEnabled = source?.enabled;
+    if (source?.enabled === false) rule.enabled = false;
   }
   const categories = (categoryRows.results ?? []).map((row) => categoryFromRow(row, rulesByCategory.get(row.id) ?? [], sources.filter((source) => source.categoryId === row.id)));
   const updatedAt = categories.reduce((latest, category) => (category.updatedAt > latest ? category.updatedAt : latest), '');
@@ -360,6 +446,8 @@ export async function getRulesOverview(env: Env, upstreamPreviewLimit = UPSTREAM
     if (source) {
       rule.sourceName = source.name;
       rule.sourceType = source.sourceType ?? 'url';
+      rule.sourceEnabled = source.enabled;
+      if (!source.enabled) rule.enabled = false;
     }
     const list = rulesByCategory.get(row.category_id) ?? [];
     list.push(rule);
@@ -409,17 +497,17 @@ export async function listRules(env: Env, options: {
   if (options.source === 'geo') conditions.push("source_id IS NOT NULL AND source_type <> 'url'");
   const query = options.query?.trim();
   if (query) {
-    conditions.push(`(LOWER(value) LIKE LOWER(?) OR LOWER(COALESCE(note, '')) LIKE LOWER(?)
-      OR LOWER(type) LIKE LOWER(?) OR LOWER(COALESCE(display_type, '')) LIKE LOWER(?)
-      OR LOWER(COALESCE(source_name, '')) LIKE LOWER(?) OR LOWER(COALESCE(category_name, '')) LIKE LOWER(?)
-      OR LOWER(COALESCE(category_description, '')) LIKE LOWER(?))`);
-    const pattern = `%${query}%`;
+    conditions.push(`(LOWER(value) LIKE LOWER(?) ESCAPE '\\' OR LOWER(COALESCE(note, '')) LIKE LOWER(?) ESCAPE '\\'
+      OR LOWER(type) LIKE LOWER(?) ESCAPE '\\' OR LOWER(COALESCE(display_type, '')) LIKE LOWER(?) ESCAPE '\\'
+      OR LOWER(COALESCE(source_name, '')) LIKE LOWER(?) ESCAPE '\\' OR LOWER(COALESCE(category_name, '')) LIKE LOWER(?) ESCAPE '\\'
+      OR LOWER(COALESCE(category_description, '')) LIKE LOWER(?) ESCAPE '\\')`);
+    const pattern = `%${query.replace(/[\\%_]/g, '\\$&')}%`;
     bindings.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern);
   }
   const limit = options.limit === undefined ? UPSTREAM_RULE_PREVIEW_LIMIT : Math.max(0, Math.min(options.limit, 100_000));
   const statement = env.DB.prepare(`${deduplicatedRuleCte}
     SELECT id, category_id, value, type, display_type, note, enabled, sort_order, created_at, updated_at,
-      source_id, source_name, source_type
+      source_id, source_name, source_type, source_enabled
     FROM ranked_rules WHERE ${conditions.join(' AND ')}
     ORDER BY category_id, sort_order ASC, created_at ASC${limit ? ' LIMIT ?' : ''}`);
   if (limit) bindings.push(limit);
@@ -493,6 +581,9 @@ export async function createCategory(env: Env, input: CategoryInput) {
 }
 
 export async function updateCategory(env: Env, categoryId: string, input: CategoryInput) {
+  if (input.sourceUrls || input.geositeNames || input.geoipNames) {
+    throw new Error('来源必须通过来源级 Use Case 修改，不能整体替换分类来源。');
+  }
   const current = await env.DB.prepare('SELECT * FROM categories WHERE id = ?').bind(categoryId).first<CategoryRow>();
   if (!current) throw new Error('分类不存在。');
   const name = input.name?.trim() || current.name;
@@ -519,11 +610,6 @@ export async function updateCategory(env: Env, categoryId: string, input: Catego
       categoryId,
     )
     .run();
-  if (input.sourceUrls || input.geositeNames || input.geoipNames) {
-    const existingSource = await env.DB.prepare('SELECT sync_interval_minutes, user_agent, rule_optimization FROM category_sources WHERE category_id = ? LIMIT 1').bind(categoryId).first<{ sync_interval_minutes: number | null; user_agent: string | null; rule_optimization: RuleOptimizationMode | 'balanced' | null }>();
-    const existingOptimization = existingSource?.rule_optimization === 'balanced' ? 'aggressive' : existingSource?.rule_optimization;
-    await replaceCategorySources(env, categoryId, input.sourceUrls ?? [], input.syncIntervalMinutes ?? existingSource?.sync_interval_minutes ?? 60, input.geositeNames ?? [], input.geoipNames ?? [], input.userAgent ?? existingSource?.user_agent, input.ruleOptimization ?? existingOptimization ?? 'none');
-  }
   return getRulesOverview(env);
 }
 
@@ -563,13 +649,206 @@ export async function deleteCategory(env: Env, categoryId: string) {
   return getRulesOverview(env);
 }
 
-export async function addRule(env: Env, categoryId: string, input: { value: string; type?: DomainRule['type']; note?: string }) {
+type ComparableRule = Pick<DomainRule, 'type' | 'value'>;
+
+function domainRulesOverlap(left: ComparableRule, right: ComparableRule) {
+  const domainTypes = new Set<DomainRule['type']>(['DOMAIN', 'DOMAIN-SUFFIX']);
+  if (!domainTypes.has(left.type) || !domainTypes.has(right.type)) return false;
+  if (left.value === right.value) return true;
+  if (left.type === 'DOMAIN-SUFFIX' && right.value.endsWith(`.${left.value}`)) return true;
+  if (right.type === 'DOMAIN-SUFFIX' && left.value.endsWith(`.${right.value}`)) return true;
+  return false;
+}
+
+function keywordRulesOverlap(left: ComparableRule, right: ComparableRule) {
+  const searchableTypes = new Set<DomainRule['type']>(['DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD']);
+  if (!searchableTypes.has(left.type) || !searchableTypes.has(right.type)) return false;
+  if (left.type === 'DOMAIN-KEYWORD' && right.value.includes(left.value)) return true;
+  if (right.type === 'DOMAIN-KEYWORD' && left.value.includes(right.value)) return true;
+  return false;
+}
+
+function ipv4Value(value: string) {
+  const parts = value.split('.');
+  if (parts.length !== 4 || parts.some((part) => !/^\d+$/.test(part) || Number(part) > 255)) return null;
+  return parts.reduce((result, part) => (result << 8n) | BigInt(part), 0n);
+}
+
+function ipv6Value(value: string) {
+  if (!value.includes(':') || (value.match(/::/g)?.length ?? 0) > 1) return null;
+  const [left = '', right = ''] = value.split('::');
+  const leftParts = left ? left.split(':') : [];
+  const rightParts = right ? right.split(':') : [];
+  const missing = 8 - leftParts.length - rightParts.length;
+  if (missing < (value.includes('::') ? 1 : 0)) return null;
+  const parts = value.includes('::') ? [...leftParts, ...Array(missing).fill('0'), ...rightParts] : leftParts;
+  if (parts.length !== 8 || parts.some((part) => !/^[0-9a-f]{1,4}$/i.test(part))) return null;
+  return parts.reduce((result, part) => (result << 16n) | BigInt(`0x${part}`), 0n);
+}
+
+function cidrRange(value: string) {
+  const [address, prefixText] = value.split('/');
+  const ipv6 = address.includes(':');
+  const bits = ipv6 ? 128 : 32;
+  const prefix = Number(prefixText);
+  const numeric = ipv6 ? ipv6Value(address) : ipv4Value(address);
+  if (numeric === null || !Number.isInteger(prefix) || prefix < 0 || prefix > bits) return null;
+  const hostBits = BigInt(bits - prefix);
+  const start = hostBits === BigInt(bits) ? 0n : (numeric >> hostBits) << hostBits;
+  const end = start + (1n << hostBits) - 1n;
+  return { ipv6, start, end };
+}
+
+function networkRulesOverlap(left: ComparableRule, right: ComparableRule) {
+  if (left.type !== right.type || !['IP-CIDR', 'SRC-IP-CIDR'].includes(left.type)) return false;
+  const leftRange = cidrRange(left.value);
+  const rightRange = cidrRange(right.value);
+  return Boolean(leftRange && rightRange && leftRange.ipv6 === rightRange.ipv6 && leftRange.start <= rightRange.end && rightRange.start <= leftRange.end);
+}
+
+function portRulesOverlap(left: ComparableRule, right: ComparableRule) {
+  if (left.type !== 'DST-PORT' || right.type !== 'DST-PORT') return false;
+  const range = (value: string) => { const [start, end = start] = value.split('-').map(Number); return { start, end }; };
+  const leftRange = range(left.value);
+  const rightRange = range(right.value);
+  return leftRange.start <= rightRange.end && rightRange.start <= leftRange.end;
+}
+
+function overlapReason(left: ComparableRule, right: ComparableRule) {
+  if (keywordRulesOverlap(left, right)) return '关键词规则会覆盖另一条规则的匹配范围';
+  if (domainRulesOverlap(left, right)) return '域名或后缀的匹配范围互相包含';
+  if (networkRulesOverlap(left, right)) return 'IP 网段的匹配范围互相包含或重叠';
+  if (portRulesOverlap(left, right)) return '目标端口的匹配范围互相包含或重叠';
+  return null;
+}
+
+const MANUAL_DOMAIN_RULE_TYPES = new Set<DomainRule['type']>(['DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD']);
+
+function normalizedDomainValue(value: string) {
+  return value.trim().toLowerCase().replace(/\.$/, '');
+}
+
+function manualDomainRuleCovers(covering: Pick<DomainRule, 'type' | 'value'>, candidate: Pick<DomainRule, 'type' | 'value'>) {
+  if (!MANUAL_DOMAIN_RULE_TYPES.has(covering.type) || !MANUAL_DOMAIN_RULE_TYPES.has(candidate.type)) return false;
+  const coveringValue = normalizedDomainValue(covering.value);
+  const candidateValue = normalizedDomainValue(candidate.value);
+  if (!coveringValue || !candidateValue) return false;
+  if (covering.type === 'DOMAIN-KEYWORD') return candidateValue.includes(coveringValue);
+  if (covering.type === 'DOMAIN-SUFFIX' && candidate.type !== 'DOMAIN-KEYWORD') {
+    return candidateValue === coveringValue || candidateValue.endsWith(`.${coveringValue}`);
+  }
+  return covering.type === 'DOMAIN' && candidate.type === 'DOMAIN' && candidateValue === coveringValue;
+}
+
+function manualDomainRulePriority(rule: DomainRule) {
+  const value = normalizedDomainValue(rule.value);
+  const typePriority = rule.type === 'DOMAIN-KEYWORD' ? 0 : rule.type === 'DOMAIN-SUFFIX' ? 1 : 2;
+  const scopeSize = rule.type === 'DOMAIN-SUFFIX' ? value.split('.').length : value.length;
+  return [typePriority, scopeSize, rule.sortOrder ?? 0, rule.createdAt, rule.id] as const;
+}
+
+function compareManualDomainRulePriority(left: DomainRule, right: DomainRule) {
+  const a = manualDomainRulePriority(left);
+  const b = manualDomainRulePriority(right);
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] === b[index]) continue;
+    return a[index]! < b[index]! ? -1 : 1;
+  }
+  return 0;
+}
+
+export async function previewManualRuleOptimization(env: Env): Promise<ManualRuleOptimizationPreview> {
+  const rows = await env.DB.prepare(`SELECT r.*, c.name AS category_name
+    FROM rules r JOIN categories c ON c.id = r.category_id
+    WHERE r.source_id IS NULL AND r.type IN ('DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD')
+    ORDER BY r.category_id, r.enabled DESC, r.sort_order ASC, r.created_at ASC`).all<RuleRow>();
+  const categoryNames = new Map<string, string>();
+  const grouped = new Map<string, DomainRule[]>();
+  for (const row of rows.results ?? []) {
+    const rule = ruleFromRow(row);
+    categoryNames.set(row.category_id, row.category_name ?? '未知分类');
+    const key = `${row.category_id}:${rule.enabled ? 'enabled' : 'disabled'}`;
+    grouped.set(key, [...(grouped.get(key) ?? []), rule]);
+  }
+  const removals: ManualRuleOptimizationPreview['removals'] = [];
+  for (const rules of grouped.values()) {
+    const kept: DomainRule[] = [];
+    for (const rule of [...rules].sort(compareManualDomainRulePriority)) {
+      const covering = kept.find((candidate) => manualDomainRuleCovers(candidate, rule));
+      if (!covering) {
+        kept.push(rule);
+        continue;
+      }
+      const duplicate = covering.type === rule.type && normalizedDomainValue(covering.value) === normalizedDomainValue(rule.value);
+      removals.push({
+        rule,
+        keptRule: covering,
+        categoryName: categoryNames.get(rule.categoryId ?? '') ?? '未知分类',
+        reason: duplicate ? '与保留规则完全重复' : '已被范围更广的规则覆盖',
+      });
+    }
+  }
+  return {
+    scanned: rows.results?.length ?? 0,
+    remaining: (rows.results?.length ?? 0) - removals.length,
+    affectedCategories: new Set(removals.map((item) => item.rule.categoryId)).size,
+    removals,
+  };
+}
+
+export async function optimizeManualRules(env: Env) {
+  const preview = await previewManualRuleOptimization(env);
+  if (!preview.removals.length) return { preview, data: await getRulesOverview(env) };
+  const removalsByCategory = new Map<string, string[]>();
+  for (const { rule } of preview.removals) {
+    const categoryId = rule.categoryId!;
+    removalsByCategory.set(categoryId, [...(removalsByCategory.get(categoryId) ?? []), rule.id]);
+  }
+  for (const [categoryId, ruleIds] of removalsByCategory) {
+    for (let offset = 0; offset < ruleIds.length; offset += 500) {
+      const chunk = ruleIds.slice(offset, offset + 500);
+      await env.DB.prepare(`DELETE FROM rules WHERE category_id = ? AND source_id IS NULL AND id IN (${chunk.map(() => '?').join(',')})`)
+        .bind(categoryId, ...chunk).run();
+    }
+    await touchCategory(env, categoryId);
+  }
+  return { preview, data: await getRulesOverview(env) };
+}
+
+export async function findRuleConflicts(env: Env, candidate: Pick<DomainRule, 'type' | 'value'>, excludeRuleId?: string): Promise<RuleConflict[]> {
+  const rows = await env.DB.prepare(`SELECT r.id, r.category_id, r.value, r.type, c.name AS category_name
+    FROM rules r JOIN categories c ON c.id = r.category_id
+    WHERE r.source_id IS NULL`).all<RuleRow>();
+  return (rows.results ?? []).filter((row) => row.id !== excludeRuleId).flatMap((row) => {
+    const existing = { type: row.type, value: row.value.toLowerCase() };
+    const next = { type: candidate.type, value: candidate.value.toLowerCase() };
+    const duplicate = existing.type === next.type && existing.value === next.value;
+    const reason = duplicate ? '规则类型和值完全相同' : overlapReason(existing, next);
+    if (!reason) return [];
+    return [{
+      id: row.id,
+      categoryId: row.category_id,
+      categoryName: row.category_name ?? '未知分类',
+      value: row.value,
+      type: row.type,
+      kind: duplicate ? 'duplicate' as const : 'conflict' as const,
+      reason,
+    }];
+  });
+}
+
+export async function addRule(env: Env, categoryId: string, input: { value: string; type?: DomainRule['type']; note?: string; replaceConflicts?: boolean }) {
   const category = await env.DB.prepare('SELECT id FROM categories WHERE id = ?').bind(categoryId).first();
   if (!category) throw new Error('分类不存在。');
   const rule = parseRuleInput(input.value, input.type, input.note);
+  const conflicts = await findRuleConflicts(env, rule);
+  if (conflicts.length && !input.replaceConflicts) return { conflicts };
+  if (conflicts.length) {
+    await env.DB.batch(conflicts.map((conflict) => env.DB.prepare('DELETE FROM rules WHERE id = ? AND source_id IS NULL').bind(conflict.id)));
+  }
   await insertRule(env, categoryId, rule, Date.now());
   await touchCategory(env, categoryId);
-  return getRulesOverview(env);
+  return { ...await getRulesOverview(env), replaced: conflicts.length };
 }
 
 export async function updateRule(env: Env, categoryId: string, ruleId: string, input: Partial<DomainRule>) {
