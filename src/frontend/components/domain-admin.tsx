@@ -7,11 +7,12 @@ import { DashboardPanel } from './dashboard-panel';
 import { LinksPanel } from './links-panel';
 import { RulesPanel } from './rules-panel';
 import { SettingsPanel } from './settings-panel';
+import { SourcesPanel } from './sources-panel';
 import { UiIcon, type IconName } from './ui-icon';
 import privateRulesAvatar from '../assets/private-rules-avatar.png';
 import { transitionTheme } from '../i18n';
 
-type View = 'dashboard' | 'rules' | 'links' | 'settings' | 'about';
+type View = 'dashboard' | 'rules' | 'links' | 'sources' | 'settings' | 'about';
 
 const NAV: { id: View; label: string; english: string; icon: IconName }[] = [
   { id: 'dashboard', label: '概览', english: 'OVERVIEW', icon: 'home' },
@@ -20,12 +21,12 @@ const NAV: { id: View; label: string; english: string; icon: IconName }[] = [
   { id: 'settings', label: '设置', english: 'SETTINGS', icon: 'settings' },
 ];
 const ABOUT_META = { label: '关于', english: 'ABOUT' };
+const SOURCES_META = { label: '来源', english: 'SOURCES' };
 
 function initialView(): View {
   if (typeof window === 'undefined') return 'dashboard';
   const candidate = new URLSearchParams(window.location.search).get('view') ?? localStorage.getItem('rule-admin-view');
-  if (candidate === 'sources') return 'rules';
-  return ['dashboard', 'rules', 'links', 'settings', 'about'].includes(candidate ?? '') ? candidate as View : 'dashboard';
+  return ['dashboard', 'rules', 'links', 'sources', 'settings', 'about'].includes(candidate ?? '') ? candidate as View : 'dashboard';
 }
 
 export function DomainAdmin() {
@@ -46,7 +47,7 @@ export function DomainAdmin() {
     () => api.data?.categories.find((category) => category.id === selectedId),
     [api.data?.categories, selectedId],
   );
-  const pageMeta = view === 'about' ? ABOUT_META : NAV.find((item) => item.id === view) ?? NAV[0];
+  const pageMeta = view === 'about' ? ABOUT_META : view === 'sources' ? SOURCES_META : NAV.find((item) => item.id === view) ?? NAV[0];
 
   function showToast(message: string) {
     setToast(message);
@@ -178,6 +179,7 @@ export function DomainAdmin() {
             {view === 'dashboard' && <DashboardPanel data={api.data} onOpenCategory={openCategory} />}
             {view === 'rules' && <RulesPanel api={api} categories={api.data.categories} category={selectedCategory} onSelectCategory={setSelectedId} onToast={showToast} />}
             {view === 'links' && <LinksPanel api={api} data={api.data} links={api.links} onToast={showToast} />}
+            {view === 'sources' && <SourcesPanel api={api} data={api.data} initialCategoryId={selectedId} onToast={showToast} />}
             {view === 'settings' && (api.meta.authType === 'telegram' ? <div className="empty-state"><strong>Telegram 会话不能访问管理员设置</strong></div> : <SettingsPanel api={api} data={api.data} onThemeChange={changeTheme} onToast={showToast} theme={theme} />)}
             {view === 'about' && <AboutPanel />}
           </div>
