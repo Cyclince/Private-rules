@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { DomainAdmin } from './components/domain-admin';
 import { LoginPage } from './pages/LoginPage';
+import { PwaInstallPage } from './pages/PwaInstallPage';
 import { LocaleProvider } from './i18n';
 import './styles/app.css';
 import { authenticateTelegramMiniApp } from './telegram/telegram-auth';
@@ -9,8 +10,13 @@ import { applyTelegramTheme } from './telegram/telegram-theme';
 import { isTelegramMiniApp } from './telegram/telegram-webapp';
 
 function Router() {
+  if (window.location.pathname.replace(/\/+$/, '') === '/pwa-install') return <PwaInstallPage />;
   if (window.location.pathname === '/admin/login') return <LoginPage />;
   return <TelegramSessionGate />;
+}
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => undefined));
 }
 
 function TelegramSessionGate() {

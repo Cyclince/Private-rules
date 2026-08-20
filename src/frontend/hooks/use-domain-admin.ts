@@ -34,7 +34,7 @@ export function useDomainAdmin() {
     sessionSecretConfigured: false,
     apiKeyConfigured: false,
     d1Ready: false,
-    appVersion: '1.0.4',
+    appVersion: '1.0.5',
     authType: undefined as 'session' | 'telegram' | undefined,
   });
   const [loading, setLoading] = useState(true);
@@ -148,8 +148,12 @@ export function useDomainAdmin() {
           await sourceRequest(`/api/categories/${categoryId}/sources`, { method: 'POST', body: JSON.stringify(sourceInput) });
         }
       }
-      // Omitted sources are intentionally preserved. Deletion is only exposed
-      // through the dedicated source UI with an explicit confirmation.
+      // The editor is a complete snapshot of the category's sources. Anything
+      // left in `unused` was removed by the user and must be deleted together
+      // with its mirrored rules.
+      for (const source of unused) {
+        await sourceRequest(`/api/categories/${categoryId}/sources/${source.id}`, { method: 'DELETE' });
+      }
       for (const key of ['sourceUrls', 'geositeNames', 'geoipNames', 'syncIntervalMinutes', 'userAgent', 'ruleOptimization']) delete input[key];
     }
     await mutate(`/api/categories/${categoryId}`, { method: 'PATCH', body: JSON.stringify(input) });

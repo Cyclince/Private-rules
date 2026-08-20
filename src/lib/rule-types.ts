@@ -8,6 +8,7 @@ export const RULE_TYPES: DomainRuleType[] = [
   'SRC-IP-CIDR',
   'IP-ASN',
   'DST-PORT',
+  'SRC-PORT',
   'GEOSITE',
   'GEOIP',
 ];
@@ -20,6 +21,7 @@ export const FRIENDLY_RULE_TYPE: Record<DomainRuleType, string> = {
   'SRC-IP-CIDR': '源 IP 段',
   'IP-ASN': 'ASN',
   'DST-PORT': '目标端口',
+  'SRC-PORT': '来源端口',
   GEOSITE: '站点集合',
   GEOIP: '国家 / 地区 IP',
 };
@@ -38,6 +40,7 @@ function ruleTypeDescription(type: DomainRuleType) {
     'SRC-IP-CIDR': '匹配来源 IP 网段',
     'IP-ASN': '匹配网络自治系统编号',
     'DST-PORT': '匹配目标端口或端口范围',
+    'SRC-PORT': '匹配来源端口或端口范围',
     GEOSITE: '匹配客户端内置的站点集合',
     GEOIP: '匹配客户端内置的国家或地区 IP',
   };

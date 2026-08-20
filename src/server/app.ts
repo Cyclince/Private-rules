@@ -498,6 +498,8 @@ app.get('/admin', async (c) => {
 });
 
 app.get('/admin/login', (c) => adminApp(c));
+app.get('/pwa-install', (c) => adminApp(c));
+app.get('/pwa-install/', (c) => adminApp(c));
 app.all('/api/*', (c) => c.notFound());
 app.all('/rules/*', (c) => c.notFound());
 app.all('/sub/*', (c) => c.notFound());

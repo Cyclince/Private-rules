@@ -10,6 +10,7 @@ export type DomainRuleType =
   | 'SRC-IP-CIDR'
   | 'IP-ASN'
   | 'DST-PORT'
+  | 'SRC-PORT'
   | 'GEOSITE'
   | 'GEOIP';
 
@@ -153,7 +154,10 @@ export type ClientId =
   | 'sing-box'
   | 'v2ray'
   | 'url'
-  | 'json';
+  | 'json'
+  | 'yaml-classical'
+  | 'yaml-domain'
+  | 'yaml-ipcidr';
 
 export type ClientLink = {
   id: ClientId;

@@ -1,6 +1,6 @@
 services:
   private-rules:
-    image: cyclince/private-rules:1.0.4
+    image: cyclince/private-rules:1.0.5
     container_name: private-rules
     restart: unless-stopped
     ports:

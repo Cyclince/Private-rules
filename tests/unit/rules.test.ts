@@ -37,7 +37,7 @@ describe('rule parsing and subscriptions', () => {
       'DST-PORT,81-442',
       'DST-PORT,444-65535',
     ]);
-    expect(RULE_TYPES.slice(RULE_TYPES.indexOf('IP-ASN'), RULE_TYPES.indexOf('GEOSITE') + 1)).toEqual(['IP-ASN', 'DST-PORT', 'GEOSITE']);
+    expect(RULE_TYPES.slice(RULE_TYPES.indexOf('IP-ASN'), RULE_TYPES.indexOf('GEOSITE') + 1)).toEqual(['IP-ASN', 'DST-PORT', 'SRC-PORT', 'GEOSITE']);
   });
 
   it('auto-detects and validates destination port ranges', () => {
@@ -46,6 +46,8 @@ describe('rule parsing and subscriptions', () => {
     expect(() => parseRuleInput('0', 'DST-PORT')).toThrow('目标端口格式不正确');
     expect(() => parseRuleInput('80-79', 'DST-PORT')).toThrow('目标端口格式不正确');
     expect(() => parseRuleInput('65536', 'DST-PORT')).toThrow('目标端口格式不正确');
+    expect(parseRuleInput('41641', 'SRC-PORT').type).toBe('SRC-PORT');
+    expect(() => parseRuleInput('65536', 'SRC-PORT')).toThrow('来源端口格式不正确');
   });
 
   it('generates a valid sing-box source rule-set without changing match semantics', () => {
@@ -81,6 +83,42 @@ describe('rule parsing and subscriptions', () => {
     const singBox = linksForCategory(category, data, 'https://console.example.com').find((link) => link.id === 'sing-box');
     expect(singBox?.fileName).toBe('test-sing-box.json');
     expect(resolveFile(data, 'test-sing-box.json')?.contentType).toBe('application/json; charset=utf-8');
+  });
+
+  it('splits Mihomo YAML providers into classical, domain, and ipcidr behaviors', () => {
+    const category: RuleCategory = { id: 'cat', name: 'Custom Direct', slug: 'Custom_Direct', updatedAt: '2026-01-01T00:00:00.000Z', rules: [
+      { id: '1', value: 'exact.example', type: 'DOMAIN', enabled: true, createdAt: '', updatedAt: '' },
+      { id: '2', value: 'suffix.example', type: 'DOMAIN-SUFFIX', enabled: true, createdAt: '', updatedAt: '' },
+      { id: '3', value: 'keyword', type: 'DOMAIN-KEYWORD', enabled: true, createdAt: '', updatedAt: '' },
+      { id: '4', value: '10.0.0.0/8', type: 'IP-CIDR', enabled: true, createdAt: '', updatedAt: '' },
+      { id: '5', value: '192.168.0.0/16', type: 'SRC-IP-CIDR', enabled: true, createdAt: '', updatedAt: '' },
+      { id: '6', value: '7844', type: 'DST-PORT', enabled: true, createdAt: '', updatedAt: '' },
+      { id: '7', value: '41641', type: 'SRC-PORT', enabled: true, createdAt: '', updatedAt: '' },
+    ] };
+    const data = { settings: { policyName: '', baseUrl: '', githubMirrorUrl: '', publicLinksEnabled: true, tokenLinksEnabled: true, customIconPackUrls: [], customIconPackNames: {} }, categories: [category] } as RulesData;
+
+    const classical = resolveFile(data, 'Custom_Direct_Classical.yaml');
+    const domain = resolveFile(data, 'Custom_Direct_Domain.yaml');
+    const typoAlias = resolveFile(data, 'Custom_Direct_Domian.yaml');
+    const ipcidr = resolveFile(data, 'Custom_Direct_IPCIDR.yaml');
+
+    expect(classical?.body).toContain('DOMAIN-KEYWORD,keyword');
+    expect(domain?.body).toContain("'exact.example'");
+    expect(domain?.body).toContain("'+.suffix.example'");
+    expect(domain?.body).not.toContain('keyword');
+    expect(domain?.body).not.toContain('10.0.0.0/8');
+    expect(typoAlias?.body).toBe(domain?.body);
+    expect(ipcidr?.body).toContain('DST-PORT,7844');
+    expect(ipcidr?.body).toContain('SRC-PORT,41641');
+    expect(ipcidr?.body).toContain('IP-CIDR,10.0.0.0/8,no-resolve');
+    expect(ipcidr?.body).toContain('SRC-IP-CIDR,192.168.0.0/16');
+
+    const links = linksForCategory(category, data, 'https://console.example.com');
+    expect(links.find((link) => link.id === 'yaml-classical')?.fileName).toBe('Custom_Direct_Classical.yaml');
+    expect(links.find((link) => link.id === 'yaml-domain')?.fileName).toBe('Custom_Direct_Domain.yaml');
+    expect(links.find((link) => link.id === 'yaml-ipcidr')?.fileName).toBe('Custom_Direct_IPCIDR.yaml');
+    expect(formatters['yaml-domain'].format({ ...category, rules: [] }, data)).toContain('payload: []');
+    expect(formatters['yaml-ipcidr'].format({ ...category, rules: [] }, data)).toContain('payload: []');
   });
 });
 

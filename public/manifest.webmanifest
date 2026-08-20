@@ -1,0 +1,28 @@
+{
+  "id": "/admin",
+  "name": "Private Rules",
+  "short_name": "Rules",
+  "description": "随时管理、同步与订阅你的私有分流规则。",
+  "lang": "zh-CN",
+  "start_url": "/admin?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#071018",
+  "theme_color": "#0b1720",
+  "categories": ["utilities", "productivity"],
+  "icons": [
+    {
+      "src": "/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

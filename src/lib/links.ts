@@ -2,6 +2,9 @@ import type { ClientId, ClientLink, RuleCategory, RulesData } from '../types/dom
 import { fileNameForClient } from './formatters';
 
 const clients: Array<Omit<ClientLink, 'fileName' | 'publicUrl' | 'tokenUrl' | 'recommendedUrl' | 'supported'>> = [
+  { id: 'yaml-classical', name: 'YAML Classical', icon: 'YML', description: 'Mihomo Classical Rule Provider' },
+  { id: 'yaml-domain', name: 'YAML Domain', icon: 'DOM', description: 'Mihomo Domain Rule Provider' },
+  { id: 'yaml-ipcidr', name: 'YAML IP/Port', icon: 'IP', description: 'Mihomo Classical IP/Port Rule Provider' },
   { id: 'general', name: 'General', icon: 'GEN', description: '通用 LIST，适合多数客户端手动导入' },
   { id: 'clash', name: 'Clash', icon: 'CLA', description: 'YAML Rule Provider' },
   { id: 'mihomo', name: 'Mihomo', icon: 'MI', description: 'YAML Rule Provider' },

@@ -17,7 +17,9 @@ export function LinksPanel({ api, data, links, onToast }: { api: ReturnType<type
   const selectedLinks = selectedId ? links[selectedId] ?? [] : [];
   const sortedCategories = sortCategoryEntries(data.categories.map((category) => ({ category, count: category.ruleCount ?? category.rules.length })), sortKey, sortDirection).map((entry) => entry.category);
   const formats = useMemo<FormatLink[]>(() => [
-    { id: 'yaml', title: 'YAML 规则集', suffix: '.yaml', description: '适用于 Mihomo、Clash、OpenClash 与 Stash', tone: 'cyan', link: selectedLinks.find((link) => link.id === 'mihomo') },
+    { id: 'yaml-classical', title: 'YAML · Classical', suffix: '_Classical.yaml', description: '保留 TYPE,value 完整规则，适用于 behavior: classical', tone: 'cyan', link: selectedLinks.find((link) => link.id === 'yaml-classical') },
+    { id: 'yaml-domain', title: 'YAML · Domain', suffix: '_Domain.yaml', description: '仅含域名值，适用于 behavior: domain', tone: 'cyan', link: selectedLinks.find((link) => link.id === 'yaml-domain') },
+    { id: 'yaml-ipcidr', title: 'YAML · IP/端口', suffix: '_IPCIDR.yaml', description: '包含 IP-CIDR 与来源/目标端口，适用于 behavior: classical', tone: 'cyan', link: selectedLinks.find((link) => link.id === 'yaml-ipcidr') },
     { id: 'list', title: 'LIST 规则集', suffix: '.list', description: '适用于 Loon、Surge、Shadowrocket 与 Egern', tone: 'purple', link: selectedLinks.find((link) => link.id === 'general') },
     { id: 'json', title: 'sing-box JSON', suffix: '.json', description: '原生 source Rule Set，可由 sing-box 远程订阅', tone: 'orange', link: selectedLinks.find((link) => link.id === 'json') },
     { id: 'txt', title: '纯地址列表', suffix: '.txt', description: '仅保留域名与 IP，方便脚本或其他工具继续处理', tone: 'blue', link: selectedLinks.find((link) => link.id === 'url') },

@@ -40,6 +40,18 @@ test('unknown API is not served by the SPA fallback', async ({ request }) => {
   expect(await response.text()).not.toContain('<html');
 });
 
+test('PWA install page and install metadata are available without authentication', async ({ page, request }) => {
+  await page.goto('/pwa-install');
+  await expect(page.getByRole('heading', { name: '把规则中心装进口袋' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /立即安装|查看安装方法/ })).toBeVisible();
+  const manifest = await request.get('/manifest.webmanifest');
+  expect(manifest.status()).toBe(200);
+  await expect(manifest.json()).resolves.toMatchObject({ name: 'Private Rules', display: 'standalone', start_url: '/admin?source=pwa' });
+  expect((await request.get('/sw.js')).status()).toBe(200);
+  expect((await request.get('/pwa-icon-192.png')).status()).toBe(200);
+  expect((await request.get('/apple-touch-icon.png')).status()).toBe(200);
+});
+
 test('private Telegram session, theme, deep links, and write access', async ({ page, request }) => {
   await request.post('/api/auth/login', { data: { password: 'e2e-password' } });
   const name = `Telegram-${Date.now()}`;

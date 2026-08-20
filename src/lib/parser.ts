@@ -82,8 +82,8 @@ export function parseRuleInput(input: string, forcedType?: DomainRuleType, note?
   if (type === 'DOMAIN-KEYWORD' && !KEYWORD_PATTERN.test(value)) {
     throw new Error('关键词只能包含字母、数字、短横线或下划线');
   }
-  if (type === 'DST-PORT' && !validDestinationPort(value)) {
-    throw new Error('目标端口格式不正确，请输入 1-65535 范围内的端口或端口区间');
+  if ((type === 'DST-PORT' || type === 'SRC-PORT') && !validDestinationPort(value)) {
+    throw new Error(`${type === 'DST-PORT' ? '目标' : '来源'}端口格式不正确，请输入 1-65535 范围内的端口或端口区间`);
   }
 
   if (wildcard && type === 'DOMAIN-SUFFIX') displayType = '通配域名';

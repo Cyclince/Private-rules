@@ -707,7 +707,7 @@ function networkRulesOverlap(left: ComparableRule, right: ComparableRule) {
 }
 
 function portRulesOverlap(left: ComparableRule, right: ComparableRule) {
-  if (left.type !== 'DST-PORT' || right.type !== 'DST-PORT') return false;
+  if (left.type !== right.type || !['DST-PORT', 'SRC-PORT'].includes(left.type)) return false;
   const range = (value: string) => { const [start, end = start] = value.split('-').map(Number); return { start, end }; };
   const leftRange = range(left.value);
   const rightRange = range(right.value);
@@ -718,7 +718,7 @@ function overlapReason(left: ComparableRule, right: ComparableRule) {
   if (keywordRulesOverlap(left, right)) return '关键词规则会覆盖另一条规则的匹配范围';
   if (domainRulesOverlap(left, right)) return '域名或后缀的匹配范围互相包含';
   if (networkRulesOverlap(left, right)) return 'IP 网段的匹配范围互相包含或重叠';
-  if (portRulesOverlap(left, right)) return '目标端口的匹配范围互相包含或重叠';
+  if (portRulesOverlap(left, right)) return `${left.type === 'SRC-PORT' ? '来源' : '目标'}端口的匹配范围互相包含或重叠`;
   return null;
 }
 

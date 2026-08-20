@@ -12,7 +12,10 @@ export type FormatterId =
   | 'egern'
   | 'surfboard'
   | 'sing-box'
-  | 'v2ray';
+  | 'v2ray'
+  | 'yaml-classical'
+  | 'yaml-domain'
+  | 'yaml-ipcidr';
 
 export type Formatter = {
   id: FormatterId;
@@ -76,6 +79,38 @@ export function yaml(category: RuleCategory) {
   return `${lines.join('\n')}\n`;
 }
 
+function yamlPayload(category: RuleCategory, values: Array<{ value: string; note?: string }>) {
+  const lines = [...generationHeader(category), values.length ? 'payload:' : 'payload: []'];
+  lines.push(...commentLines(category.note || category.description, '  '));
+  for (const item of values) {
+    lines.push(...ruleNote(item.note, '  '));
+    lines.push(`  - '${item.value.replace(/'/g, "''")}'`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+/** Mihomo `behavior: domain`: exact domains and `+.` suffix matches only. */
+export function domainYaml(category: RuleCategory) {
+  const values = enabled(category).flatMap((rule) => {
+    if (rule.type === 'DOMAIN') return [{ value: rule.value, note: rule.note }];
+    if (rule.type === 'DOMAIN-SUFFIX') return [{ value: `+.${rule.value.replace(/^\+?\./, '')}`, note: rule.note }];
+    return [];
+  });
+  return yamlPayload(category, values);
+}
+
+/** A Classical provider narrowed to IP and port rules for IP-oriented routing. */
+export function ipcidrYaml(category: RuleCategory) {
+  const rules = enabled(category).filter((item) => ['DST-PORT', 'SRC-PORT', 'IP-CIDR', 'SRC-IP-CIDR'].includes(item.type));
+  const lines = [...generationHeader(category), rules.length ? 'payload:' : 'payload: []'];
+  lines.push(...commentLines(category.note || category.description, '  '));
+  for (const rule of rules) {
+    lines.push(...ruleNote(rule.note, '  '));
+    lines.push(`  - ${ruleLine(rule)}${rule.type === 'IP-CIDR' ? ',no-resolve' : ''}`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
 export function list(category: RuleCategory) {
   const lines: string[] = generationHeader(category);
   lines.push(...commentLines(category.note || category.description));
@@ -107,7 +142,7 @@ export function quantumultX(category: RuleCategory, data: RulesData) {
 
 export function singBoxJson(category: RuleCategory) {
   const destination: Record<string, Array<string | number>> = {};
-  const source: Record<string, string[]> = {};
+  const source: Record<string, Array<string | number>> = {};
   const ports: Record<string, Array<string | number>> = {};
   const append = (target: Record<string, Array<string | number>>, field: string, value: string | number) => {
     (target[field] ??= []).push(value);
@@ -119,6 +154,8 @@ export function singBoxJson(category: RuleCategory) {
     else if (rule.type === 'DOMAIN-KEYWORD') append(destination, 'domain_keyword', rule.value);
     else if (rule.type === 'IP-CIDR') append(destination, 'ip_cidr', rule.value);
     else if (rule.type === 'SRC-IP-CIDR') append(source, 'source_ip_cidr', rule.value);
+    else if (rule.type === 'SRC-PORT' && rule.value.includes('-')) append(source, 'source_port_range', rule.value.replace('-', ':'));
+    else if (rule.type === 'SRC-PORT') append(source, 'source_port', Number(rule.value));
     else if (rule.type === 'DST-PORT' && rule.value.includes('-')) append(ports, 'port_range', rule.value.replace('-', ':'));
     else if (rule.type === 'DST-PORT') append(ports, 'port', Number(rule.value));
   }
@@ -145,6 +182,9 @@ export function url(category: RuleCategory) {
 export const formatters: Record<string, Formatter> = {
   general: { id: 'general', name: 'GeneralFormatter', extension: '.list', format: (category) => list(category) },
   yaml: { id: 'yaml', name: 'ClashFormatter', extension: '.yaml', format: (category) => yaml(category) },
+  'yaml-classical': { id: 'yaml-classical', name: 'MihomoClassicalFormatter', extension: '_Classical.yaml', format: (category) => yaml(category) },
+  'yaml-domain': { id: 'yaml-domain', name: 'MihomoDomainFormatter', extension: '_Domain.yaml', format: (category) => domainYaml(category) },
+  'yaml-ipcidr': { id: 'yaml-ipcidr', name: 'MihomoIPCIDRFormatter', extension: '_IPCIDR.yaml', format: (category) => ipcidrYaml(category) },
   clash: { id: 'clash', name: 'ClashFormatter', extension: '.yaml', format: (category) => yaml(category) },
   mihomo: { id: 'mihomo', name: 'MihomoFormatter', extension: '.yaml', format: (category) => yaml(category) },
   openclash: { id: 'openclash', name: 'OpenClashFormatter', extension: '.yaml', format: (category) => yaml(category) },
@@ -180,6 +220,11 @@ export function resolveFile(data: RulesData, fileName: string) {
     const candidates: Array<[string, Formatter]> = [
       [`${base}.yaml`, formatters.yaml],
       [`${base}.yml`, formatters.yaml],
+      [`${base}_classical.yaml`, formatters['yaml-classical']],
+      [`${base}_domain.yaml`, formatters['yaml-domain']],
+      // Compatibility for the common "Domian" typo used by older copied links.
+      [`${base}_domian.yaml`, formatters['yaml-domain']],
+      [`${base}_ipcidr.yaml`, formatters['yaml-ipcidr']],
       [`${base}.list`, formatters.general],
       [`${base}.conf`, formatters.general],
       [`${base}.txt`, formatters.url],
