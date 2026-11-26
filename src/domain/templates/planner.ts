@@ -117,17 +117,28 @@ function buildSelfHostedRulesetUrl(
   baseUrl: string | undefined,
   ruleSetId: string,
   behavior: RemoteRuleBehavior,
+  client: TemplateClientId,
 ): string | undefined {
   if (!baseUrl) return undefined;
   const trimmed = baseUrl.replace(/\/+$/, '');
+  if (client === 'surge') {
+    return `${trimmed}/rules/${encodeURIComponent(ruleSetId)}_${behavior}-surge.list`;
+  }
   const formatSegment =
     behavior === 'domain' ? 'clash-domain' : behavior === 'ipcidr' ? 'clash-ipcidr' : 'clash-classical';
   return `${trimmed}/sub/${encodeURIComponent(ruleSetId)}/${formatSegment}`;
 }
 
-function buildSelfHostedGeositeUrl(baseUrl: string | undefined, name: string): string | undefined {
+function buildSelfHostedGeositeUrl(
+  baseUrl: string | undefined,
+  name: string,
+  client: TemplateClientId,
+): string | undefined {
   if (!baseUrl) return undefined;
   const trimmed = baseUrl.replace(/\/+$/, '');
+  if (client === 'surge') {
+    return `${trimmed}/rules/geosite-${encodeURIComponent(name.toLowerCase())}-surge.list`;
+  }
   return `${trimmed}/sub/geosite-${encodeURIComponent(name.toLowerCase())}/clash-domain`;
 }
 
@@ -334,15 +345,16 @@ export function planRulesetReferences(input: RulesetPlannerInput): RulesetPlan {
           const effectiveBehaviors: RemoteRuleBehavior[] = behaviors.length > 0 ? behaviors : ['classical'];
 
           const providerIds: string[] = [];
+          const selfHostedFormat: RemoteRuleFormat = input.client === 'surge' ? 'text' : 'yaml';
           for (const behavior of effectiveBehaviors) {
-            const url = buildSelfHostedRulesetUrl(input.baseUrl, matcher.ruleSetId, behavior);
+            const url = buildSelfHostedRulesetUrl(input.baseUrl, matcher.ruleSetId, behavior, input.client);
             const dedupeKey = `ruleset:${matcher.ruleSetId}|${behavior}`;
             const provider = registerProvider({
               dedupeKey,
               preferredId: `ruleset-${matcher.ruleSetId}-${behavior}`,
               source: { kind: 'ruleset', ruleSetId: matcher.ruleSetId, url },
               behavior,
-              format: 'yaml',
+              format: selfHostedFormat,
               updateIntervalSec: matcher.updateIntervalSec,
               inlineForPriority: beforeInlineRule,
               cardId: card.cardId,
@@ -405,7 +417,7 @@ export function planRulesetReferences(input: RulesetPlannerInput): RulesetPlan {
           }
 
           // Clients without native GEOSITE use a deduplicated self-hosted ruleset
-          const url = buildSelfHostedGeositeUrl(input.baseUrl, normalizedName);
+          const url = buildSelfHostedGeositeUrl(input.baseUrl, normalizedName, input.client);
           const dedupeKey = `geosite-hosted:${normalizedName}`;
           const provider = registerProvider({
             dedupeKey,

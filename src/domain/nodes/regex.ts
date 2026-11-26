@@ -36,9 +36,8 @@ export const CLIENT_REGEX_DIALECTS: Record<TemplateClientId, RegexDialect> = {
     supportsInlineCaseInsensitive: true,
     supportsLookahead: true,
     supportsLookbehind: true,
-    supportsSeparateExclude: true,
+    supportsSeparateExclude: false,
     filterKey: 'filter',
-    excludeFilterKey: 'exclude-filter',
   },
   surge: {
     client: 'surge',

@@ -690,7 +690,7 @@ export const en: Messages = {
   'publications.previewTitle': 'Live Compilation Preview',
   'publications.previewDesc': 'Read-only compiled configuration from the server compiler (no real node URLs)',
   'publications.previewClientUnsupported':
-    'Compiler support for this client is coming soon. Switch to mihomo to preview compiled output.',
+    'Compiler support for this client is coming soon. Switch to mihomo, Stash, or Surge to preview compiled output.',
   'publications.previewStatsGroups': 'Proxy Groups',
   'publications.previewStatsRuleProviders': 'Rule Providers',
   'publications.previewStatsRules': 'Rules',

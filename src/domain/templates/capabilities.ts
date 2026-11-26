@@ -26,7 +26,49 @@ export type EmptyFallbackMechanism = 'compatible-builtin' | 'explicit-fallback-p
  *   (NOT `SRC-IP-CIDR`); logical rules `AND`/`OR`/`NOT` use double parens `((...))`;
  *   final catch-all keyword is `MATCH`; built-in policies include `DIRECT`, `REJECT`,
  *   `REJECT-DROP`, `PASS`, `COMPATIBLE`.
- * - `dns`: `respect-rules: true` requires `proxy-server-nameserver` to be configured.
+ * - `dns`: `respect-rules: true` requires `proxy-server-nameserver` to be configured;
+ *   supports `enhanced-mode: fake-ip | redir-host`.
+ *
+ * Official `stash` (https://stash.wiki — iOS/tvOS 3.6–3.7+, macOS 4.3–4.4+, docs Oct 2026) audit notes:
+ * - `rule-providers`: remote/local providers omit `type` (`behavior`, `format`, `url`, `path`,
+ *   `interval`, `headers`); inline providers use `type: inline`, `behavior`, `payload` (iOS 3.6+ / macOS 4.3+).
+ *   Formats: `yaml`, `text`, `mrs` (`mrs` supports `domain` and `ipcidr`, NOT `classical`).
+ * - `proxy-providers`: `url`, `path`, `interval`, `filter`, `headers` (plural, string or string[]).
+ *   Does NOT support `type: inline` (inline nodes go in top-level `proxies:`), `exclude-filter`,
+ *   `override.udp`, `proxy` fetch routing, or provider-level `health-check`.
+ * - `proxy-groups`: `select`, `url-test`, `fallback`, `load-balance` (+ deprecated `relay`);
+ *   supports `proxies`, `use`, `include-all`, `filter` (ICU regex; NO `exclude-filter`), `icon`,
+ *   `hidden`, `interval`, `tolerance`, `strategy`, `lazy`, `benchmark-url`. Empty groups resolve to `DIRECT`.
+ * - `rules`: all 14 canonical rule types supported (`SRC-IP-CIDR` emits as `SRC-IP` Beta 3.7+/4.4+,
+ *   `SRC-PORT` Beta 3.7+/4.4+, IPv6 CIDR emits as `IP-CIDR6`, `USER-AGENT` & `URL-REGEX` supported,
+ *   `GEOSITE` uses bundled v2fly `domain-list-community` -> marked `'partial'` for verification);
+ *   `no-resolve` valid on `IP-CIDR`, `IP-CIDR6`, `IP-ASN`, `GEOIP`, `RULE-SET`;
+ *   logical rules `AND`/`OR`/`NOT` use double parens `((...))`; final keyword is `MATCH`;
+ *   built-in policies: `DIRECT`, `REJECT`, `REJECT-DROP`.
+ * - `dns`: Fake-IP only (NO `enhanced-mode: redir-host`); supports `follow-rule: true` with
+ *   `proxy-server-nameserver` (iOS 3.6+ / macOS 4.3+), `default-nameserver`, `nameserver`,
+ *   `fallback`, `fake-ip-range`, `fake-ip-filter`, `ipv6`.
+ *
+ * Official `surge` (https://manual.nssurge.com — Surge iOS 5.22–6.0+, Mac 5.4–6.13+, 2026 Manual) audit notes:
+ * - `[Rule]` / `[Ruleset <name>]`: remote `RULE-SET,<url>,<policy>[,no-resolve][,update-interval=<sec>]`
+ *   and inline `[Ruleset <name>]` sections (Mac 5.3.1+ / iOS 5.22.0+); plain `text` format ONLY
+ *   (`yaml` and `mrs` unsupported). No native `GEOSITE` (converted to self-hosted text rulesets).
+ * - `[Proxy Group]`: `select`, `url-test` (`interval`, `tolerance`), `fallback` (`interval`),
+ *   `load-balance` (`persistent=true`, `interval`); supports `policy-path=<url>`,
+ *   `update-interval=<sec>`, `policy-regex-filter=<icu-regex>` (NO separate `exclude-filter`),
+ *   `external-policy-modifier="udp-relay=true"`, `include-all-proxies`, `include-other-group`,
+ *   `icon-url=<url>` (Mac 6.5.0+), `hidden`, `no-alert`. Legacy `url=` on groups has no effect
+ *   (use `[General] proxy-test-url`). `policy-path` does NOT support custom `User-Agent` headers
+ *   or fetch-proxy override.
+ * - `rules`: 12 of 14 canonical rule types (`GEOSITE` & `DOMAIN-REGEX` unsupported; Surge only has
+ *   `DOMAIN-WILDCARD`); `DST-PORT` emits as `DEST-PORT`; `SRC-IP-CIDR` emits as `SRC-IP`;
+ *   IPv6 CIDR emits as `IP-CIDR6`; `SRC-PORT` supported (iOS 5.8.4+ / Mac 5.4.4+); `PROCESS-NAME`
+ *   is Surge Mac only (ignored on iOS); `no-resolve` valid on `IP-CIDR`, `IP-CIDR6`, `IP-ASN`,
+ *   `GEOIP`, `RULE-SET`; logical rules `AND`/`OR`/`NOT` use double parens `((...))` (max depth 10);
+ *   final keyword is `FINAL,<policy>[,dns-failed]`; built-in policies: `DIRECT`, `REJECT`,
+ *   `REJECT-TINYGIF`, `REJECT-DROP`, `REJECT-NO-DROP`.
+ * - `[General]` DNS: `dns-server`, `encrypted-dns-server`, `always-real-ip`; VIF always uses
+ *   Fake-IP (NO `redir-host` mode, NO `respect-rules`).
  */
 export type ClientCapabilities = {
   client: TemplateClientId;
@@ -48,6 +90,8 @@ export type ClientCapabilities = {
   noResolve: boolean;
   rejectDrop: boolean;
   supportedRuleTypes: ReadonlySet<RuleType>;
+  /** Client-specific keyword renames for canonical rule types (e.g. `DST-PORT` -> `DEST-PORT`). */
+  ruleTypeAliases: Readonly<Partial<Record<RuleType, string>>>;
   supportedGroupTypes: ReadonlySet<GroupType>;
   supportedRemoteFormats: ReadonlySet<RemoteRuleFormat>;
   /** Rule-set section/field name in target config (e.g. `rule-providers`, `RULE-SET`, `route.rule_set`). */
@@ -70,10 +114,14 @@ export type ClientCapabilities = {
   builtinPolicies: ReadonlySet<string>;
   /** Rule behaviors accepted by `format: mrs` (binary Mihomo Rule Set). */
   mrsSupportedBehaviors: ReadonlySet<RulesetBehavior>;
-  /** Whether DNS config supports `respect-rules`. */
+  /** Whether DNS config supports rule-following (`respect-rules` / Stash `follow-rule`). */
   supportsRespectRules: boolean;
-  /** Whether `respect-rules: true` requires `proxy-server-nameserver` to pass validation. */
+  /** Whether rule-following DNS requires/recommends `proxy-server-nameserver`. */
   requiresProxyServerNameserverWithRespectRules: boolean;
+  /** Whether DNS supports `redir-host` mode natively. */
+  supportsDnsRedirHost: boolean;
+  /** Custom HTTP headers field name on remote proxy providers (`header` / `headers`), or `null`. */
+  proxyProviderHeadersField: string | null;
   /** Whether `proxy-providers` natively supports `exclude-filter`. */
   supportsProxyProviderExcludeFilter: boolean;
   /** Whether `proxy-providers` natively supports `override: { udp: true }`. */
@@ -116,6 +164,7 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     noResolve: true,
     rejectDrop: true,
     supportedRuleTypes: new Set<RuleType>(ALL_RULE_TYPES.filter((t) => t !== 'USER-AGENT' && t !== 'URL-REGEX')),
+    ruleTypeAliases: {},
     supportedGroupTypes: new Set<GroupType>(['select', 'url-test', 'fallback', 'load-balance']),
     supportedRemoteFormats: new Set<RemoteRuleFormat>(['yaml', 'text', 'mrs']),
     remoteRulesetField: 'rule-providers',
@@ -130,6 +179,8 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     mrsSupportedBehaviors: new Set<RulesetBehavior>(['domain', 'ipcidr']),
     supportsRespectRules: true,
     requiresProxyServerNameserverWithRespectRules: true,
+    supportsDnsRedirHost: true,
+    proxyProviderHeadersField: 'header',
     supportsProxyProviderExcludeFilter: true,
     supportsProxyProviderOverrideUdp: true,
   },
@@ -147,10 +198,13 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     emptyFallback: false,
     emptyFallbackMechanism: 'explicit-fallback-proxy',
     noResolve: true,
-    rejectDrop: false,
-    supportedRuleTypes: new Set<RuleType>(ALL_RULE_TYPES.filter((t) => t !== 'USER-AGENT')),
+    rejectDrop: true,
+    supportedRuleTypes: new Set<RuleType>(ALL_RULE_TYPES),
+    ruleTypeAliases: {
+      'SRC-IP-CIDR': 'SRC-IP',
+    },
     supportedGroupTypes: new Set<GroupType>(['select', 'url-test', 'fallback', 'load-balance']),
-    supportedRemoteFormats: new Set<RemoteRuleFormat>(['yaml', 'text']),
+    supportedRemoteFormats: new Set<RemoteRuleFormat>(['yaml', 'text', 'mrs']),
     remoteRulesetField: 'rule-providers',
     remoteNodeField: 'proxy-providers',
     nodeFilterField: 'filter',
@@ -159,10 +213,12 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     finalRuleKeyword: 'MATCH',
     ipV6RuleType: 'IP-CIDR6',
     noResolveRuleTypes: new Set<RuleType>(['IP-CIDR', 'IP-ASN', 'GEOIP']),
-    builtinPolicies: new Set(['DIRECT', 'REJECT']),
-    mrsSupportedBehaviors: EMPTY_BEHAVIORS,
-    supportsRespectRules: false,
-    requiresProxyServerNameserverWithRespectRules: false,
+    builtinPolicies: new Set(['DIRECT', 'REJECT', 'REJECT-DROP']),
+    mrsSupportedBehaviors: new Set<RulesetBehavior>(['domain', 'ipcidr']),
+    supportsRespectRules: true,
+    requiresProxyServerNameserverWithRespectRules: true,
+    supportsDnsRedirHost: false,
+    proxyProviderHeadersField: 'headers',
     supportsProxyProviderExcludeFilter: false,
     supportsProxyProviderOverrideUdp: false,
   },
@@ -176,19 +232,23 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     localFirstRules: false,
     remoteNodes: 'provider',
     nodeRegexFilter: true,
-    groupIcons: false,
+    groupIcons: true,
     emptyFallback: false,
     emptyFallbackMechanism: 'explicit-fallback-proxy',
     noResolve: true,
     rejectDrop: true,
     supportedRuleTypes: new Set<RuleType>(ALL_RULE_TYPES.filter((t) => t !== 'GEOSITE' && t !== 'DOMAIN-REGEX')),
+    ruleTypeAliases: {
+      'DST-PORT': 'DEST-PORT',
+      'SRC-IP-CIDR': 'SRC-IP',
+    },
     supportedGroupTypes: new Set<GroupType>(['select', 'url-test', 'fallback', 'load-balance']),
     supportedRemoteFormats: new Set<RemoteRuleFormat>(['text']),
     remoteRulesetField: 'RULE-SET',
     remoteNodeField: 'policy-path',
     nodeFilterField: 'policy-regex-filter',
     nodeExcludeFilterField: null,
-    groupIconField: null,
+    groupIconField: 'icon-url',
     finalRuleKeyword: 'FINAL',
     ipV6RuleType: 'IP-CIDR6',
     noResolveRuleTypes: new Set<RuleType>(['IP-CIDR', 'IP-ASN', 'GEOIP']),
@@ -196,6 +256,8 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     mrsSupportedBehaviors: EMPTY_BEHAVIORS,
     supportsRespectRules: false,
     requiresProxyServerNameserverWithRespectRules: false,
+    supportsDnsRedirHost: false,
+    proxyProviderHeadersField: null,
     supportsProxyProviderExcludeFilter: false,
     supportsProxyProviderOverrideUdp: false,
   },
@@ -217,6 +279,7 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     supportedRuleTypes: new Set<RuleType>(
       ALL_RULE_TYPES.filter((t) => t !== 'USER-AGENT' && t !== 'URL-REGEX' && t !== 'IP-ASN'),
     ),
+    ruleTypeAliases: {},
     supportedGroupTypes: new Set<GroupType>(['select', 'url-test']),
     supportedRemoteFormats: new Set<RemoteRuleFormat>(['text']),
     remoteRulesetField: 'route.rule_set',
@@ -231,6 +294,8 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     mrsSupportedBehaviors: EMPTY_BEHAVIORS,
     supportsRespectRules: false,
     requiresProxyServerNameserverWithRespectRules: false,
+    supportsDnsRedirHost: false,
+    proxyProviderHeadersField: null,
     supportsProxyProviderExcludeFilter: false,
     supportsProxyProviderOverrideUdp: false,
   },
@@ -260,6 +325,7 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
       'URL-REGEX',
       'DST-PORT',
     ]),
+    ruleTypeAliases: {},
     supportedGroupTypes: new Set<GroupType>(['select', 'url-test', 'fallback', 'load-balance']),
     supportedRemoteFormats: new Set<RemoteRuleFormat>(['text']),
     remoteRulesetField: '[Remote Rule]',
@@ -274,6 +340,8 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     mrsSupportedBehaviors: EMPTY_BEHAVIORS,
     supportsRespectRules: false,
     requiresProxyServerNameserverWithRespectRules: false,
+    supportsDnsRedirHost: false,
+    proxyProviderHeadersField: null,
     supportsProxyProviderExcludeFilter: false,
     supportsProxyProviderOverrideUdp: false,
   },
@@ -301,6 +369,7 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
       'GEOIP',
       'USER-AGENT',
     ]),
+    ruleTypeAliases: {},
     supportedGroupTypes: new Set<GroupType>(['select', 'url-test', 'fallback', 'load-balance']),
     supportedRemoteFormats: new Set<RemoteRuleFormat>(['text']),
     remoteRulesetField: '[filter_remote]',
@@ -315,6 +384,8 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     mrsSupportedBehaviors: EMPTY_BEHAVIORS,
     supportsRespectRules: false,
     requiresProxyServerNameserverWithRespectRules: false,
+    supportsDnsRedirHost: false,
+    proxyProviderHeadersField: null,
     supportsProxyProviderExcludeFilter: false,
     supportsProxyProviderOverrideUdp: false,
   },
@@ -344,6 +415,7 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
       'URL-REGEX',
       'DST-PORT',
     ]),
+    ruleTypeAliases: {},
     supportedGroupTypes: new Set<GroupType>(['select', 'url-test', 'fallback', 'load-balance']),
     supportedRemoteFormats: new Set<RemoteRuleFormat>(['text']),
     remoteRulesetField: 'RULE-SET',
@@ -358,6 +430,8 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     mrsSupportedBehaviors: EMPTY_BEHAVIORS,
     supportsRespectRules: false,
     requiresProxyServerNameserverWithRespectRules: false,
+    supportsDnsRedirHost: false,
+    proxyProviderHeadersField: null,
     supportsProxyProviderExcludeFilter: false,
     supportsProxyProviderOverrideUdp: false,
   },

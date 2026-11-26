@@ -9,7 +9,7 @@ import { summarizeRulesetBehaviors } from '../../domain/formatters';
 import { id, slugify } from '../../domain/rules/slug';
 import {
   applyOverlay,
-  compileMihomo,
+  compileTemplate,
   importMihomoYaml,
   importSubconverterIni,
   lintTemplate,
@@ -32,7 +32,12 @@ import {
   type RebaseDiff,
 } from '../../domain/templates';
 import { safeFetchText } from '../../infrastructure/http/fetch';
-import { TEMPLATE_CLIENTS, type OutputProfile, type TemplateClientId } from '../../shared/clients';
+import {
+  SUPPORTED_TEMPLATE_CLIENTS,
+  TEMPLATE_CLIENTS,
+  type OutputProfile,
+  type TemplateClientId,
+} from '../../shared/clients';
 import { AppError } from '../../shared/errors';
 import type { AppCard, RemoteRuleBehavior } from '../../shared/schemas/card';
 import type {
@@ -48,7 +53,7 @@ import { loadCatalogIndexMap } from '../catalog';
 import { now } from '../rulesets';
 import { PRESET_ICON_PACK_URLS } from '../settings';
 
-export const SUPPORTED_COMPILER_CLIENTS = new Set<TemplateClientId>(['mihomo']);
+export const SUPPORTED_COMPILER_CLIENTS = new Set<TemplateClientId>(SUPPORTED_TEMPLATE_CLIENTS);
 
 export type ListTemplatesOptions = {
   query?: string;
@@ -832,9 +837,10 @@ export async function previewTemplateById(
   },
 ): Promise<CompiledConfigResult> {
   if (!SUPPORTED_COMPILER_CLIENTS.has(options.client)) {
+    const supportedLabels = SUPPORTED_TEMPLATE_CLIENTS.map((id) => TEMPLATE_CLIENTS[id].label).join(' / ');
     throw new AppError(
       'NOT_FOUND',
-      `客户端 ${TEMPLATE_CLIENTS[options.client].label} 尚未支持编译预览，当前仅支持 mihomo。`,
+      `客户端 ${TEMPLATE_CLIENTS[options.client].label} 尚未支持编译预览，当前仅支持 ${supportedLabels}。`,
       { client: options.client, supportedClients: [...SUPPORTED_COMPILER_CLIENTS] },
     );
   }
@@ -855,7 +861,7 @@ export async function previewTemplateById(
   ]);
   const rulesetCtx = await loadTemplateRulesetContext(env, effectiveBody, cards);
 
-  return compileMihomo({
+  return compileTemplate(options.client, {
     body: effectiveBody,
     cards,
     templateName: template.name,

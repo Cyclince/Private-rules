@@ -4,6 +4,7 @@ import { getSubscriptionFile } from '../../application/rulesets';
 import { createLogger } from '../../infrastructure/logging/logger';
 import { safeFileName, tokenMatches } from '../../lib/auth';
 import { json } from '../../lib/response';
+import { SUPPORTED_TEMPLATE_CLIENTS } from '../../shared/clients';
 import {
   computeSubscriptionEtag,
   matchCachedPublication,
@@ -94,7 +95,7 @@ async function servePublication(c: AppContext, slug: string, file: string, acces
         ok: false,
         error: delivery.message,
         code: 'NOT_FOUND',
-        details: { client: delivery.client, supportedClients: ['mihomo'] },
+        details: { client: delivery.client, supportedClients: [...SUPPORTED_TEMPLATE_CLIENTS] },
       },
       { status: 404 },
     );

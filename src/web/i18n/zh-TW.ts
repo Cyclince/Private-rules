@@ -643,7 +643,8 @@ export const zhTW: Messages = {
   'publications.linksComingSoonHint': '該客戶端編譯器即將支援，暫不生成可下載連結。',
   'publications.previewTitle': '即時編譯預覽',
   'publications.previewDesc': '呼叫伺服器端編譯器生成只讀設定預覽（不含真實節點明文）',
-  'publications.previewClientUnsupported': '該客戶端編譯器即將支援，目前可切換至 mihomo 檢視即時編譯預覽。',
+  'publications.previewClientUnsupported':
+    '該客戶端編譯器即將支援，目前可切換至 mihomo / Stash / Surge 檢視即時編譯預覽。',
   'publications.previewStatsGroups': '策略組',
   'publications.previewStatsRuleProviders': '規則集源',
   'publications.previewStatsRules': '規則數',

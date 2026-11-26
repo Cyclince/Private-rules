@@ -212,10 +212,10 @@ export function TemplatePreviewPanel({
 
               <CodeMirrorEditor
                 testId="editor-preview-codemirror"
-                ariaLabel="mihomo YAML preview"
+                ariaLabel={`${TEMPLATE_CLIENTS[client].label} preview`}
                 value={activePreview.content}
                 readOnly
-                language="yaml"
+                language={client === 'surge' ? 'text' : 'yaml'}
                 minHeight="280px"
                 maxHeight="460px"
               />

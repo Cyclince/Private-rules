@@ -3,7 +3,7 @@ import { createRepositories, type NodeBindingRow } from '../../data/repositories
 import { id, slugify } from '../../domain/rules/slug';
 import {
   applyOverlay,
-  compileMihomo,
+  compileTemplate,
   lintTemplate,
   type CompiledConfigResult,
   type CompiledNodeSlotBinding,
@@ -20,6 +20,7 @@ import { createLogger } from '../../infrastructure/logging/logger';
 import { resolveExplicitSessionSecret } from '../../lib/runtime-secrets';
 import {
   parsePublicationFile,
+  SUPPORTED_TEMPLATE_CLIENTS,
   TEMPLATE_CLIENTS,
   type OutputProfile,
   type TemplateClientId,
@@ -715,10 +716,11 @@ export async function resolvePublicationDelivery(
     return { status: 'not_found', message: '订阅文件不存在。' };
   }
   if (!SUPPORTED_COMPILER_CLIENTS.has(client)) {
+    const supportedFiles = SUPPORTED_TEMPLATE_CLIENTS.map((id) => TEMPLATE_CLIENTS[id].fileName).join(' / ');
     return {
       status: 'unsupported_client',
       client,
-      message: `客户端 ${TEMPLATE_CLIENTS[client].label}（${params.file}）尚未支持，当前版本仅支持 mihomo.yaml。`,
+      message: `客户端 ${TEMPLATE_CLIENTS[client].label}（${params.file}）尚未支持，当前版本仅支持 ${supportedFiles}。`,
     };
   }
 
@@ -841,7 +843,7 @@ export async function compilePublicationDelivery(
   ]);
   const rulesetCtx = await loadTemplateRulesetContext(env, delivery.resolvedBody, cards);
 
-  return compileMihomo({
+  return compileTemplate(delivery.client, {
     body: delivery.resolvedBody,
     cards,
     templateName: delivery.template.name,

@@ -271,12 +271,35 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     expect(previewJson.preview.client).toBe('mihomo');
     expect(previewJson.preview.content).toContain('proxy-groups:');
 
+    const previewStashRes = await adminRequest(`/api/templates/${templateId}/preview?client=stash`, {
+      method: 'POST',
+      body: JSON.stringify({ output: 'full' }),
+    });
+    expect(previewStashRes.status).toBe(200);
+    const previewStashJson = (await previewStashRes.json()) as {
+      preview: { client: string; content: string };
+    };
+    expect(previewStashJson.preview.client).toBe('stash');
+    expect(previewStashJson.preview.content).toContain('proxy-groups:');
+
     const previewSurgeRes = await adminRequest(`/api/templates/${templateId}/preview?client=surge`, {
+      method: 'POST',
+      body: JSON.stringify({ output: 'full' }),
+    });
+    expect(previewSurgeRes.status).toBe(200);
+    const previewSurgeJson = (await previewSurgeRes.json()) as {
+      preview: { client: string; content: string };
+    };
+    expect(previewSurgeJson.preview.client).toBe('surge');
+    expect(previewSurgeJson.preview.content).toContain('[Proxy Group]');
+    expect(previewSurgeJson.preview.content).toContain('[Rule]');
+
+    const previewSingboxRes = await adminRequest(`/api/templates/${templateId}/preview?client=sing-box`, {
       method: 'POST',
       body: JSON.stringify({}),
     });
-    expect(previewSurgeRes.status).toBe(404);
-    expect((await previewSurgeRes.json()) as { error: string }).toMatchObject({
+    expect(previewSingboxRes.status).toBe(404);
+    expect((await previewSingboxRes.json()) as { error: string }).toMatchObject({
       error: expect.stringContaining('尚未支持'),
     });
 
@@ -505,7 +528,7 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
       body: JSON.stringify({
         slug: 'my-mihomo',
         templateId: template.id,
-        clients: ['mihomo', 'surge'],
+        clients: ['mihomo', 'stash', 'surge'],
         access: 'token',
         output: 'full',
       }),
@@ -518,7 +541,7 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
         slug: 'open-mihomo',
         templateId: template.id,
         pinnedVersion: 1,
-        clients: ['mihomo'],
+        clients: ['mihomo', 'stash', 'surge'],
         access: 'public',
         output: 'minimal',
       }),
@@ -540,11 +563,68 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     expect(wrongMode.status).toBe(404);
 
     // Unsupported clients return 404 with "尚未支持" hint
-    for (const file of ['surge.conf', 'singbox.json', 'loon.conf', 'stash.yaml']) {
+    for (const file of ['singbox.json', 'loon.conf', 'qx.conf', 'shadowrocket.conf']) {
       const unsupported = await app.request(`/t/pub-secret-token/my-mihomo/${file}`, {}, env);
       expect(unsupported.status).toBe(404);
       expect(await unsupported.text()).toContain('尚未支持');
     }
+
+    // /t delivers stash.yaml and surge.conf with decrypted slot URL, ETag/304, and proper content-type
+    const stashRes = await app.request('/t/pub-secret-token/my-mihomo/stash.yaml', {}, env);
+    expect(stashRes.status).toBe(200);
+    expect(stashRes.headers.get('content-type')).toContain('yaml');
+    const stashEtag = stashRes.headers.get('etag');
+    expect(stashEtag).toBeTruthy();
+    const parsedStash = parseYaml(await stashRes.text()) as {
+      dns?: Record<string, unknown>;
+      'proxy-providers'?: Record<string, { url: string; headers?: Record<string, string> }>;
+      'proxy-groups'?: Array<Record<string, unknown>>;
+    };
+    expect(parsedStash.dns).toBeDefined();
+    expect(
+      Object.values(parsedStash['proxy-providers'] ?? {}).some(
+        (p) => p.url === subUrlV1 && p.headers?.['User-Agent'] === 'clash.meta/1.19',
+      ),
+    ).toBe(true);
+    const stash304 = await app.request(
+      '/t/pub-secret-token/my-mihomo/stash.yaml',
+      { headers: { 'if-none-match': stashEtag! } },
+      env,
+    );
+    expect(stash304.status).toBe(304);
+
+    const surgeRes = await app.request('/t/pub-secret-token/my-mihomo/surge.conf', {}, env);
+    expect(surgeRes.status).toBe(200);
+    expect(surgeRes.headers.get('content-type')).toContain('text/plain');
+    const surgeEtag = surgeRes.headers.get('etag');
+    expect(surgeEtag).toBeTruthy();
+    const surgeText = await surgeRes.text();
+    expect(surgeText).toContain('[General]');
+    expect(surgeText).toContain('[Proxy Group]');
+    expect(surgeText).toContain(`policy-path=${subUrlV1}`);
+    expect(surgeText).toContain('policy-regex-filter=');
+    expect(surgeText).toContain('[Rule]');
+    expect(surgeText).toContain('RULE-SET,');
+    const surge304 = await app.request(
+      '/t/pub-secret-token/my-mihomo/surge.conf',
+      { headers: { 'if-none-match': surgeEtag! } },
+      env,
+    );
+    expect(surge304.status).toBe(304);
+
+    // /p delivers minimal stash.yaml and surge.conf without [General] / dns skeleton
+    const publicStashRes = await app.request('/p/open-mihomo/stash.yaml', {}, env);
+    expect(publicStashRes.status).toBe(200);
+    const parsedPublicStash = parseYaml(await publicStashRes.text()) as { dns?: unknown };
+    expect(parsedPublicStash.dns).toBeUndefined();
+
+    const publicSurgeRes = await app.request('/p/open-mihomo/surge.conf', {}, env);
+    expect(publicSurgeRes.status).toBe(200);
+    const publicSurgeText = await publicSurgeRes.text();
+    expect(publicSurgeText).not.toContain('[General]');
+    expect(publicSurgeText).toContain('[Proxy Group]');
+
+    const putsBeforeMihomo = cache.putCalls;
 
     // Valid /t request compiles Mihomo YAML, sets ETag + 5min Cache-Control + wildcard CORS, and populates cache
     const first = await app.request('/t/pub-secret-token/my-mihomo/mihomo.yaml', {}, env);
@@ -564,12 +644,12 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     expect(providers1.some((p) => p.url === subUrlV1 && p.header?.['User-Agent']?.[0] === 'clash.meta/1.19')).toBe(
       true,
     );
-    expect(cache.putCalls).toBe(1);
+    expect(cache.putCalls).toBe(putsBeforeMihomo + 1);
 
     // Second request hits cache without re-putting, and If-None-Match returns 304
     const second = await app.request('/t/pub-secret-token/my-mihomo/mihomo.yaml', {}, env);
     expect(second.status).toBe(200);
-    expect(cache.putCalls).toBe(1);
+    expect(cache.putCalls).toBe(putsBeforeMihomo + 1);
 
     const notModified = await app.request(
       '/t/pub-secret-token/my-mihomo/mihomo.yaml',
@@ -874,13 +954,13 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
       resolvedBody: { slots: Array<{ id: string }> };
     };
 
-    // 1. Token access with mihomo + unsupported surge -> token URL for mihomo, null + supported=false for surge
+    // 1. Token access with mihomo + stash + surge (supported) + sing-box (unsupported)
     const createRes = await adminRequest('/api/publications', {
       method: 'POST',
       body: JSON.stringify({
         slug: 'links-pub',
         templateId: template.id,
-        clients: ['mihomo', 'surge'],
+        clients: ['mihomo', 'stash', 'surge', 'sing-box'],
         access: 'token',
       }),
     });
@@ -900,13 +980,23 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
         url: 'https://rules.example.com/t/pub-secret-token/links-pub/mihomo.yaml',
       }),
       expect.objectContaining({
+        client: 'stash',
+        supported: true,
+        url: 'https://rules.example.com/t/pub-secret-token/links-pub/stash.yaml',
+      }),
+      expect.objectContaining({
         client: 'surge',
+        supported: true,
+        url: 'https://rules.example.com/t/pub-secret-token/links-pub/surge.conf',
+      }),
+      expect.objectContaining({
+        client: 'sing-box',
         supported: false,
         url: null,
       }),
     ]);
 
-    // 2. Public access without bindings -> /p/ link
+    // 2. Public access without bindings -> /p/ links for supported clients, null for unsupported
     const publicRes = await adminRequest(`/api/publications/${created.publication.id}`, {
       method: 'PATCH',
       body: JSON.stringify({ access: 'public' }),
@@ -916,7 +1006,9 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
       publication: { links: Array<{ client: string; url: string | null }> };
     };
     expect(publicBody.publication.links[0].url).toBe('https://rules.example.com/p/links-pub/mihomo.yaml');
-    expect(publicBody.publication.links[1].url).toBeNull();
+    expect(publicBody.publication.links[1].url).toBe('https://rules.example.com/p/links-pub/stash.yaml');
+    expect(publicBody.publication.links[2].url).toBe('https://rules.example.com/p/links-pub/surge.conf');
+    expect(publicBody.publication.links[3].url).toBeNull();
 
     // 3. Disabled access -> no active links
     const disabledRes = await adminRequest(`/api/publications/${created.publication.id}`, {

@@ -233,18 +233,24 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await expect(page.getByTestId('publications-page')).toBeVisible();
         await expectNoHorizontalOverflow(page);
 
-        // Unsupported clients are clearly labeled "即将支持" in client filter chips
-        await expect(page.getByTestId('publications-client-surge')).toContainText('即将支持');
+        // Unsupported clients are clearly labeled "即将支持" while Stash & Surge are now supported
+        await expect(page.getByTestId('publications-client-sing-box')).toContainText('即将支持');
+        await expect(page.getByTestId('publications-client-stash')).not.toContainText('即将支持');
+        await expect(page.getByTestId('publications-client-surge')).not.toContainText('即将支持');
 
-        // Create a new publication with mihomo + surge (unsupported), token access, minimal output override
+        // Create a new publication with mihomo + stash + surge (supported) + sing-box (unsupported)
         await page.getByTestId('publications-create-btn').click();
         await expect(page.getByTestId('publication-form-dialog')).toBeVisible();
-        await expect(page.getByTestId('pub-form-client-coming-soon-surge')).toContainText('即将支持');
+        await expect(page.getByTestId('pub-form-client-coming-soon-sing-box')).toContainText('即将支持');
+        await expect(page.getByTestId('pub-form-client-coming-soon-stash')).toHaveCount(0);
+        await expect(page.getByTestId('pub-form-client-coming-soon-surge')).toHaveCount(0);
 
         await page.getByTestId('pub-form-slug').fill(pubSlug);
         await page.getByTestId('pub-form-template').selectOption(templateId);
         await page.getByTestId('pub-form-version').selectOption('1');
+        await page.getByTestId('pub-form-client-stash').click();
         await page.getByTestId('pub-form-client-surge').click();
+        await page.getByTestId('pub-form-client-sing-box').click();
         await page.getByTestId('pub-form-access-token').click();
         await page.getByTestId('pub-form-output').selectOption('minimal');
 
@@ -300,8 +306,14 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await expect(page.getByTestId('publication-preview-code')).toContainText('rules:');
         await expectNoHorizontalOverflow(page);
 
-        await expect(page.getByTestId('preview-client-coming-soon-surge')).toContainText('即将支持');
+        await expect(page.getByTestId('preview-client-coming-soon-sing-box')).toContainText('即将支持');
+        await expect(page.getByTestId('preview-client-coming-soon-stash')).toHaveCount(0);
+        await expect(page.getByTestId('preview-client-coming-soon-surge')).toHaveCount(0);
+        await page.getByTestId('preview-client-stash').click();
+        await expect(page.getByTestId('publication-preview-code')).toContainText('proxy-groups:');
         await page.getByTestId('preview-client-surge').click();
+        await expect(page.getByTestId('publication-preview-code')).toContainText('[Proxy Group]');
+        await page.getByTestId('preview-client-sing-box').click();
         await expect(page.getByTestId('preview-unsupported-notice')).toBeVisible();
         await page.getByTestId('preview-client-mihomo').click();
         await expect(page.getByTestId('publication-preview-code')).toBeVisible();
@@ -309,8 +321,16 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         // Subscription Links tab: only valid policy links shown; unsupported labeled "即将支持"; copy works
         await page.getByTestId('publication-tab-links').click();
         await expect(page.getByTestId('publication-links-panel')).toBeVisible();
-        await expect(page.getByTestId('pub-link-coming-soon-surge')).toContainText('即将支持');
+        await expect(page.getByTestId('pub-link-coming-soon-sing-box')).toContainText('即将支持');
         await expect(page.getByTestId('pub-link-item-mihomo')).toBeVisible();
+        await expect(page.getByTestId('pub-link-item-stash')).toBeVisible();
+        await expect(page.getByTestId('pub-link-item-surge')).toBeVisible();
+        await expect(page.getByTestId('pub-link-url-stash')).toHaveText(
+          `${ORIGIN}/t/e2e-rule-token/${pubSlug}/stash.yaml`,
+        );
+        await expect(page.getByTestId('pub-link-url-surge')).toHaveText(
+          `${ORIGIN}/t/e2e-rule-token/${pubSlug}/surge.conf`,
+        );
         const expectedUrl = `${ORIGIN}/t/e2e-rule-token/${pubSlug}/mihomo.yaml`;
         await expect(page.getByTestId('pub-link-url-mihomo')).toHaveText(expectedUrl);
 
