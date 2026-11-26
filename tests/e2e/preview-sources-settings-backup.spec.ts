@@ -76,7 +76,7 @@ test.describe('M3.2 Rule Sources, Settings, API Keys, Backup & Restore, About, a
         });
       });
 
-      await page.goto(`/preview/rulesets?selected=${ruleset.id}&tab=sources`);
+      await page.goto(`/admin/rulesets?selected=${ruleset.id}&tab=sources`);
       await expect(page.getByTestId('sources-panel')).toBeVisible();
 
       // 1. Add remote URL source: preview first, then save
@@ -162,7 +162,7 @@ test.describe('M3.2 Rule Sources, Settings, API Keys, Backup & Restore, About, a
 
     try {
       // 1. General Settings: save policyName + mirror + preview manual optimization + see Telegram cards
-      await page.goto('/preview/settings');
+      await page.goto('/admin/settings');
       await expect(page.getByTestId('settings-general-tab')).toBeVisible();
       await page.getByTestId('settings-policy-name').fill('PROXY');
       await page.getByTestId('settings-github-mirror').fill('https://ghfast.top');
@@ -269,7 +269,7 @@ test.describe('M3.2 Rule Sources, Settings, API Keys, Backup & Restore, About, a
     ]) {
       await page.setViewportSize(viewport);
       for (const tab of ['general', 'api-keys', 'backup', 'about']) {
-        await page.goto(tab === 'general' ? '/preview/settings' : `/preview/settings?tab=${tab}`);
+        await page.goto(tab === 'general' ? '/admin/settings' : `/admin/settings?tab=${tab}`);
         await expect(page.getByTestId(`settings-${tab}-tab`)).toBeVisible();
         const overflow = await page.evaluate(
           () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -288,8 +288,8 @@ test.describe('M3.2 Rule Sources, Settings, API Keys, Backup & Restore, About, a
     expect(tgRes.status()).toBe(201);
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/preview/settings?tab=backup');
-    await expect(page).toHaveURL(/\/preview\/settings$/);
+    await page.goto('/admin/settings?tab=backup');
+    await expect(page).toHaveURL(/\/admin\/settings$/);
     await expect(page.getByTestId('settings-tab-api-keys')).toHaveCount(0);
     await expect(page.getByTestId('settings-tab-backup')).toHaveCount(0);
     await expect(page.getByTestId('settings-telegram-infra-hidden')).toBeVisible();

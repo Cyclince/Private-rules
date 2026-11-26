@@ -54,14 +54,14 @@ function SidebarNavLinks({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 function SidebarFooter() {
-  const { t } = useI18n();
+  const { locale } = useI18n();
   return (
     <div className="border-t border-border p-3">
       <a
-        href="/admin"
+        href="/pwa-install"
         className="flex items-center justify-between rounded-[var(--radius-md)] px-3 py-2 text-xs font-medium text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
       >
-        <span>{t('app.backToLegacy')}</span>
+        <span>{locale === 'en' ? 'Install PWA App' : '安装 PWA 应用'}</span>
         <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
       </a>
     </div>

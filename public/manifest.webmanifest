@@ -8,8 +8,8 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#071018",
-  "theme_color": "#0b1720",
+  "background_color": "#0b1418",
+  "theme_color": "#0b1418",
   "categories": ["utilities", "productivity"],
   "icons": [
     {
@@ -23,6 +23,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

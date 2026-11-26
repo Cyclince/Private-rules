@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
 import { createHmac } from 'node:crypto';
+import { expect, test } from '@playwright/test';
 
 function telegramInitData() {
   const params = new URLSearchParams({
@@ -7,7 +7,10 @@ function telegramInitData() {
     query_id: `e2e-${Date.now()}`,
     user: JSON.stringify({ id: 2001, first_name: 'Admin', username: 'admin' }),
   });
-  const check = [...params.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join('\n');
+  const check = [...params.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n');
   const secret = createHmac('sha256', 'WebAppData').update('123456:e2e-test-token').digest();
   params.set('hash', createHmac('sha256', secret).update(check).digest('hex'));
   return params.toString();
@@ -15,22 +18,27 @@ function telegramInitData() {
 
 test('admin login, session persistence, SPA refresh, and logout', async ({ page }) => {
   const consoleErrors: string[] = [];
-  page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
-  await page.goto('/admin');
-  await expect(page).toHaveURL(/\/admin\/login$/);
-  await page.getByPlaceholder('使用后台密码登录').fill('wrong-password');
-  await page.getByRole('button', { name: '进入后台' }).click();
-  await expect(page.getByText('密码不正确。')).toBeVisible();
-  await page.getByPlaceholder('使用后台密码登录').fill('e2e-password');
-  await page.getByRole('button', { name: '进入后台' }).click();
-  await expect(page).toHaveURL(/\/admin\?view=dashboard$/);
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/admin\/login/);
+  await page.getByTestId('login-password-input').fill('wrong-password');
+  await page.getByTestId('login-submit').click();
+  await expect(page.getByTestId('login-error')).toContainText('密码不正确');
+
+  await page.getByTestId('login-password-input').fill('e2e-password');
+  await page.getByTestId('login-submit').click();
+  await expect(page).toHaveURL(/\/admin\/?$/);
+  await expect(page.getByTestId('dashboard-page')).toBeVisible();
+
   consoleErrors.length = 0;
   await page.reload();
-  await expect(page.getByText('规则控制台').first()).toBeVisible();
-  await page.getByRole('button', { name: '更多操作' }).click();
-  await page.getByRole('button', { name: /退出登录/ }).click();
-  await page.getByRole('button', { name: '确认退出' }).click();
-  await expect(page).toHaveURL(/\/admin\/login$/);
+  await expect(page.getByTestId('dashboard-page')).toBeVisible();
+
+  await page.getByTestId('logout-button').click();
+  await expect(page).toHaveURL(/\/admin\/login/);
   expect(consoleErrors).toEqual([]);
 });
 
@@ -42,13 +50,27 @@ test('unknown API is not served by the SPA fallback', async ({ request }) => {
 
 test('PWA install page and install metadata are available without authentication', async ({ page, request }) => {
   await page.goto('/pwa-install');
+  await expect(page.getByTestId('pwa-install-page')).toBeVisible();
   await expect(page.getByRole('heading', { name: '把规则中心装进口袋' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /立即安装|查看安装方法/ })).toBeVisible();
+  await expect(page.getByTestId('pwa-install-action')).toBeVisible();
+
   const manifest = await request.get('/manifest.webmanifest');
   expect(manifest.status()).toBe(200);
-  await expect(manifest.json()).resolves.toMatchObject({ name: 'Private Rules', display: 'standalone', start_url: '/admin?source=pwa' });
-  expect((await request.get('/sw.js')).status()).toBe(200);
+  await expect(manifest.json()).resolves.toMatchObject({
+    name: 'Private Rules',
+    display: 'standalone',
+    start_url: '/admin?source=pwa',
+    theme_color: '#0b1418',
+  });
+
+  const swRes = await request.get('/sw.js');
+  expect(swRes.status()).toBe(200);
+  const swText = await swRes.text();
+  expect(swText).toContain('private-rules-pwa-v3');
+  expect(swText).toContain('api|rules|sub');
+
   expect((await request.get('/pwa-icon-192.png')).status()).toBe(200);
+  expect((await request.get('/pwa-icon-512.png')).status()).toBe(200);
   const appleIcon = await request.get('/apple-touch-icon-1.0.6.png');
   expect(appleIcon.status()).toBe(200);
   expect(appleIcon.headers()['content-type']).toContain('image/png');
@@ -63,34 +85,52 @@ test('private Telegram session, theme, deep links, and write access', async ({ p
     headers: originHeaders,
   });
   expect(created.status()).toBe(201);
-  const payload = await created.json() as { data: { categories: Array<{ id: string; name: string }> } };
+  const payload = (await created.json()) as { data: { categories: Array<{ id: string; name: string }> } };
   const category = payload.data.categories.find((item) => item.name === name)!;
   await request.post('/api/auth/logout', { headers: originHeaders, data: {} });
 
-  const initData = telegramInitData();
-  await page.addInitScript((value) => {
-    (window as Window & { Telegram: unknown }).Telegram = {
-      WebApp: {
-        initData: value,
-        colorScheme: 'dark',
-        themeParams: { bg_color: '#101010', text_color: '#f5f5f5', secondary_bg_color: '#202020' },
-        ready() {},
-        expand() {},
-      },
-    };
-  }, initData);
-  const errors: string[] = [];
-  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
-  page.on('response', (response) => { if (response.status() >= 500) errors.push(`${response.status()} ${response.url()}`); });
-  await page.goto(`/admin?view=sources&category=${category.id}`);
-  await expect(page.getByRole('heading', { name: '上游来源' })).toBeVisible();
-  expect(await page.locator('html').getAttribute('data-telegram')).toBe('true');
-  expect(await page.locator('html').getAttribute('data-theme')).toBe('dark');
-  await expect(page.getByRole('button', { name: /新增来源/ })).toBeVisible();
-  const allowed = await page.evaluate(async () => (await fetch('/api/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status);
-  expect(allowed).toBe(200);
-  errors.length = 0;
-  await page.goto('/admin?view=links&category=missing-category');
-  await expect(page.getByRole('heading', { name: '订阅中心' })).toBeVisible();
-  expect(errors).toEqual([]);
+  try {
+    const initData = telegramInitData();
+    await page.addInitScript((value) => {
+      (window as Window & { Telegram: unknown }).Telegram = {
+        WebApp: {
+          initData: value,
+          colorScheme: 'dark',
+          themeParams: { bg_color: '#101010', text_color: '#f5f5f5', secondary_bg_color: '#202020' },
+          ready() {},
+          expand() {},
+        },
+      };
+    }, initData);
+
+    const errors: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') errors.push(message.text());
+    });
+    page.on('response', (response) => {
+      if (response.status() >= 500) errors.push(`${response.status()} ${response.url()}`);
+    });
+
+    await page.goto(`/admin?view=sources&category=${category.id}`);
+    await expect(page).toHaveURL(new RegExp(`/admin/rulesets.*selected=${category.id}.*tab=sources`));
+    await expect(page.getByTestId('sources-panel')).toBeVisible();
+    expect(await page.locator('html').getAttribute('data-telegram')).toBe('true');
+    expect(await page.locator('html').getAttribute('data-theme')).toBe('dark');
+    await expect(page.getByTestId('add-source-btn')).toBeVisible();
+
+    const allowed = await page.evaluate(
+      async () =>
+        (await fetch('/api/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }))
+          .status,
+    );
+    expect(allowed).toBe(200);
+
+    errors.length = 0;
+    await page.goto('/admin?view=links&category=missing-category');
+    await expect(page.getByTestId('subscription-links-drawer')).toBeVisible();
+    expect(errors).toEqual([]);
+  } finally {
+    await request.post('/api/auth/login', { data: { password: 'e2e-password' }, headers: originHeaders });
+    await request.delete(`/api/categories/${category.id}`, { headers: originHeaders });
+  }
 });

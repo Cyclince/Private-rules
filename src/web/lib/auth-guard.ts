@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { redirect } from '@tanstack/react-router';
 import { api, readApiJson, type ApiClient } from './api';
-import { authMeQueryOptions, type AuthMePayload } from './query';
+import { authMeQueryOptions, queryKeys, type AuthMePayload } from './query';
 import { isTelegramMiniApp } from './telegram/webapp';
 
 export const TELEGRAM_HIDDEN_SETTINGS_TABS = new Set(['api-keys', 'backup']);
@@ -33,7 +33,7 @@ export async function requireAuthBeforeLoad(
 ): Promise<AuthMePayload> {
   const me = await ensureAuthenticatedSession(queryClient, client);
   if (!me.authenticated) {
-    const cleanRedirect = redirectPath.replace(/^\/preview/, '') || '/';
+    const cleanRedirect = redirectPath.replace(/^\/admin/, '') || '/';
     throw redirect({
       to: '/login',
       search: cleanRedirect === '/' ? {} : { redirect: cleanRedirect },
@@ -46,11 +46,19 @@ export async function performLogout(
   queryClient: QueryClient,
   authType?: 'session' | 'telegram',
   client: ApiClient = api,
+  onNavigate?: () => Promise<void> | void,
 ): Promise<void> {
   if (authType === 'telegram' || isTelegramMiniApp()) {
     await readApiJson(await client.api.telegram.session.logout.$post());
   } else {
     await readApiJson(await client.api.auth.logout.$post());
+  }
+  await queryClient.cancelQueries();
+  queryClient.setQueryData<AuthMePayload | undefined>(queryKeys.auth.me(), (prev) =>
+    prev ? { ...prev, authenticated: false, authType: undefined } : undefined,
+  );
+  if (onNavigate) {
+    await onNavigate();
   }
   queryClient.clear();
 }

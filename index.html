@@ -1,21 +1,44 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b1720" />
+    <meta name="theme-color" content="#0b1418" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Private Rules" />
     <meta name="robots" content="noindex,nofollow" />
-    <link rel="icon" type="image/png" href="/src/frontend/assets/private-rules-favicon.png" />
+    <link rel="icon" type="image/png" href="/pwa-icon-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-1.0.6.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>Private Rules</title>
+    <script>
+      (function () {
+        try {
+          var el = document.documentElement;
+          var tg = window.Telegram && window.Telegram.WebApp;
+          var savedTheme = localStorage.getItem('private-rules-theme');
+          var theme =
+            tg && tg.initData
+              ? tg.colorScheme === 'light'
+                ? 'light'
+                : 'dark'
+              : savedTheme === 'light' || savedTheme === 'dark'
+                ? savedTheme
+                : 'dark';
+          el.dataset.theme = theme;
+          el.classList.toggle('dark', theme === 'dark');
+          el.classList.toggle('light', theme === 'light');
+          if (tg && tg.initData) el.dataset.telegram = 'true';
+          var savedLocale = localStorage.getItem('private-rules-locale');
+          if (savedLocale) el.lang = savedLocale;
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/frontend/main.tsx"></script>
+    <script type="module" src="/src/web/main.tsx"></script>
   </body>
 </html>

@@ -2,7 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { createRouter } from '@tanstack/react-router';
 import { routeTree } from './routeTree.gen';
 
-export function createAppRouter(queryClient: QueryClient, basepath = '/preview') {
+export function createAppRouter(queryClient: QueryClient, basepath = '/admin') {
   return createRouter({
     routeTree,
     basepath,

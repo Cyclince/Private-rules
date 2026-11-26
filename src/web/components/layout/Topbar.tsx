@@ -24,7 +24,7 @@ export function Topbar({ onOpenTabletSidebar }: { onOpenTabletSidebar: () => voi
 
   const activeNav =
     SIDEBAR_NAV_ITEMS.find((item) => {
-      const normalized = pathname.replace(/^\/preview/, '') || '/';
+      const normalized = pathname.replace(/^\/admin/, '') || '/';
       return item.to === '/' ? normalized === '/' : normalized.startsWith(item.to);
     }) ?? SIDEBAR_NAV_ITEMS[0];
 
@@ -38,8 +38,9 @@ export function Topbar({ onOpenTabletSidebar }: { onOpenTabletSidebar: () => voi
     if (loggingOut) return;
     setLoggingOut(true);
     try {
-      await performLogout(queryClient, authQuery.data?.authType);
-      await navigate({ to: '/login', replace: true });
+      await performLogout(queryClient, authQuery.data?.authType, undefined, async () => {
+        await navigate({ to: '/login', replace: true });
+      });
     } finally {
       setLoggingOut(false);
     }

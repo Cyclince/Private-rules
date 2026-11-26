@@ -43,7 +43,3 @@ export async function adminApp(c: AppContext): Promise<Response> {
   // redirect back into the application's authenticated root route.
   return htmlEntryApp(c, '/');
 }
-
-export async function previewApp(c: AppContext): Promise<Response> {
-  return htmlEntryApp(c, '/preview.html');
-}

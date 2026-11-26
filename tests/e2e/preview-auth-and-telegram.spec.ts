@@ -22,14 +22,14 @@ const VIEWPORTS = [
   { name: 'mobile', width: 390, height: 844 },
 ] as const;
 
-test.describe('M2.3 /preview login, auth guard, theme/language persistence, and Telegram Mini App', () => {
+test.describe('M2.3 /admin login, auth guard, theme/language persistence, and Telegram Mini App', () => {
   for (const viewport of VIEWPORTS) {
     test(`auth guard, wrong password, login success, and logout across ${viewport.name} (${viewport.width}x${viewport.height})`, async ({
       page,
     }) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
-      await page.goto('/preview/rulesets');
-      await expect(page).toHaveURL(/\/preview\/login/);
+      await page.goto('/admin/rulesets');
+      await expect(page).toHaveURL(/\/admin\/login/);
       await expect(page.getByTestId('login-page')).toBeVisible();
 
       const overflowLogin = await page.evaluate(
@@ -45,16 +45,16 @@ test.describe('M2.3 /preview login, auth guard, theme/language persistence, and 
       // Correct password signs in and redirects back to requested protected route
       await page.getByTestId('login-password-input').fill('e2e-password');
       await page.getByTestId('login-submit').click();
-      await expect(page).toHaveURL(/\/preview\/rulesets/);
+      await expect(page).toHaveURL(/\/admin\/rulesets/);
       await expect(page.getByTestId('app-topbar')).toBeVisible();
 
-      // Logout clears session & Query cache and returns to /preview/login
+      // Logout clears session & Query cache and returns to /admin/login
       await page.getByTestId('logout-button').click();
-      await expect(page).toHaveURL(/\/preview\/login/);
+      await expect(page).toHaveURL(/\/admin\/login/);
 
       // Re-visiting protected route immediately redirects to login (no stale Query cache)
-      await page.goto('/preview');
-      await expect(page).toHaveURL(/\/preview\/login/);
+      await page.goto('/admin');
+      await expect(page).toHaveURL(/\/admin\/login/);
     });
   }
 
@@ -67,7 +67,7 @@ test.describe('M2.3 /preview login, auth guard, theme/language persistence, and 
       });
     });
 
-    await page.goto('/preview/login');
+    await page.goto('/admin/login');
     await page.getByTestId('login-password-input').fill('wrong-again');
     await page.getByTestId('login-submit').click();
 
@@ -84,7 +84,7 @@ test.describe('M2.3 /preview login, auth guard, theme/language persistence, and 
   test('switches dark/light theme and zh-CN/zh-TW/en locales instantly and persists with zero flash on reload', async ({
     page,
   }) => {
-    await page.goto('/preview/login');
+    await page.goto('/admin/login');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect(page.locator('html')).toHaveClass(/dark/);
 
@@ -135,10 +135,10 @@ test.describe('M2.3 /preview login, auth guard, theme/language persistence, and 
     }, initData);
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/preview');
+    await page.goto('/admin');
 
     // Automatically authenticated into AppShell (never stuck on login page)
-    await expect(page).not.toHaveURL(/\/preview\/login/);
+    await expect(page).not.toHaveURL(/\/admin\/login/);
     await expect(page.getByTestId('app-topbar')).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('data-telegram', 'true');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
@@ -159,19 +159,19 @@ test.describe('M2.3 /preview login, auth guard, theme/language persistence, and 
     expect(tokens.primary).toBe('#39c5bb');
 
     // High-risk settings (API Key, Backup) hidden in UI and blocked by route guard
-    await page.goto('/preview/settings');
+    await page.goto('/admin/settings');
     await expect(page.getByTestId('settings-tab-general')).toBeVisible();
     await expect(page.getByTestId('settings-tab-about')).toBeVisible();
     await expect(page.getByTestId('settings-tab-api-keys')).toHaveCount(0);
     await expect(page.getByTestId('settings-tab-backup')).toHaveCount(0);
     await expect(page.getByTestId('telegram-restricted-notice')).toBeVisible();
 
-    await page.goto('/preview/settings?tab=api-keys');
-    await expect(page).toHaveURL(/\/preview\/settings$/);
+    await page.goto('/admin/settings?tab=api-keys');
+    await expect(page).toHaveURL(/\/admin\/settings$/);
     await expect(page.getByTestId('settings-tab-api-keys')).toHaveCount(0);
 
-    await page.goto('/preview/settings?tab=backup');
-    await expect(page).toHaveURL(/\/preview\/settings$/);
+    await page.goto('/admin/settings?tab=backup');
+    await expect(page).toHaveURL(/\/admin\/settings$/);
     await expect(page.getByTestId('settings-tab-backup')).toHaveCount(0);
   });
 });

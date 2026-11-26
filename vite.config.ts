@@ -32,7 +32,6 @@ export default defineConfig({
         rollupOptions: {
           input: {
             main: resolve(process.cwd(), 'index.html'),
-            preview: resolve(process.cwd(), 'preview.html'),
           },
         },
       },

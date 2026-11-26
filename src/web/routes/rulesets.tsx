@@ -67,6 +67,7 @@ type RulesetsSearch = {
   source?: SourceFilter;
   selected?: string;
   tab?: DetailTab;
+  links?: '1';
 };
 
 const VALID_SOURCES = new Set<SourceFilter>(['all', 'manual', 'upstream']);
@@ -82,12 +83,14 @@ export const Route = createFileRoute('/rulesets')({
     const selected = typeof search.selected === 'string' && search.selected ? search.selected : undefined;
     const rawTab = typeof search.tab === 'string' ? (search.tab as DetailTab) : undefined;
     const tab = rawTab && VALID_DETAIL_TABS.has(rawTab) && rawTab !== 'rules' ? rawTab : undefined;
+    const links = search.links === '1' ? ('1' as const) : undefined;
     return {
       ...(q ? { q } : {}),
       ...(rq ? { rq } : {}),
       ...(source ? { source } : {}),
       ...(selected ? { selected } : {}),
       ...(tab ? { tab } : {}),
+      ...(links ? { links } : {}),
     };
   },
   beforeLoad: async ({ context, location }) => {
@@ -205,7 +208,10 @@ function RulesetsPage() {
     mode: 'create',
   });
   const [deleteRulesetOpen, setDeleteRulesetOpen] = useState(false);
-  const [linksDrawerOpen, setLinksDrawerOpen] = useState(false);
+  const [linksDrawerOpen, setLinksDrawerOpen] = useState(() => rawSearch.links === '1');
+  useEffect(() => {
+    if (rawSearch.links === '1') setLinksDrawerOpen(true);
+  }, [rawSearch.links]);
   const [ruleDialog, setRuleDialog] = useState<{
     open: boolean;
     mode: 'create' | 'edit';

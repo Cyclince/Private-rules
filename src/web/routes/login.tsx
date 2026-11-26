@@ -246,8 +246,8 @@ function LoginPage() {
           </form>
 
           <div className="mt-5 border-t border-border pt-4 text-center">
-            <a href="/admin/login" className="text-xs font-medium text-text-muted transition-colors hover:text-primary">
-              {t('app.backToLegacy')}
+            <a href="/pwa-install" className="text-xs font-medium text-text-muted transition-colors hover:text-primary">
+              {locale === 'en' ? 'Install PWA App' : '安装 PWA 应用'}
             </a>
           </div>
         </section>

@@ -12,7 +12,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function RootLayout() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const isLoginRoute = pathname === '/login' || pathname === '/preview/login';
+  const isLoginRoute = pathname === '/login' || pathname === '/admin/login';
 
   if (isLoginRoute) {
     return <Outlet />;

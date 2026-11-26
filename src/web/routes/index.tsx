@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { AlertTriangle, CheckCircle2, FolderKanban, Globe, Layers, RefreshCw, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import loginBgUrl from '../assets/miku-login-bg.webp';
@@ -10,19 +10,58 @@ import { healthQueryOptions, invalidateRulesets, rulesetsListQueryOptions } from
 import { useToast } from '../lib/toast';
 
 type DashboardRange = '24h' | '7d' | '30d';
+type LegacyView = 'dashboard' | 'rules' | 'sources' | 'links' | 'settings';
 
 type DashboardSearch = {
   range?: DashboardRange;
+  view?: LegacyView;
+  category?: string;
+  source?: string;
 };
 
 const VALID_RANGES = new Set<DashboardRange>(['24h', '7d', '30d']);
+const VALID_LEGACY_VIEWS = new Set<LegacyView>(['dashboard', 'rules', 'sources', 'links', 'settings']);
 
 export const Route = createFileRoute('/')({
   validateSearch: (search: Record<string, unknown>): DashboardSearch => {
     const raw = typeof search.range === 'string' ? (search.range as DashboardRange) : undefined;
-    return raw && VALID_RANGES.has(raw) ? { range: raw } : {};
+    const rawView = typeof search.view === 'string' ? (search.view as LegacyView) : undefined;
+    const category = typeof search.category === 'string' && search.category ? search.category : undefined;
+    const source = typeof search.source === 'string' && search.source ? search.source : undefined;
+    return {
+      ...(raw && VALID_RANGES.has(raw) ? { range: raw } : {}),
+      ...(rawView && VALID_LEGACY_VIEWS.has(rawView) ? { view: rawView } : {}),
+      ...(category ? { category } : {}),
+      ...(source ? { source } : {}),
+    };
   },
-  beforeLoad: ({ context, location }) => requireAuthBeforeLoad(context.queryClient, location.href),
+  beforeLoad: async ({ context, location, search }) => {
+    await requireAuthBeforeLoad(context.queryClient, location.href);
+    if (search.view === 'rules') {
+      throw redirect({
+        to: '/rulesets',
+        search: search.category ? { selected: search.category } : {},
+        replace: true,
+      });
+    }
+    if (search.view === 'sources') {
+      throw redirect({
+        to: '/rulesets',
+        search: { ...(search.category ? { selected: search.category } : {}), tab: 'sources' },
+        replace: true,
+      });
+    }
+    if (search.view === 'links') {
+      throw redirect({
+        to: '/rulesets',
+        search: { ...(search.category ? { selected: search.category } : {}), links: '1' },
+        replace: true,
+      });
+    }
+    if (search.view === 'settings') {
+      throw redirect({ to: '/settings', search: {}, replace: true });
+    }
+  },
   component: DashboardPage,
 });
 

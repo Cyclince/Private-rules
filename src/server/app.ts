@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { isAuthenticated } from '../lib/auth';
-import { adminApp, previewApp, type AppBindings } from './helpers';
+import { adminApp, type AppBindings } from './helpers';
 import { telegramAuditMiddleware } from './middleware/audit';
 import { publicSubscriptionCors } from './middleware/cors';
 import { csrfProtection } from './middleware/csrf';
@@ -51,9 +51,16 @@ export function createApp() {
       return c.redirect('/admin/login');
     })
     .get('/admin', (c) => adminApp(c))
-    .get('/admin/login', (c) => adminApp(c))
-    .get('/preview', (c) => previewApp(c))
-    .get('/preview/*', (c) => previewApp(c))
+    .get('/admin/*', (c) => adminApp(c))
+    .get('/preview', (c) => {
+      const url = new URL(c.req.url);
+      return c.redirect(`/admin${url.search}`, 302);
+    })
+    .get('/preview/*', (c) => {
+      const url = new URL(c.req.url);
+      const rest = url.pathname.replace(/^\/preview/, '');
+      return c.redirect(`/admin${rest}${url.search}`, 302);
+    })
     .get('/pwa-install', (c) => adminApp(c))
     .get('/pwa-install/', (c) => adminApp(c))
     .all('/api/*', (c) => c.notFound())

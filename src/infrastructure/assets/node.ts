@@ -14,11 +14,9 @@ export class NodeAssetsAdapter implements AssetsPort {
   async fetch(request: Request) {
     const pathname = decodeURIComponent(new URL(request.url).pathname);
     const requested =
-      pathname === '/' || pathname.startsWith('/admin')
+      pathname === '/' || pathname.startsWith('/admin') || pathname === '/pwa-install' || pathname === '/pwa-install/'
         ? 'index.html'
-        : pathname === '/preview' || pathname.startsWith('/preview/')
-          ? 'preview.html'
-          : pathname.replace(/^\/+/, '');
+        : pathname.replace(/^\/+/, '');
     const candidate = resolve(join(this.root, normalize(requested)));
     if (!candidate.startsWith(this.root)) return new Response('Not Found', { status: 404 });
     try {

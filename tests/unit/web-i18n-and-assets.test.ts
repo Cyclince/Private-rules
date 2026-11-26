@@ -44,6 +44,12 @@ describe('M2.1 build-time i18n, zero runtime OpenCC, and WebP assets', () => {
     expect(resolveLocale('zh-Hant-TW')).toBe('zh-TW');
     expect(resolveLocale('en-US')).toBe('en');
     expect(resolveLocale('zh-CN')).toBe('zh-CN');
+
+    // Ensure English dictionary contains no stray Chinese characters (excluding native locale names)
+    for (const [key, value] of Object.entries(en)) {
+      if (key === 'lang.zh-CN' || key === 'lang.zh-TW') continue;
+      expect(value, `Unexpected Han character in en[${key}]`).not.toMatch(/[\u3400-\u9fff]/u);
+    }
   });
 
   it('keeps generated zh-TW.ts in sync with generate-zh-tw.ts and applies manual terminology overrides', () => {

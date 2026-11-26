@@ -8,7 +8,7 @@ async function signInPreview(page: Page) {
   expect(res.status()).toBe(200);
 }
 
-test.describe('M2.2 /preview 3-viewport layout, URL search state, and query deduplication', () => {
+test.describe('M2.2 /admin 3-viewport layout, URL search state, and query deduplication', () => {
   test('desktop (1280x800): fixed sidebar + topbar, no overlap, no horizontal overflow, single /api/auth/me request', async ({
     page,
   }) => {
@@ -19,7 +19,7 @@ test.describe('M2.2 /preview 3-viewport layout, URL search state, and query dedu
     });
 
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto('/preview');
+    await page.goto('/admin');
     await expect(page.getByTestId('desktop-sidebar')).toBeVisible();
     await expect(page.getByTestId('app-topbar')).toBeVisible();
     await expect(page.getByTestId('mobile-bottom-nav')).toBeHidden();
@@ -45,7 +45,7 @@ test.describe('M2.2 /preview 3-viewport layout, URL search state, and query dedu
   test('tablet (834x1024): collapsible sidebar toggles cleanly with no overflow', async ({ page }) => {
     await signInPreview(page);
     await page.setViewportSize({ width: 834, height: 1024 });
-    await page.goto('/preview');
+    await page.goto('/admin');
 
     await expect(page.getByTestId('desktop-sidebar')).toBeHidden();
     await expect(page.getByTestId('mobile-bottom-nav')).toBeHidden();
@@ -59,9 +59,9 @@ test.describe('M2.2 /preview 3-viewport layout, URL search state, and query dedu
     expect(drawerBox!.x).toBeGreaterThanOrEqual(0);
     expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(834);
 
-    // Navigate via drawer to /preview/settings and verify drawer auto-closes
+    // Navigate via drawer to /admin/settings and verify drawer auto-closes
     await drawer.getByRole('link', { name: '设置' }).click();
-    await expect(page).toHaveURL(/\/preview\/settings/);
+    await expect(page).toHaveURL(/\/admin\/settings/);
     await expect(drawer).toBeHidden();
 
     const overflow = await page.evaluate(
@@ -87,7 +87,7 @@ test.describe('M2.2 /preview 3-viewport layout, URL search state, and query dedu
     const seeded = createdPayload.data.categories.find((item) => item.name === seededName)!;
 
     try {
-      await page.goto('/preview');
+      await page.goto('/admin');
 
       await expect(page.getByTestId('desktop-sidebar')).toBeHidden();
       await expect(page.getByTestId('tablet-sidebar-toggle')).toBeHidden();
@@ -102,7 +102,7 @@ test.describe('M2.2 /preview 3-viewport layout, URL search state, and query dedu
 
       // Navigate to rulesets, set search filter + selection, reload and verify persistence
       await bottomNav.getByRole('link', { name: '规则集' }).click();
-      await expect(page).toHaveURL(/\/preview\/rulesets/);
+      await expect(page).toHaveURL(/\/admin\/rulesets/);
       await page.getByTestId('rulesets-search-input').fill(seededName);
       await page.getByTestId(`ruleset-item-${seeded.id}`).click();
       await expect(page).toHaveURL(/q=AI/);

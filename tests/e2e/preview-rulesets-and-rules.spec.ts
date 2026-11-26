@@ -56,7 +56,7 @@ test.describe('M3.1 Overview, Rulesets CRUD, Manual Rules, Bulk Import, Links Dr
 
     try {
       // 1. Overview page renders real stats
-      await page.goto('/preview');
+      await page.goto('/admin');
       await expect(page.getByTestId('dashboard-page')).toBeVisible();
       await expect(page.getByTestId('stat-card-rulesets')).toBeVisible();
       await expect(page.getByTestId('stat-card-rules')).toBeVisible();
@@ -65,7 +65,7 @@ test.describe('M3.1 Overview, Rulesets CRUD, Manual Rules, Bulk Import, Links Dr
 
       // 2. Navigate to Rulesets and create two rulesets via react-hook-form dialog
       await page.getByTestId('dashboard-manage-rulesets').click();
-      await expect(page).toHaveURL(/\/preview\/rulesets/);
+      await expect(page).toHaveURL(/\/admin\/rulesets/);
 
       await page.getByTestId('create-ruleset-btn').click();
       await expect(page.getByTestId('ruleset-form-dialog')).toBeVisible();
@@ -241,7 +241,7 @@ test.describe('M3.1 Overview, Rulesets CRUD, Manual Rules, Bulk Import, Links Dr
         { width: 390, height: 844 },
       ]) {
         await page.setViewportSize(viewport);
-        await page.goto(`/preview/rulesets?selected=${seeded.id}`);
+        await page.goto(`/admin/rulesets?selected=${seeded.id}`);
         await expect(page.getByTestId('ruleset-detail-name')).toHaveText(seeded.name);
         await expect(page.getByTestId('rules-rows')).toContainText('viewport-check.example');
 
@@ -281,7 +281,7 @@ test.describe('M3.1 Overview, Rulesets CRUD, Manual Rules, Bulk Import, Links Dr
       expect(tgLogin.status()).toBe(201);
 
       await page.setViewportSize({ width: 390, height: 844 });
-      await page.goto(`/preview/rulesets?selected=${seeded.id}`);
+      await page.goto(`/admin/rulesets?selected=${seeded.id}`);
       await expect(page.getByTestId('rulesets-telegram-notice')).toBeVisible();
       await expect(page.getByTestId('create-ruleset-btn')).toBeDisabled();
       await expect(page.getByTestId('edit-ruleset-btn')).toBeDisabled();
@@ -319,12 +319,12 @@ test.describe('M3.1 Overview, Rulesets CRUD, Manual Rules, Bulk Import, Links Dr
       }
 
       await page.setViewportSize({ width: 1280, height: 800 });
-      await page.goto('/preview');
+      await page.goto('/admin');
       await expect(page.getByTestId('dashboard-page')).toBeVisible();
 
       // Warm lazy route chunk once so measurement isolates steady-state route transition with 10,000 rules
       await page.getByTestId('desktop-sidebar').getByRole('link', { name: '规则集' }).click();
-      await expect(page).toHaveURL(/\/preview\/rulesets/);
+      await expect(page).toHaveURL(/\/admin\/rulesets/);
       await page.getByTestId(`ruleset-item-${seeded.id}`).click();
       await expect(page.getByTestId('rules-total-badge')).toHaveText('10,000');
 

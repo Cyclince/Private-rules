@@ -1,14 +1,14 @@
 /**
  * Production bundle-size reporter and CI budget gate (design §13.1).
  *
- * Parses `dist/client/preview.html`, walks static ESM imports to compute exact
+ * Parses `dist/client/index.html`, walks static ESM imports to compute exact
  * first-screen JS/CSS totals and per-route lazy increments, and exits non-zero
  * if any budget is exceeded:
  *   - First-screen JS: <= 120 kB gzip
  *   - Single-route JS increment: <= 60 kB gzip
  *   - CSS total: <= 25 kB gzip
  */
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
@@ -73,12 +73,21 @@ function sumGzipKb(files: Iterable<string>): number {
   return total / 1000;
 }
 
+function totalDirectoryBytes(dir: string): number {
+  let total = 0;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) total += totalDirectoryBytes(full);
+    else total += statSync(full).size;
+  }
+  return total;
+}
+
 function findRouteChunks(entryJsFiles: Set<string>): Array<{ route: string; file: string }> {
-  const knownRoutes = ['index', 'login', 'rulesets', 'settings', 'templates', 'publications'];
+  const knownRoutes = ['index', 'login', 'rulesets', 'settings', 'templates', 'publications', 'PwaInstallPage'];
   const discovered = new Map<string, string>();
   const allAssets = new Set(readdirSync(ASSETS_DIR));
 
-  // Discover dynamically imported route chunks referenced by the preview entry bundle
   for (const entryFile of entryJsFiles) {
     const source = readFileSync(join(ASSETS_DIR, entryFile), 'utf8');
     for (const match of source.matchAll(/["']assets\/([^"']+\.js)["']|["']\.\/([^"']+\.js)["']/g)) {
@@ -86,7 +95,6 @@ function findRouteChunks(entryJsFiles: Set<string>): Array<{ route: string; file
       if (!candidate || !allAssets.has(candidate) || entryJsFiles.has(candidate)) continue;
       for (const route of knownRoutes) {
         if (candidate.startsWith(`${route}-`) && !discovered.has(route)) {
-          // Skip tiny virtual/empty index chunks when matching the Dashboard `index` route
           if (route === 'index' && measureAsset(candidate).rawBytes < 500) continue;
           discovered.set(route, candidate);
         }
@@ -98,13 +106,13 @@ function findRouteChunks(entryJsFiles: Set<string>): Array<{ route: string; file
 }
 
 function main() {
-  const html = readFileSync(join(DIST_CLIENT, 'preview.html'), 'utf8');
+  const html = readFileSync(join(DIST_CLIENT, 'index.html'), 'utf8');
 
   const directJs = [...html.matchAll(/(?:src|href)="\/assets\/([^"]+\.js)"/g)].map((m) => m[1]);
   const directCss = [...html.matchAll(/href="\/assets\/([^"]+\.css)"/g)].map((m) => m[1]);
 
   if (directJs.length === 0) {
-    console.error('[bundle-size] No entry JS found in dist/client/preview.html. Run `pnpm build` first.');
+    console.error('[bundle-size] No entry JS found in dist/client/index.html. Run `pnpm build` first.');
     process.exit(1);
   }
 
@@ -112,7 +120,7 @@ function main() {
   const routes = findRouteChunks(shellJs);
   const violations: string[] = [];
 
-  console.info('\n=== Private Rules (/preview) Bundle Size Report ===\n');
+  console.info('\n=== Private Rules (/admin) Bundle Size Report ===\n');
 
   console.info('Entry Shell JS:');
   for (const file of [...shellJs].sort()) {
@@ -148,7 +156,7 @@ function main() {
     if (route === 'index') dashboardFirstScreenKb = shellGzipKb + incrementKb;
     if (route === 'login') loginFirstScreenKb = shellGzipKb + incrementKb;
 
-    const routeLabel = route === 'index' ? '/preview/' : `/preview/${route}`;
+    const routeLabel = route === 'index' ? '/admin/' : route === 'PwaInstallPage' ? '/pwa-install' : `/admin/${route}`;
     console.info(
       `  ${routeLabel.padEnd(24)} +${incrementKb.toFixed(2).padStart(6)} kB gzip (${incrementFiles.length} chunk${incrementFiles.length === 1 ? '' : 's'}: ${incrementFiles.join(', ')})`,
     );
@@ -161,20 +169,21 @@ function main() {
 
   console.info('\nFirst-Screen JS Totals:');
   console.info(
-    `  /preview/        ${dashboardFirstScreenKb.toFixed(2)} kB gzip (budget <= ${FIRST_SCREEN_JS_BUDGET_KB} kB)`,
+    `  /admin/          ${dashboardFirstScreenKb.toFixed(2)} kB gzip (budget <= ${FIRST_SCREEN_JS_BUDGET_KB} kB)`,
   );
   console.info(
-    `  /preview/login   ${loginFirstScreenKb.toFixed(2)} kB gzip (budget <= ${FIRST_SCREEN_JS_BUDGET_KB} kB)`,
+    `  /admin/login     ${loginFirstScreenKb.toFixed(2)} kB gzip (budget <= ${FIRST_SCREEN_JS_BUDGET_KB} kB)`,
   );
+  console.info(`  dist/client total (all assets): ${(totalDirectoryBytes(DIST_CLIENT) / 1024).toFixed(1)} KiB`);
 
   if (dashboardFirstScreenKb > FIRST_SCREEN_JS_BUDGET_KB) {
     violations.push(
-      `First-screen JS (/preview/) ${dashboardFirstScreenKb.toFixed(2)} kB exceeds ${FIRST_SCREEN_JS_BUDGET_KB} kB gzip budget`,
+      `First-screen JS (/admin/) ${dashboardFirstScreenKb.toFixed(2)} kB exceeds ${FIRST_SCREEN_JS_BUDGET_KB} kB gzip budget`,
     );
   }
   if (loginFirstScreenKb > FIRST_SCREEN_JS_BUDGET_KB) {
     violations.push(
-      `First-screen JS (/preview/login) ${loginFirstScreenKb.toFixed(2)} kB exceeds ${FIRST_SCREEN_JS_BUDGET_KB} kB gzip budget`,
+      `First-screen JS (/admin/login) ${loginFirstScreenKb.toFixed(2)} kB exceeds ${FIRST_SCREEN_JS_BUDGET_KB} kB gzip budget`,
     );
   }
 
