@@ -1,11 +1,12 @@
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { migrateDatabase } from '../../src/data/migrate';
 import { D1DatabaseAdapter } from '../../src/infrastructure/database/d1/adapter';
 import { SqliteDatabaseAdapter } from '../../src/infrastructure/database/sqlite/adapter';
-import { applySqliteMigrations } from '../../src/infrastructure/database/sqlite/migrations';
+import { migrateSqliteDatabase } from '../../src/infrastructure/database/sqlite/migrations';
 import { addRule, createCategory, deleteCategory, getBackupData, getRulesData, getRulesOverview, importRulesData, insertRule, listRules, optimizeManualRules, previewManualRuleOptimization, saveSettings, updateCategory } from '../../src/lib/db';
 import { syncRuleSources } from '../../src/lib/sync';
 import type { Env } from '../../src/types';
@@ -14,7 +15,6 @@ import { TelegramRepository } from '../../src/application/telegram/repository';
 import { createSource, deleteSource, listSources, toggleSource, updateSource } from '../../src/application/sources/use-cases';
 import { ensureRuntimeSecrets } from '../../src/lib/runtime-secrets';
 
-const migrations = resolve(process.cwd(), 'migrations');
 function contract(name: string, setup: () => Promise<{ database: DatabasePort; close: () => Promise<void> }>) {
   describe(name, () => {
     let env: Env; let database: DatabasePort; let close: () => Promise<void> = async () => {};
@@ -245,16 +245,14 @@ function contract(name: string, setup: () => Promise<{ database: DatabasePort; c
 contract('sqlite', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'private-rules-'));
   const database = new SqliteDatabaseAdapter(join(directory, 'test.db'));
-  await applySqliteMigrations(database, migrations);
+  await migrateSqliteDatabase(database);
   return { database, close: async () => { database.close(); await rm(directory, { recursive: true, force: true }); } };
 });
 
 contract('d1', async () => {
   const miniflare = new Miniflare({ modules: true, script: 'export default { fetch() { return new Response("ok") } }', d1Databases: ['DB'] });
   const binding = await miniflare.getD1Database('DB');
-  for (const file of (await readdir(migrations)).filter((value) => /^\d+.*\.sql$/.test(value)).sort()) {
-    const sql = await readFile(join(migrations, file), 'utf8');
-    for (const statement of sql.split(';').map((value) => value.trim()).filter(Boolean)) await binding.prepare(statement).run();
-  }
-  return { database: new D1DatabaseAdapter(binding), close: async () => miniflare.dispose() };
+  const database = new D1DatabaseAdapter(binding);
+  await migrateDatabase(database);
+  return { database, close: async () => miniflare.dispose() };
 });

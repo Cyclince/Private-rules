@@ -15,7 +15,9 @@ class SqliteStatementAdapter implements DatabaseStatement {
 
 export class SqliteDatabaseAdapter implements DatabasePort {
   readonly native: Database.Database;
+  readonly filePath: string;
   constructor(path: string) {
+    this.filePath = path;
     this.native = new Database(path);
     this.native.pragma('foreign_keys = ON');
     this.native.pragma('journal_mode = WAL');
@@ -28,5 +30,8 @@ export class SqliteDatabaseAdapter implements DatabasePort {
     }))();
   }
   async ping() { return (this.native.prepare('SELECT 1 AS ok').get() as { ok: number }).ok === 1; }
+  async backup(destinationPath: string) {
+    await this.native.backup(destinationPath);
+  }
   close() { this.native.close(); }
 }

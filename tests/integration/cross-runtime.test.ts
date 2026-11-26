@@ -1,11 +1,12 @@
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { describe, expect, it } from 'vitest';
+import { migrateDatabase } from '../../src/data/migrate';
 import { D1DatabaseAdapter } from '../../src/infrastructure/database/d1/adapter';
 import { SqliteDatabaseAdapter } from '../../src/infrastructure/database/sqlite/adapter';
-import { applySqliteMigrations } from '../../src/infrastructure/database/sqlite/migrations';
+import { migrateSqliteDatabase } from '../../src/infrastructure/database/sqlite/migrations';
 import { addRule, createCategory } from '../../src/lib/db';
 import { createApp } from '../../src/server/app';
 import type { Env } from '../../src/types';
@@ -16,16 +17,14 @@ function normalize(body: string) {
 
 describe('cross-runtime subscription parity', () => {
   it('returns equivalent subscription responses for D1 and SQLite', async () => {
-    const migrations = resolve(process.cwd(), 'migrations');
     const directory = await mkdtemp(join(tmpdir(), 'private-rules-parity-'));
     const sqlite = new SqliteDatabaseAdapter(join(directory, 'parity.db'));
-    await applySqliteMigrations(sqlite, migrations);
+    await migrateSqliteDatabase(sqlite);
     const miniflare = new Miniflare({ modules: true, script: 'export default { fetch() { return new Response("ok") } }', d1Databases: ['DB'] });
     const d1Binding = await miniflare.getD1Database('DB');
-    for (const file of (await readdir(migrations)).filter((value) => /^\d+.*\.sql$/.test(value)).sort()) {
-      for (const statement of (await readFile(join(migrations, file), 'utf8')).split(';').map((value) => value.trim()).filter(Boolean)) await d1Binding.prepare(statement).run();
-    }
-    const environments: Env[] = [sqlite, new D1DatabaseAdapter(d1Binding)].map((DB, index) => ({ DB, ASSETS: { fetch: async () => new Response() }, RUNTIME: index ? 'cloudflare' : 'node' }));
+    const d1 = new D1DatabaseAdapter(d1Binding);
+    await migrateDatabase(d1);
+    const environments: Env[] = [sqlite, d1].map((DB, index) => ({ DB, ASSETS: { fetch: async () => new Response() }, RUNTIME: index ? 'cloudflare' : 'node' }));
     try {
       for (const env of environments) {
         const data = await createCategory(env, { name: 'parity', tokenLinksEnabled: false, publicLinksEnabled: true });

@@ -1,9 +1,9 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SqliteDatabaseAdapter } from '../../src/infrastructure/database/sqlite/adapter';
-import { applySqliteMigrations } from '../../src/infrastructure/database/sqlite/migrations';
+import { migrateSqliteDatabase } from '../../src/infrastructure/database/sqlite/migrations';
 import { addRule, createCategory, getBackupData } from '../../src/lib/db';
 import { createApiKey } from '../../src/lib/auth';
 import { createApp } from '../../src/server/app';
@@ -18,7 +18,7 @@ describe('1.0.7 security and data-safety fixes', () => {
   beforeEach(async () => {
     directory = await mkdtemp(join(tmpdir(), 'private-rules-fixes-'));
     database = new SqliteDatabaseAdapter(join(directory, 'fixes.db'));
-    await applySqliteMigrations(database, resolve(process.cwd(), 'migrations'));
+    await migrateSqliteDatabase(database);
     env = {
       DB: database,
       ASSETS: { fetch: async () => new Response('<html></html>', { headers: { 'content-type': 'text/html' } }) },

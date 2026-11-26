@@ -1,6 +1,6 @@
 import { D1DatabaseAdapter } from './infrastructure/database/d1/adapter';
 import { createApp } from './server/app';
-import { ensureDatabase } from './lib/db';
+import { ensureDatabaseMigrated } from './data/migrate';
 import { syncRuleSources } from './lib/sync';
 import type { Env } from './types';
 import { APP_VERSION } from './version';
@@ -47,7 +47,7 @@ const app = createApp();
 export default {
   async fetch(request: Request, bindings: CloudflareBindings, context: ExecutionContext) {
     const env = dependencies(bindings, context);
-    await ensureDatabase(env);
+    await ensureDatabaseMigrated(env.DB);
     await ensureRuntimeSecrets(env);
     context.waitUntil(ensureTelegramRegistration(env.TELEGRAM!, env.TELEGRAM_CLIENT)
       .catch((cause) => console.error('[telegram:registration]', cause instanceof Error ? cause.message : 'unknown error')));
@@ -55,7 +55,7 @@ export default {
   },
   scheduled(_controller: ScheduledController, bindings: CloudflareBindings, context: ExecutionContext) {
     const env = dependencies(bindings, context);
-    context.waitUntil(ensureDatabase(env).then(async () => {
+    context.waitUntil(ensureDatabaseMigrated(env.DB).then(async () => {
       await ensureRuntimeSecrets(env);
       await ensureTelegramRegistration(env.TELEGRAM!, env.TELEGRAM_CLIENT);
       await cleanupTelegramMessages(env);

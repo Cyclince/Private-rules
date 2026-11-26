@@ -1,0 +1,448 @@
+import { access, copyFile, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import Database from 'better-sqlite3';
+import { getTableConfig } from 'drizzle-orm/sqlite-core';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { Miniflare } from 'miniflare';
+import { describe, expect, it } from 'vitest';
+import { ensureDatabaseMigrated, migrateDatabase } from '../../src/data/migrate';
+import { BASELINE_MIGRATION_NAME, INITIAL_1_1_0_MIGRATION_NAME, MIGRATIONS } from '../../src/data/migrations/index';
+import { schema } from '../../src/data/schema';
+import { D1DatabaseAdapter } from '../../src/infrastructure/database/d1/adapter';
+import { SqliteDatabaseAdapter } from '../../src/infrastructure/database/sqlite/adapter';
+import { migrateSqliteDatabase } from '../../src/infrastructure/database/sqlite/migrations';
+import { createApp } from '../../src/server/app';
+import type { Env } from '../../src/types';
+
+const MIGRATIONS_DIR = resolve(process.cwd(), 'src/data/migrations');
+const LEGACY_FIXTURES_DIR = resolve(process.cwd(), 'tests/fixtures/legacy-db');
+const LEGACY_FIXTURE_FILES = [
+  'legacy-migrations-1.0.7.db',
+  'legacy-runtime-1.0.7.db',
+  'legacy-runtime-1.0.3.db',
+] as const;
+
+const SUBSCRIPTION_ENDPOINTS = [
+  '/rules/public-direct.yaml',
+  '/rules/public-direct_Classical.yaml',
+  '/rules/public-direct_Domain.yaml',
+  '/rules/public-direct_IPCIDR.yaml',
+  '/rules/public-direct.list',
+  '/rules/public-direct-loon.list',
+  '/rules/public-direct-qx.list',
+  '/rules/public-direct.txt',
+  '/rules/public-direct.json',
+  '/rules/public-direct-sing-box.json',
+  '/sub/legacy-token/private-proxy.yaml',
+  '/sub/legacy-token/private-proxy_Domain.yaml',
+  '/sub/legacy-token/private-proxy_IPCIDR.yaml',
+  '/sub/legacy-token/private-proxy.list',
+  '/sub/legacy-token/private-proxy.json',
+] as const;
+
+const NEW_1_1_0_TABLES = [
+  'rate_limits',
+  'catalog_entries',
+  'app_cards',
+  'templates',
+  'template_versions',
+  'publications',
+  'node_bindings',
+  'node_snapshots',
+] as const;
+
+function makeEnv(db: Env['DB'], runtime: 'node' | 'cloudflare'): Env {
+  return {
+    DB: db,
+    ASSETS: { fetch: async () => new Response('<html></html>') },
+    ADMIN_PASSWORD: 'test-password',
+    SESSION_SECRET: '0123456789abcdef0123456789abcdef',
+    RULE_TOKEN: 'legacy-token',
+    RUNTIME: runtime,
+  };
+}
+
+async function captureSubscriptions(env: Env): Promise<Record<string, { status: number; body: string }>> {
+  const app = createApp();
+  const captured: Record<string, { status: number; body: string }> = {};
+  for (const path of SUBSCRIPTION_ENDPOINTS) {
+    const response = await app.request(path, {}, env);
+    captured[path] = { status: response.status, body: await response.text() };
+  }
+  return captured;
+}
+
+/**
+ * Replays a binary SQLite fixture (schema + rows, preserving physical column
+ * order and any `d1_migrations` rows) into a fresh Miniflare D1 database.
+ */
+async function loadFixtureIntoD1(fixturePath: string, binding: D1Database): Promise<void> {
+  const source = new Database(fixturePath, { readonly: true });
+  try {
+    const tables = source
+      .prepare(
+        "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY rowid ASC",
+      )
+      .all() as Array<{ name: string; sql: string }>;
+    const indexes = source
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL ORDER BY rowid ASC")
+      .all() as Array<{ sql: string }>;
+
+    for (const table of tables) {
+      await binding.prepare(table.sql).run();
+    }
+    for (const index of indexes) {
+      await binding.prepare(index.sql).run();
+    }
+    for (const table of tables) {
+      const rows = source.prepare(`SELECT * FROM "${table.name}"`).all() as Array<Record<string, unknown>>;
+      if (rows.length === 0) continue;
+      const columns = Object.keys(rows[0]);
+      const placeholders = columns.map(() => '?').join(', ');
+      const sql = `INSERT INTO "${table.name}" (${columns.map((c) => `"${c}"`).join(', ')}) VALUES (${placeholders})`;
+      for (const row of rows) {
+        await binding
+          .prepare(sql)
+          .bind(...columns.map((column) => row[column]))
+          .run();
+      }
+    }
+  } finally {
+    source.close();
+  }
+}
+
+async function assertUpgradedSchemaAndData(db: Env['DB'], hasTelegramSeed: boolean) {
+  const tableRows = await db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all<{ name: string }>();
+  const tables = new Set((tableRows.results ?? []).map((row) => row.name));
+
+  for (const tableName of NEW_1_1_0_TABLES) {
+    expect(tables.has(tableName)).toBe(true);
+  }
+  expect(tables.has('telegram_rate_limits')).toBe(false);
+  expect(tables.has('telegram_users')).toBe(true);
+  expect(tables.has('icon_pack_cache')).toBe(true);
+  expect(tables.has('sync_leases')).toBe(true);
+  expect(tables.has('source_rule_staging')).toBe(true);
+
+  // Verify new columns on existing tables
+  const ruleCols = new Set(
+    ((await db.prepare('PRAGMA table_info(rules)').all<{ name: string }>()).results ?? []).map((c) => c.name),
+  );
+  expect(ruleCols.has('options')).toBe(true);
+
+  const apiKeyCols = new Set(
+    ((await db.prepare('PRAGMA table_info(api_keys)').all<{ name: string }>()).results ?? []).map((c) => c.name),
+  );
+  expect(apiKeyCols.has('scopes')).toBe(true);
+
+  // Verify new composite indexes
+  const indexRows = await db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all<{ name: string }>();
+  const indexes = new Set((indexRows.results ?? []).map((row) => row.name));
+  expect(indexes.has('idx_rules_category_source')).toBe(true);
+  expect(indexes.has('idx_rules_type_value')).toBe(true);
+  expect(indexes.has('idx_sessions_expires')).toBe(true);
+
+  // Verify zero data loss across 1.0.x tables and rate_limits migration
+  expect(await db.prepare('SELECT COUNT(*) AS c FROM categories').first<{ c: number }>()).toEqual({ c: 3 });
+  expect(await db.prepare('SELECT COUNT(*) AS c FROM rules').first<{ c: number }>()).toEqual({ c: 16 });
+  expect(await db.prepare('SELECT COUNT(*) AS c FROM category_sources').first<{ c: number }>()).toEqual({ c: 3 });
+  expect(await db.prepare('SELECT COUNT(*) AS c FROM sessions').first<{ c: number }>()).toEqual({ c: 1 });
+  expect(await db.prepare('SELECT id, scopes FROM api_keys').all()).toMatchObject({
+    results: [{ id: 'key_legacy_1', scopes: 'full' }],
+  });
+
+  if (hasTelegramSeed) {
+    expect(
+      await db.prepare('SELECT identity, operation, hits FROM rate_limits ORDER BY identity ASC').all(),
+    ).toMatchObject({
+      results: [
+        { identity: '10001', operation: 'sync-all', hits: 1 },
+        { identity: '198.51.100.10', operation: 'login-failure', hits: 3 },
+      ],
+    });
+    expect(await db.prepare('SELECT COUNT(*) AS c FROM telegram_users').first<{ c: number }>()).toEqual({ c: 1 });
+    expect(await db.prepare('SELECT COUNT(*) AS c FROM telegram_audit_logs').first<{ c: number }>()).toEqual({ c: 1 });
+    expect(await db.prepare('SELECT COUNT(*) AS c FROM icon_pack_cache').first<{ c: number }>()).toEqual({ c: 1 });
+  } else {
+    expect(await db.prepare('SELECT COUNT(*) AS c FROM rate_limits').first<{ c: number }>()).toEqual({ c: 0 });
+    expect(await db.prepare('SELECT COUNT(*) AS c FROM telegram_users').first<{ c: number }>()).toEqual({ c: 0 });
+  }
+}
+
+describe('1.1.0 schema and migrations', () => {
+  it('keeps bundled migrations byte-for-byte identical to src/data/migrations/*.sql', async () => {
+    const sqlFiles = (await readdir(MIGRATIONS_DIR)).filter((file) => /^\d+.*\.sql$/.test(file)).sort();
+    expect(MIGRATIONS.map((entry) => entry.name)).toEqual(sqlFiles);
+    for (const entry of MIGRATIONS) {
+      const diskSql = await readFile(join(MIGRATIONS_DIR, entry.name), 'utf8');
+      expect(entry.sql).toBe(diskSql);
+    }
+  });
+
+  it('keeps Drizzle schema.ts in exact sync with migrated SQLite tables and columns', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'private-rules-schema-sync-'));
+    const db = new SqliteDatabaseAdapter(join(dir, 'fresh.db'));
+    try {
+      const result = await migrateSqliteDatabase(db);
+      expect(result.upgradedFromLegacy).toBe(false);
+      expect(result.applied).toEqual([BASELINE_MIGRATION_NAME, INITIAL_1_1_0_MIGRATION_NAME]);
+
+      const orm = drizzle(db.native, { schema });
+      expect(await orm.select().from(schema.categories)).toEqual([]);
+      expect(await orm.select().from(schema.templates)).toEqual([]);
+      expect(await orm.select().from(schema.publications)).toEqual([]);
+
+      const actualTables = new Set(
+        (
+          db.native
+            .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+            .all() as Array<{ name: string }>
+        )
+          .map((row) => row.name)
+          .filter((name) => !name.startsWith('_schema_')),
+      );
+      const schemaTables = new Map<string, Set<string>>();
+      for (const table of Object.values(schema)) {
+        const config = getTableConfig(table);
+        schemaTables.set(config.name, new Set(config.columns.map((column) => column.name)));
+      }
+
+      expect([...actualTables].sort()).toEqual([...schemaTables.keys()].sort());
+      for (const [tableName, expectedCols] of schemaTables) {
+        const actualCols = new Set(
+          (db.native.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>).map(
+            (column) => column.name,
+          ),
+        );
+        expect([...actualCols].sort()).toEqual([...expectedCols].sort());
+      }
+    } finally {
+      db.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  describe.each(LEGACY_FIXTURE_FILES)('SQLite upgrade from %s', (fixtureName) => {
+    it('backs up to .bak-1.0.x, upgrades losslessly, stays idempotent, and preserves byte-identical subscriptions', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'private-rules-sqlite-upgrade-'));
+      const dbPath = join(dir, 'private-rules.db');
+      await copyFile(join(LEGACY_FIXTURES_DIR, fixtureName), dbPath);
+
+      const database = new SqliteDatabaseAdapter(dbPath);
+      try {
+        const env = makeEnv(database, 'node');
+        const beforeSubscriptions = await captureSubscriptions(env);
+        for (const path of SUBSCRIPTION_ENDPOINTS) {
+          expect(beforeSubscriptions[path].status).toBe(200);
+        }
+
+        const firstRun = await migrateSqliteDatabase(database);
+        expect(firstRun.upgradedFromLegacy).toBe(true);
+        expect(firstRun.applied).toEqual([BASELINE_MIGRATION_NAME, INITIAL_1_1_0_MIGRATION_NAME]);
+        expect(firstRun.backupPath).toBe(`${dbPath}.bak-1.0.x`);
+
+        // Verify `.bak-1.0.x` exists and holds untouched original pre-upgrade schema & data
+        const isPreTelegramFixture = fixtureName === 'legacy-runtime-1.0.3.db';
+        await expect(access(`${dbPath}.bak-1.0.x`)).resolves.toBeUndefined();
+        const backupDb = new Database(`${dbPath}.bak-1.0.x`, { readonly: true });
+        try {
+          const backupTables = new Set(
+            (
+              backupDb.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>
+            ).map((row) => row.name),
+          );
+          if (isPreTelegramFixture) {
+            expect(backupTables.has('telegram_users')).toBe(false);
+            expect(backupTables.has('telegram_rate_limits')).toBe(false);
+            expect(backupTables.has('icon_pack_cache')).toBe(false);
+            expect(backupTables.has('sync_leases')).toBe(false);
+          } else {
+            expect(backupTables.has('telegram_rate_limits')).toBe(true);
+          }
+          expect(backupTables.has('app_cards')).toBe(false);
+          expect(backupTables.has('_schema_migrations')).toBe(false);
+          expect(backupDb.prepare('SELECT COUNT(*) AS c FROM rules').get()).toEqual({ c: 16 });
+        } finally {
+          backupDb.close();
+        }
+
+        await assertUpgradedSchemaAndData(database, !isPreTelegramFixture);
+
+        // Verify byte-for-byte identical subscription outputs across all formats
+        const afterSubscriptions = await captureSubscriptions(env);
+        expect(afterSubscriptions).toEqual(beforeSubscriptions);
+
+        // Verify repeated execution is strictly idempotent
+        const secondRun = await migrateSqliteDatabase(database);
+        expect(secondRun).toEqual({ upgradedFromLegacy: false, applied: [] });
+      } finally {
+        database.close();
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe.each(LEGACY_FIXTURE_FILES)('D1 (Miniflare) upgrade from %s', (fixtureName) => {
+    it('upgrades losslessly under concurrent requests, stays idempotent, and preserves byte-identical subscriptions', async () => {
+      const miniflare = new Miniflare({
+        modules: true,
+        script: 'export default { fetch() { return new Response("ok") } }',
+        d1Databases: ['DB'],
+      });
+      try {
+        const binding = await miniflare.getD1Database('DB');
+        await loadFixtureIntoD1(join(LEGACY_FIXTURES_DIR, fixtureName), binding);
+
+        const adapterA = new D1DatabaseAdapter(binding);
+        const env = makeEnv(adapterA, 'cloudflare');
+        const beforeSubscriptions = await captureSubscriptions(env);
+        for (const path of SUBSCRIPTION_ENDPOINTS) {
+          expect(beforeSubscriptions[path].status).toBe(200);
+        }
+
+        // Simulate three concurrent cold-start isolates racing against the same D1 database
+        const concurrentResults = await Promise.all([
+          migrateDatabase(new D1DatabaseAdapter(binding)),
+          migrateDatabase(new D1DatabaseAdapter(binding)),
+          migrateDatabase(new D1DatabaseAdapter(binding)),
+        ]);
+        const appliedRuns = concurrentResults.filter((result) => result.applied.length > 0);
+        expect(appliedRuns.length).toBeGreaterThanOrEqual(1);
+        expect(appliedRuns.some((result) => result.upgradedFromLegacy)).toBe(true);
+
+        await assertUpgradedSchemaAndData(adapterA, fixtureName !== 'legacy-runtime-1.0.3.db');
+
+        // When `d1_migrations` existed on 1.0.x, verify it stays in sync for wrangler CLI
+        if (fixtureName === 'legacy-migrations-1.0.7.db') {
+          const d1Rows = await adapterA.prepare('SELECT name FROM d1_migrations').all<{ name: string }>();
+          const d1Names = new Set((d1Rows.results ?? []).map((row) => row.name));
+          expect(d1Names.has(BASELINE_MIGRATION_NAME)).toBe(true);
+          expect(d1Names.has(INITIAL_1_1_0_MIGRATION_NAME)).toBe(true);
+        }
+
+        const afterSubscriptions = await captureSubscriptions(env);
+        expect(afterSubscriptions).toEqual(beforeSubscriptions);
+
+        // Repeated calls (both direct and cached via ensureDatabaseMigrated) are idempotent no-ops
+        expect(await migrateDatabase(adapterA)).toEqual({ upgradedFromLegacy: false, applied: [] });
+        await ensureDatabaseMigrated(adapterA);
+        expect(await ensureDatabaseMigrated(adapterA)).toEqual({ upgradedFromLegacy: false, applied: [] });
+      } finally {
+        await miniflare.dispose();
+      }
+    });
+  });
+
+  it('recognizes migrations already applied via wrangler d1 migrations apply without re-running DDL', async () => {
+    const miniflare = new Miniflare({
+      modules: true,
+      script: 'export default { fetch() { return new Response("ok") } }',
+      d1Databases: ['DB'],
+    });
+    try {
+      const binding = await miniflare.getD1Database('DB');
+      await binding
+        .prepare(
+          'CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL)',
+        )
+        .run();
+      for (const entry of MIGRATIONS) {
+        for (const stmt of entry.sql
+          .split(/\r?\n/)
+          .filter((line) => !line.trim().startsWith('--'))
+          .join('\n')
+          .split(';')
+          .map((s) => s.trim())
+          .filter(Boolean)) {
+          await binding.prepare(stmt).run();
+        }
+        await binding.prepare('INSERT INTO d1_migrations (name) VALUES (?)').bind(entry.name).run();
+      }
+
+      const adapter = new D1DatabaseAdapter(binding);
+      const result = await migrateDatabase(adapter);
+      expect(result).toEqual({ upgradedFromLegacy: false, applied: [] });
+    } finally {
+      await miniflare.dispose();
+    }
+  });
+
+  it('catches up missing 1.0.x ALTER columns after creating an untouched .bak-1.0.x backup', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'private-rules-alter-catchup-'));
+    const dbPath = join(dir, 'early-1.0.db');
+    const db = new SqliteDatabaseAdapter(dbPath);
+    try {
+      // Minimal 1.0.0 schema (`0001_init.sql`): lacks public_links_enabled,
+      // token_links_enabled, rules.source_id, and all post-1.0.0 tables.
+      db.native.exec(`
+        CREATE TABLE categories (
+          id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
+          icon TEXT, description TEXT, note TEXT, sort_order INTEGER DEFAULT 0,
+          enabled INTEGER DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+        );
+        CREATE TABLE rules (
+          id TEXT PRIMARY KEY, category_id TEXT NOT NULL, value TEXT NOT NULL,
+          type TEXT NOT NULL, display_type TEXT, note TEXT, enabled INTEGER DEFAULT 1,
+          sort_order INTEGER DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+          FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+        );
+        CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
+        CREATE TABLE sessions (id TEXT PRIMARY KEY, expires_at TEXT NOT NULL, created_at TEXT NOT NULL);
+        INSERT INTO categories (id, name, slug, created_at, updated_at)
+        VALUES ('cat_1', 'Legacy', 'legacy', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+        INSERT INTO rules (id, category_id, value, type, created_at, updated_at)
+        VALUES ('r_1', 'cat_1', 'legacy.example', 'DOMAIN-SUFFIX', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+      `);
+
+      const result = await migrateSqliteDatabase(db);
+      expect(result.upgradedFromLegacy).toBe(true);
+      expect(result.backupPath).toBe(`${dbPath}.bak-1.0.x`);
+
+      // Original backup must NOT have catch-up columns or tables
+      const backupDb = new Database(`${dbPath}.bak-1.0.x`, { readonly: true });
+      try {
+        const backupCategoryCols = new Set(
+          (backupDb.prepare('PRAGMA table_info(categories)').all() as Array<{ name: string }>).map((c) => c.name),
+        );
+        expect(backupCategoryCols.has('public_links_enabled')).toBe(false);
+        expect(backupCategoryCols.has('token_links_enabled')).toBe(false);
+      } finally {
+        backupDb.close();
+      }
+
+      // Upgraded DB has caught-up columns with 1.0.7 defaults plus 1.1.0 columns/tables
+      expect(
+        db.native.prepare('SELECT public_links_enabled, token_links_enabled FROM categories WHERE id = ?').get('cat_1'),
+      ).toEqual({ public_links_enabled: 0, token_links_enabled: 1 });
+      expect(db.native.prepare('SELECT source_id, options FROM rules WHERE id = ?').get('r_1')).toEqual({
+        source_id: null,
+        options: null,
+      });
+    } finally {
+      db.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a corrupted 1.0.x database missing tables or columns outside catch-up scope before backup', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'private-rules-corrupt-'));
+    const dbPath = join(dir, 'corrupt.db');
+    const db = new SqliteDatabaseAdapter(dbPath);
+    try {
+      db.native.exec(
+        'CREATE TABLE categories (id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)',
+      );
+      await expect(migrateSqliteDatabase(db)).rejects.toThrow('1.0.x database baseline validation failed');
+      await expect(access(`${dbPath}.bak-1.0.x`)).rejects.toThrow();
+      const tracking = db.native
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = '_schema_migrations'")
+        .get();
+      expect(tracking).toBeUndefined();
+    } finally {
+      db.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

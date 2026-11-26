@@ -1,10 +1,10 @@
 import { createHmac } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SqliteDatabaseAdapter } from '../../src/infrastructure/database/sqlite/adapter';
-import { applySqliteMigrations } from '../../src/infrastructure/database/sqlite/migrations';
+import { migrateSqliteDatabase } from '../../src/infrastructure/database/sqlite/migrations';
 import { createCategory } from '../../src/lib/db';
 import { createApp } from '../../src/server/app';
 import type { Env } from '../../src/types';
@@ -39,7 +39,7 @@ describe('private Telegram webhook, commands, and Mini App sessions', () => {
   beforeAll(async () => {
     directory = await mkdtemp(join(tmpdir(), 'private-rules-telegram-'));
     database = new SqliteDatabaseAdapter(join(directory, 'telegram.db'));
-    await applySqliteMigrations(database, resolve(process.cwd(), 'migrations'));
+    await migrateSqliteDatabase(database);
     fake = new FakeTelegramClient();
     env = {
       DB: database,

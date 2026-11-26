@@ -8,6 +8,7 @@ import tseslint from 'typescript-eslint';
  * as they are rewritten; until then they are only type-checked.
  */
 export const LINTED = [
+  'drizzle.config.ts',
   'src/shared/**/*.ts',
   'src/domain/**/*.ts',
   'src/data/**/*.ts',
@@ -17,6 +18,7 @@ export const LINTED = [
   'src/server/routes/**/*.ts',
   'tests/shared/**/*.ts',
   'tests/domain/**/*.ts',
+  'tests/integration/migration.test.ts',
 ];
 
 export default tseslint.config(

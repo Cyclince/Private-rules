@@ -1,9 +1,9 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SqliteDatabaseAdapter } from '../../src/infrastructure/database/sqlite/adapter';
-import { applySqliteMigrations } from '../../src/infrastructure/database/sqlite/migrations';
+import { migrateSqliteDatabase } from '../../src/infrastructure/database/sqlite/migrations';
 import { addRule, createCategory, insertRule } from '../../src/lib/db';
 import { createApp } from '../../src/server/app';
 import type { Env } from '../../src/types';
@@ -15,7 +15,7 @@ describe('HTTP API behavior', () => {
   beforeAll(async () => {
     directory = await mkdtemp(join(tmpdir(), 'private-rules-api-'));
     database = new SqliteDatabaseAdapter(join(directory, 'api.db'));
-    await applySqliteMigrations(database, resolve(process.cwd(), 'migrations'));
+    await migrateSqliteDatabase(database);
     env = { DB: database, ASSETS: { fetch: async () => new Response('<html>admin</html>', { headers: { 'content-type': 'text/html' } }) }, ADMIN_PASSWORD: 'correct-password', SESSION_SECRET: '0123456789abcdef0123456789abcdef', RULE_TOKEN: 'private-token', RUNTIME: 'node' };
     let data = await createCategory(env, { name: 'public-rule', tokenLinksEnabled: false, publicLinksEnabled: true });
     await addRule(env, data.categories[0].id, { value: 'public.example' });

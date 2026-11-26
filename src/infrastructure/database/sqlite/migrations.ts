@@ -1,21 +1,32 @@
-import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { access } from 'node:fs/promises';
+import { migrateDatabase, type MigrationResult } from '../../../data/migrate';
 import type { SqliteDatabaseAdapter } from './adapter';
 
-export async function applySqliteMigrations(database: SqliteDatabaseAdapter, directory: string) {
-  database.native.exec(`CREATE TABLE IF NOT EXISTS _migrations (
-    version TEXT PRIMARY KEY,
-    applied_at TEXT NOT NULL
-  )`);
-  const files = (await readdir(directory)).filter((file) => /^\d+.*\.sql$/.test(file)).sort();
-  const applied = new Set((database.native.prepare('SELECT version FROM _migrations').all() as Array<{ version: string }>).map((row) => row.version));
-  const migrate = database.native.transaction((version: string, sql: string) => {
-    database.native.exec(sql);
-    database.native.prepare('INSERT INTO _migrations (version, applied_at) VALUES (?, ?)').run(version, new Date().toISOString());
-  });
-  for (const file of files) {
-    if (applied.has(file)) continue;
-    migrate(file, await readFile(join(directory, file), 'utf8'));
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
   }
-  return files.length;
+}
+
+/**
+ * Migrates a Node/SQLite database to the current 1.1.0 schema. When upgrading
+ * a 1.0.x database on disk, writes a consistent WAL-safe `.bak-1.0.x` backup
+ * before applying any DDL (design §17.2).
+ */
+export async function migrateSqliteDatabase(database: SqliteDatabaseAdapter): Promise<MigrationResult> {
+  return migrateDatabase(database, {
+    onBeforeLegacyUpgrade: async () => {
+      if (database.native.memory || !database.filePath || database.filePath === ':memory:') {
+        return undefined;
+      }
+      const backupPath = `${database.filePath}.bak-1.0.x`;
+      if (!(await fileExists(backupPath))) {
+        await database.backup(backupPath);
+      }
+      return backupPath;
+    },
+  });
 }

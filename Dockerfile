@@ -24,7 +24,7 @@ COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_m
 COPY --from=production-dependencies --chown=node:node /app/package.json ./package.json
 COPY --from=build --chown=node:node /app/dist/client ./dist/client
 COPY --from=build --chown=node:node /app/dist/server ./dist/server
-COPY --from=build --chown=node:node /app/migrations ./migrations
+COPY --from=build --chown=node:node /app/src/data/migrations ./src/data/migrations
 RUN mkdir -p /app/data && chown node:node /app/data
 USER node
 EXPOSE 5173

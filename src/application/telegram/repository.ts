@@ -159,11 +159,11 @@ export class TelegramRepository {
 
   async consumeRateLimit(identity: string, operation: string, limit: number, windowSeconds = 60) {
     const timestamp = new Date();
-    const current = await this.database.prepare('SELECT window_started_at, hits FROM telegram_rate_limits WHERE identity = ? AND operation = ?')
+    const current = await this.database.prepare('SELECT window_started_at, hits FROM rate_limits WHERE identity = ? AND operation = ?')
       .bind(identity, operation).first<{ window_started_at: string; hits: number }>();
     const expired = !current || Date.parse(current.window_started_at) + windowSeconds * 1000 <= timestamp.getTime();
     const hits = expired ? 1 : current.hits + 1;
-    await this.database.prepare(`INSERT INTO telegram_rate_limits (identity, operation, window_started_at, hits)
+    await this.database.prepare(`INSERT INTO rate_limits (identity, operation, window_started_at, hits)
       VALUES (?, ?, ?, ?)
       ON CONFLICT(identity, operation) DO UPDATE SET window_started_at = excluded.window_started_at, hits = excluded.hits`)
       .bind(identity, operation, expired ? timestamp.toISOString() : current!.window_started_at, hits).run();
@@ -172,7 +172,7 @@ export class TelegramRepository {
 
   /** Reads the current window without counting a hit. */
   async peekRateLimit(identity: string, operation: string, limit: number, windowSeconds = 60) {
-    const current = await this.database.prepare('SELECT window_started_at, hits FROM telegram_rate_limits WHERE identity = ? AND operation = ?')
+    const current = await this.database.prepare('SELECT window_started_at, hits FROM rate_limits WHERE identity = ? AND operation = ?')
       .bind(identity, operation).first<{ window_started_at: string; hits: number }>();
     const expired = !current || Date.parse(current.window_started_at) + windowSeconds * 1000 <= Date.now();
     const hits = expired ? 0 : current.hits;
@@ -180,7 +180,7 @@ export class TelegramRepository {
   }
 
   async resetRateLimit(identity: string, operation: string) {
-    await this.database.prepare('DELETE FROM telegram_rate_limits WHERE identity = ? AND operation = ?').bind(identity, operation).run();
+    await this.database.prepare('DELETE FROM rate_limits WHERE identity = ? AND operation = ?').bind(identity, operation).run();
   }
 
   async audit(input: {

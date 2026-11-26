@@ -4,9 +4,8 @@ import { serve } from '@hono/node-server';
 import { NodeAssetsAdapter } from '../infrastructure/assets/node';
 import { parseNodeConfig } from '../infrastructure/config/node';
 import { SqliteDatabaseAdapter } from '../infrastructure/database/sqlite/adapter';
-import { applySqliteMigrations } from '../infrastructure/database/sqlite/migrations';
+import { migrateSqliteDatabase } from '../infrastructure/database/sqlite/migrations';
 import { NodeScheduler } from '../infrastructure/scheduler/node';
-import { ensureDatabase } from '../lib/db';
 import { syncRuleSources } from '../lib/sync';
 import { createApp } from '../server/app';
 import type { Env } from '../types';
@@ -22,7 +21,7 @@ import { refreshIconPacks } from '../lib/icon-packs';
 const config = parseNodeConfig(process.env);
 await mkdir(dirname(config.databasePath), { recursive: true });
 const database = new SqliteDatabaseAdapter(config.databasePath);
-await applySqliteMigrations(database, resolve(process.cwd(), 'migrations'));
+const migrationResult = await migrateSqliteDatabase(database);
 const backgroundTasks = new NodeBackgroundTaskAdapter();
 const env: Env = {
   DB: database,
@@ -38,13 +37,15 @@ const env: Env = {
   TELEGRAM: config.telegram,
   TELEGRAM_CLIENT: config.telegram.enabled ? new TelegramHttpClient(config.telegram.botToken) : undefined,
 };
-await ensureDatabase(env);
 await ensureRuntimeSecrets(env);
 const app = createApp();
 const logger = {
   info: (message: string) => console.info(`[private-rules] ${message}`),
   error: (message: string, error?: unknown) => console.error(`[private-rules] ${message}`, error instanceof Error ? error.message : ''),
 };
+if (migrationResult.upgradedFromLegacy && migrationResult.backupPath) {
+  logger.info(`upgraded 1.0.x database; pre-upgrade backup saved to ${migrationResult.backupPath}`);
+}
 const scheduler = new NodeScheduler(config.scheduler.intervalSeconds, async () => {
   await cleanupTelegramMessages(env);
   await refreshIconPacks(env).catch((cause) => logger.error('Icon pack auto-update failed', cause));

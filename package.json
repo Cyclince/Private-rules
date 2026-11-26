@@ -23,11 +23,12 @@
     "test:telegram": "vitest run tests/integration/telegram.test.ts tests/unit/source-security.test.ts",
     "preview": "vite preview",
     "deploy": "wrangler deploy --keep-vars",
+    "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:migrate:node": "tsx scripts/migrate-node.ts",
-    "format": "prettier --write --ignore-unknown \"src/shared\" \"src/server/middleware\" \"tests/shared\" eslint.config.js",
-    "format:check": "prettier --check --ignore-unknown \"src/shared\" \"src/server/middleware\" \"tests/shared\" eslint.config.js",
+    "format": "prettier --write --ignore-unknown \"src/shared\" \"src/data\" \"src/server/middleware\" \"tests/shared\" \"tests/integration/migration.test.ts\" drizzle.config.ts eslint.config.js",
+    "format:check": "prettier --check --ignore-unknown \"src/shared\" \"src/data\" \"src/server/middleware\" \"tests/shared\" \"tests/integration/migration.test.ts\" drizzle.config.ts eslint.config.js",
     "test:shared": "vitest run tests/shared"
   },
   "dependencies": {
