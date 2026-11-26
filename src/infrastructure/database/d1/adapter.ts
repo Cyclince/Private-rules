@@ -9,6 +9,9 @@ class D1StatementAdapter implements DatabaseStatement {
     const result = await this.statement.run<T>();
     return { ...result, changes: result.meta?.changes ?? 0 } as DatabaseResult<T>;
   }
+  async raw<T = unknown[]>() {
+    return (await this.statement.raw()) as T[];
+  }
   unwrap() { return this.statement; }
 }
 

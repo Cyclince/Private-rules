@@ -13,13 +13,49 @@
  *      api_keys, category_sources — no `telegram_*`, `icon_pack_cache`,
  *      `sync_leases`, or `source_rule_staging`).
  */
-import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import Database from 'better-sqlite3';
 
 const ROOT = resolve(process.cwd());
 const LEGACY_MIGRATIONS_DIR = join(ROOT, 'migrations');
 const OUTPUT_DIR = join(ROOT, 'tests', 'fixtures', 'legacy-db');
+const EXPECTED_DIR = join(OUTPUT_DIR, 'expected');
+const LEGACY_REFERENCE_COMMIT = '5cb9012';
+const LEGACY_RULE_TOKEN = 'legacy-token';
+
+const ALL_FORMAT_SUFFIXES = [
+  '.yaml',
+  '.yml',
+  '_Classical.yaml',
+  '_Domain.yaml',
+  '_Domian.yaml',
+  '_IPCIDR.yaml',
+  '.list',
+  '.conf',
+  '.txt',
+  '-loon.list',
+  '-qx.list',
+  '-surge.list',
+  '-shadowrocket.list',
+  '-egern.list',
+  '-surfboard.list',
+  '-sing-box.json',
+  '-v2ray.list',
+  '.json',
+] as const;
+
+const GOLDEN_ENDPOINTS = [
+  ...ALL_FORMAT_SUFFIXES.map((suffix) => `/rules/public-direct${suffix}`),
+  ...ALL_FORMAT_SUFFIXES.map((suffix) => `/sub/${LEGACY_RULE_TOKEN}/private-proxy${suffix}`),
+  // Access-control boundaries (must remain 404 after upgrade)
+  '/rules/private-proxy.yaml',
+  '/rules/internal-only.yaml',
+  `/sub/${LEGACY_RULE_TOKEN}/internal-only.yaml`,
+  '/sub/wrong-token/private-proxy.yaml',
+] as const;
 
 const FIXED_CREATED_AT = '2026-10-01T08:00:00.000Z';
 const FIXED_UPDATED_AT = '2026-11-15T12:30:00.000Z';
@@ -341,6 +377,168 @@ async function generateFixture(
   console.info(`[fixtures] generated ${filePath}`);
 }
 
+const GENERATED_FIXTURES = [
+  'legacy-migrations-1.0.7.db',
+  'legacy-runtime-1.0.7.db',
+  'legacy-runtime-1.0.3.db',
+] as const;
+
+type GoldenEntry = {
+  path: string;
+  status: number;
+  contentType: string | null;
+  file: string;
+};
+
+type GoldenManifest = {
+  sourceCommit: string;
+  fixture: string;
+  endpoints: GoldenEntry[];
+};
+
+function bodyFileForEndpoint(endpoint: string): string {
+  return endpoint.replace(/^\/+/, '');
+}
+
+/**
+ * Checks out the genuine 1.0.7 reference commit (`5cb9012`) in a temporary git
+ * worktree and requests every subscription endpoint through 1.0.7's original
+ * Hono app + SQLite adapter against temporary copies of all three fixtures.
+ * Writes status codes and verbatim response bodies under
+ * `tests/fixtures/legacy-db/expected/<fixture-name>/`.
+ */
+async function generateGoldenExpectations() {
+  const scratchRoot = await mkdtemp(join(tmpdir(), 'private-rules-107-golden-'));
+  const worktreeDir = join(scratchRoot, 'worktree');
+  const worktreeNodeModules = join(worktreeDir, 'node_modules');
+  const captureScriptPath = join(scratchRoot, 'capture-107.mts');
+  const rawOutputPath = join(scratchRoot, 'captured.json');
+  const tsxBin = join(ROOT, 'node_modules', '.bin', 'tsx');
+
+  let worktreeAdded = false;
+  try {
+    execFileSync('git', ['worktree', 'add', '--detach', worktreeDir, LEGACY_REFERENCE_COMMIT], {
+      cwd: ROOT,
+      stdio: 'pipe',
+    });
+    worktreeAdded = true;
+
+    await symlink(join(ROOT, 'node_modules'), worktreeNodeModules, 'dir');
+
+    const captureScript = `
+import { copyFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const [worktreeDir, fixturesDir, outputPath, fixturesJson, endpointsJson, ruleToken] = process.argv.slice(2);
+const fixtures = JSON.parse(fixturesJson) as string[];
+const endpoints = JSON.parse(endpointsJson) as string[];
+
+const { createApp } = await import(pathToFileURL(join(worktreeDir, 'src/server/app.ts')).href);
+const { SqliteDatabaseAdapter } = await import(
+  pathToFileURL(join(worktreeDir, 'src/infrastructure/database/sqlite/adapter.ts')).href
+);
+
+const results: Record<string, Array<{ path: string; status: number; contentType: string | null; body: string }>> = {};
+
+for (const fixtureName of fixtures) {
+  const workDir = await mkdtemp(join(tmpdir(), 'private-rules-107-db-'));
+  const dbPath = join(workDir, fixtureName);
+  await copyFile(join(fixturesDir, fixtureName), dbPath);
+  const database = new SqliteDatabaseAdapter(dbPath);
+  try {
+    const app = createApp();
+    const env = {
+      DB: database,
+      ASSETS: { fetch: async () => new Response('<html></html>') },
+      ADMIN_PASSWORD: 'test-password',
+      SESSION_SECRET: '0123456789abcdef0123456789abcdef',
+      RULE_TOKEN: ruleToken,
+      RUNTIME: 'node' as const,
+    };
+    const entries: Array<{ path: string; status: number; contentType: string | null; body: string }> = [];
+    for (const endpoint of endpoints) {
+      const response = await app.request(endpoint, {}, env);
+      entries.push({
+        path: endpoint,
+        status: response.status,
+        contentType: response.headers.get('content-type'),
+        body: await response.text(),
+      });
+    }
+    results[fixtureName] = entries;
+  } finally {
+    database.close();
+    await rm(workDir, { recursive: true, force: true });
+  }
+}
+
+await writeFile(outputPath, JSON.stringify(results), 'utf8');
+`;
+    await writeFile(captureScriptPath, captureScript, 'utf8');
+
+    execFileSync(
+      tsxBin,
+      [
+        captureScriptPath,
+        worktreeDir,
+        OUTPUT_DIR,
+        rawOutputPath,
+        JSON.stringify(GENERATED_FIXTURES),
+        JSON.stringify(GOLDEN_ENDPOINTS),
+        LEGACY_RULE_TOKEN,
+      ],
+      { cwd: ROOT, stdio: 'inherit' },
+    );
+
+    const captured = JSON.parse(await readFile(rawOutputPath, 'utf8')) as Record<
+      string,
+      Array<{ path: string; status: number; contentType: string | null; body: string }>
+    >;
+
+    await rm(EXPECTED_DIR, { recursive: true, force: true });
+    for (const fixtureName of GENERATED_FIXTURES) {
+      const fixtureStem = fixtureName.replace(/\.db$/, '');
+      const fixtureOutDir = join(EXPECTED_DIR, fixtureStem);
+      await mkdir(fixtureOutDir, { recursive: true });
+      const entries = captured[fixtureName];
+      if (!entries || entries.length !== GOLDEN_ENDPOINTS.length) {
+        throw new Error(`Failed to capture all golden endpoints for ${fixtureName}`);
+      }
+      const manifestEntries: GoldenEntry[] = [];
+      for (const entry of entries) {
+        const relativeFile = bodyFileForEndpoint(entry.path);
+        const targetPath = join(fixtureOutDir, relativeFile);
+        await mkdir(dirname(targetPath), { recursive: true });
+        await writeFile(targetPath, entry.body, 'utf8');
+        manifestEntries.push({
+          path: entry.path,
+          status: entry.status,
+          contentType: entry.contentType,
+          file: relativeFile,
+        });
+      }
+      const manifest: GoldenManifest = {
+        sourceCommit: LEGACY_REFERENCE_COMMIT,
+        fixture: fixtureName,
+        endpoints: manifestEntries,
+      };
+      await writeFile(join(fixtureOutDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+      console.info(`[fixtures] generated ${manifestEntries.length} golden expectations in ${fixtureOutDir}`);
+    }
+  } finally {
+    await unlink(worktreeNodeModules).catch(() => undefined);
+    if (worktreeAdded) {
+      execFileSync('git', ['worktree', 'remove', '--force', worktreeDir], {
+        cwd: ROOT,
+        stdio: 'pipe',
+      });
+    }
+    await rm(scratchRoot, { recursive: true, force: true });
+  }
+}
+
 await mkdir(OUTPUT_DIR, { recursive: true });
 const migrationFileNames = (await readdir(LEGACY_MIGRATIONS_DIR))
   .filter((file) => /^\d+.*\.sql$/.test(file))
@@ -356,3 +554,4 @@ await generateFixture(
   (db) => buildRuntime103Schema(db),
   (db) => seedCoreData(db, false),
 );
+await generateGoldenExpectations();

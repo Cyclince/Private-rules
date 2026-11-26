@@ -1,0 +1,12 @@
+# Generated for Public Direct by Private Rules
+# UPDATED: 2026-11-15 20:30:00
+direct.example.com
+cn.example.org
+localcorp
+10.0.0.0/8
+fd00::/8
+192.168.1.0/24
+443
+41641
+mirror.example.net
+203.0.113.0/24

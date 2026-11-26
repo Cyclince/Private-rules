@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "rules": [
+    {
+      "domain_suffix": [
+        "chatgpt.com",
+        "openai.com"
+      ],
+      "ip_cidr": [
+        "91.108.56.0/22"
+      ]
+    },
+    {
+      "port_range": [
+        "80:90"
+      ]
+    }
+  ]
+}

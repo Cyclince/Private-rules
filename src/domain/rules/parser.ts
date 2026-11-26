@@ -45,27 +45,44 @@ export function normalizeRuleValue(value: string) {
   return normalized;
 }
 
-function professional(input: string): { type: DomainRuleType; value: string } | null {
+const CASE_SENSITIVE_TYPES = new Set<DomainRuleType>(['DOMAIN-REGEX', 'PROCESS-NAME', 'USER-AGENT', 'URL-REGEX']);
+
+function professional(
+  input: string,
+): { type: DomainRuleType; value: string; options?: { noResolve?: boolean } } | null {
   const [rawType, ...rest] = input.split(',');
-  const type = rawType.trim().toUpperCase() as DomainRuleType;
-  if (!RULE_TYPES.includes(type)) return null;
-  const value = rest
-    .join(',')
-    .replace(/,no-resolve$/i, '')
-    .trim();
-  if (!value) return null;
-  return { type, value: normalizeRuleValue(value) };
+  const upper = rawType.trim().toUpperCase();
+  const normalizedType = upper === 'IP-CIDR6' ? 'IP-CIDR' : (upper as DomainRuleType);
+  if (!RULE_TYPES.includes(normalizedType)) return null;
+  const joined = rest.join(',').trim();
+  const hasNoResolve = /,no-resolve$/i.test(joined);
+  const rawValue = joined.replace(/,no-resolve$/i, '').trim();
+  if (!rawValue) return null;
+  const value = CASE_SENSITIVE_TYPES.has(normalizedType) ? rawValue : normalizeRuleValue(rawValue);
+  return {
+    type: normalizedType,
+    value,
+    ...(hasNoResolve ? { options: { noResolve: true } } : {}),
+  };
 }
 
-export function parseRuleInput(input: string, forcedType?: DomainRuleType, note?: string): DomainRule {
+export function parseRuleInput(
+  input: string,
+  forcedType?: DomainRuleType,
+  note?: string,
+  forcedOptions?: { noResolve?: boolean },
+): DomainRule {
   const raw = input.trim();
   if (!raw) throw new Error('请输入域名、关键词或 IP');
   if (raw.startsWith('#')) throw new Error('注释行不能单独保存为规则');
 
   const fromProfessional = professional(raw);
-  const normalized = fromProfessional?.value ?? normalizeRuleValue(raw);
+  const effectiveType = forcedType || fromProfessional?.type;
+  const normalized =
+    fromProfessional?.value ??
+    (effectiveType && CASE_SENSITIVE_TYPES.has(effectiveType) ? raw : normalizeRuleValue(raw));
   const wildcard = /^[+*]?\./.test(raw);
-  let type = forcedType || fromProfessional?.type;
+  let type = effectiveType;
 
   if (!type) {
     if (
@@ -110,12 +127,14 @@ export function parseRuleInput(input: string, forcedType?: DomainRuleType, note?
   else if (type === 'IP-CIDR') displayType = 'IP 段';
   else displayType = FRIENDLY_RULE_TYPE[type];
 
+  const options = forcedOptions ?? fromProfessional?.options;
   const now = new Date().toISOString();
   return {
     id: id('rule'),
     value,
     type,
     displayType,
+    ...(options && Object.keys(options).length > 0 ? { options } : {}),
     enabled: true,
     note,
     createdAt: now,

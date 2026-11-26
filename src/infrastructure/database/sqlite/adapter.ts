@@ -10,7 +10,17 @@ class SqliteStatementAdapter implements DatabaseStatement {
     const info = this.database.prepare(this.sql).run(...this.values);
     return { success: true, changes: info.changes } as DatabaseResult<T>;
   }
-  execute() { return this.database.prepare(this.sql).run(...this.values); }
+  async raw<T = unknown[]>() {
+    return this.database.prepare(this.sql).raw().all(...this.values) as T[];
+  }
+  executeInBatch<T>(): DatabaseResult<T> {
+    const stmt = this.database.prepare(this.sql);
+    if (stmt.reader) {
+      return { success: true, results: stmt.all(...this.values) as T[] };
+    }
+    const info = stmt.run(...this.values);
+    return { success: true, changes: info.changes } as DatabaseResult<T>;
+  }
 }
 
 export class SqliteDatabaseAdapter implements DatabasePort {
@@ -24,10 +34,9 @@ export class SqliteDatabaseAdapter implements DatabasePort {
   }
   prepare(sql: string) { return new SqliteStatementAdapter(this.native, sql); }
   async batch<T>(statements: DatabaseStatement[]) {
-    return this.native.transaction(() => statements.map((statement) => {
-      const info = (statement as SqliteStatementAdapter).execute();
-      return { success: true, changes: info.changes } as DatabaseResult<T>;
-    }))();
+    return this.native.transaction(() =>
+      statements.map((statement) => (statement as SqliteStatementAdapter).executeInBatch<T>()),
+    )();
   }
   async ping() { return (this.native.prepare('SELECT 1 AS ok').get() as { ok: number }).ok === 1; }
   async backup(destinationPath: string) {

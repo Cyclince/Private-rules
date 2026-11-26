@@ -17,15 +17,33 @@ export type FormatterId =
   | 'yaml-domain'
   | 'yaml-ipcidr';
 
+export type FormatterSkippedRule = {
+  type: DomainRule['type'];
+  value: string;
+  reason: string;
+};
+
+export type FormatResult = {
+  body: string;
+  skipped: FormatterSkippedRule[];
+};
+
 export type Formatter = {
   id: FormatterId;
   name: string;
   extension: string;
   format: (category: RuleCategory, data: RulesData) => string;
+  formatWithReport?: (category: RuleCategory, data: RulesData) => FormatResult;
 };
 
+const NO_RESOLVE_RULE_TYPES = new Set<DomainRule['type']>(['IP-CIDR', 'SRC-IP-CIDR', 'IP-ASN', 'GEOIP']);
+const QX_UNSUPPORTED_TYPES = new Set<DomainRule['type']>(['DOMAIN-REGEX', 'PROCESS-NAME', 'URL-REGEX']);
+const LOON_UNSUPPORTED_TYPES = new Set<DomainRule['type']>(['PROCESS-NAME']);
+const SINGBOX_UNSUPPORTED_NEW_TYPES = new Set<DomainRule['type']>(['USER-AGENT', 'URL-REGEX']);
+
 function ruleLine(rule: DomainRule) {
-  return `${rule.type},${rule.value}`;
+  const noResolve = rule.options?.noResolve && NO_RESOLVE_RULE_TYPES.has(rule.type) ? ',no-resolve' : '';
+  return `${rule.type},${rule.value}${noResolve}`;
 }
 
 function updatedLabel(category: RuleCategory) {
@@ -114,19 +132,32 @@ export function ipcidrYaml(category: RuleCategory) {
   lines.push(...commentLines(category.note || category.description, '  '));
   for (const rule of rules) {
     lines.push(...ruleNote(rule.note, '  '));
-    lines.push(`  - ${ruleLine(rule)}${rule.type === 'IP-CIDR' ? ',no-resolve' : ''}`);
+    const base = `${rule.type},${rule.value}`;
+    const noResolve = rule.type === 'IP-CIDR' || (rule.type === 'SRC-IP-CIDR' && rule.options?.noResolve);
+    lines.push(`  - ${base}${noResolve ? ',no-resolve' : ''}`);
   }
   return `${lines.join('\n')}\n`;
 }
 
-export function list(category: RuleCategory, loonCompatible = false) {
+export function listWithReport(category: RuleCategory, loonCompatible = false): FormatResult {
   const lines: string[] = generationHeader(category);
+  const skipped: FormatterSkippedRule[] = [];
   lines.push(...commentLines(category.note || category.description));
   for (const rule of enabled(category)) {
+    if (loonCompatible && LOON_UNSUPPORTED_TYPES.has(rule.type)) {
+      const reason = `Loon does not support ${rule.type}`;
+      skipped.push({ type: rule.type, value: rule.value, reason });
+      lines.push(`# skipped (${reason}): ${rule.type},${rule.value}`);
+      continue;
+    }
     lines.push(...ruleNote(rule.note));
     lines.push(loonCompatible && rule.type === 'DST-PORT' ? `DEST-PORT,${rule.value}` : ruleLine(rule));
   }
-  return `${lines.join('\n')}\n`;
+  return { body: `${lines.join('\n')}\n`, skipped };
+}
+
+export function list(category: RuleCategory, loonCompatible = false) {
+  return listWithReport(category, loonCompatible).body;
 }
 
 function qxType(type: DomainRule['type']) {
@@ -136,22 +167,35 @@ function qxType(type: DomainRule['type']) {
   return type;
 }
 
-export function quantumultX(category: RuleCategory, data: RulesData) {
+export function quantumultXWithReport(category: RuleCategory, data: RulesData): FormatResult {
   const policy = data.settings.policyName.trim();
   const lines: string[] = generationHeader(category);
+  const skipped: FormatterSkippedRule[] = [];
   lines.push(...commentLines(category.note || category.description));
   for (const rule of enabled(category)) {
+    if (QX_UNSUPPORTED_TYPES.has(rule.type)) {
+      const reason = `Quantumult X does not support ${rule.type}`;
+      skipped.push({ type: rule.type, value: rule.value, reason });
+      lines.push(`# skipped (${reason}): ${rule.type},${rule.value}`);
+      continue;
+    }
     lines.push(...ruleNote(rule.note));
+    const noResolve = rule.options?.noResolve && NO_RESOLVE_RULE_TYPES.has(rule.type) ? ',no-resolve' : '';
     const base = `${qxType(rule.type)},${rule.value}`;
-    lines.push(policy ? `${base},${policy}` : base);
+    lines.push(policy ? `${base},${policy}${noResolve}` : `${base}${noResolve}`);
   }
-  return `${lines.join('\n')}\n`;
+  return { body: `${lines.join('\n')}\n`, skipped };
 }
 
-export function singBoxJson(category: RuleCategory) {
+export function quantumultX(category: RuleCategory, data: RulesData) {
+  return quantumultXWithReport(category, data).body;
+}
+
+export function singBoxJsonWithReport(category: RuleCategory): FormatResult {
   const destination: Record<string, Array<string | number>> = {};
   const source: Record<string, Array<string | number>> = {};
   const ports: Record<string, Array<string | number>> = {};
+  const skipped: FormatterSkippedRule[] = [];
   const append = (target: Record<string, Array<string | number>>, field: string, value: string | number) => {
     (target[field] ??= []).push(value);
   };
@@ -160,7 +204,9 @@ export function singBoxJson(category: RuleCategory) {
     if (rule.type === 'DOMAIN') append(destination, 'domain', rule.value);
     else if (rule.type === 'DOMAIN-SUFFIX') append(destination, 'domain_suffix', rule.value);
     else if (rule.type === 'DOMAIN-KEYWORD') append(destination, 'domain_keyword', rule.value);
+    else if (rule.type === 'DOMAIN-REGEX') append(destination, 'domain_regex', rule.value);
     else if (rule.type === 'IP-CIDR') append(destination, 'ip_cidr', rule.value);
+    else if (rule.type === 'PROCESS-NAME') append(destination, 'process_name', rule.value);
     else if (rule.type === 'SRC-IP-CIDR') append(source, 'source_ip_cidr', rule.value);
     else if (rule.type === 'SRC-PORT' && rule.value.includes('-')) {
       append(source, 'source_port_range', rule.value.replace('-', ':'));
@@ -168,10 +214,24 @@ export function singBoxJson(category: RuleCategory) {
     else if (rule.type === 'DST-PORT' && rule.value.includes('-')) {
       append(ports, 'port_range', rule.value.replace('-', ':'));
     } else if (rule.type === 'DST-PORT') append(ports, 'port', Number(rule.value));
+    else if (SINGBOX_UNSUPPORTED_NEW_TYPES.has(rule.type)) {
+      skipped.push({
+        type: rule.type,
+        value: rule.value,
+        reason: `sing-box rule-set does not support ${rule.type}`,
+      });
+    }
   }
 
   const rules = [destination, source, ports].filter((rule) => Object.keys(rule).length > 0);
-  return `${JSON.stringify({ version: 2, rules }, null, 2)}\n`;
+  return {
+    body: `${JSON.stringify({ version: 2, rules }, null, 2)}\n`,
+    skipped,
+  };
+}
+
+export function singBoxJson(category: RuleCategory) {
+  return singBoxJsonWithReport(category).body;
 }
 
 export function url(category: RuleCategory) {
@@ -211,7 +271,13 @@ export const formatters: Record<string, Formatter> = {
     format: (category) => yaml(category),
   },
   stash: { id: 'stash', name: 'StashFormatter', extension: '.yaml', format: (category) => yaml(category) },
-  loon: { id: 'loon', name: 'LoonFormatter', extension: '-loon.list', format: (category) => list(category, true) },
+  loon: {
+    id: 'loon',
+    name: 'LoonFormatter',
+    extension: '-loon.list',
+    format: (category) => list(category, true),
+    formatWithReport: (category) => listWithReport(category, true),
+  },
   shadowrocket: {
     id: 'shadowrocket',
     name: 'ShadowrocketFormatter',
@@ -237,6 +303,7 @@ export const formatters: Record<string, Formatter> = {
     name: 'SingBoxFormatter',
     extension: '-sing-box.json',
     format: (category) => singBoxJson(category),
+    formatWithReport: (category) => singBoxJsonWithReport(category),
   },
   v2ray: { id: 'v2ray', name: 'V2RayFormatter', extension: '-v2ray.list', format: (category) => list(category) },
   'quantumult-x': {
@@ -244,8 +311,15 @@ export const formatters: Record<string, Formatter> = {
     name: 'QuantumultXFormatter',
     extension: '-qx.list',
     format: quantumultX,
+    formatWithReport: quantumultXWithReport,
   },
-  json: { id: 'json', name: 'JsonFormatter', extension: '.json', format: (category) => singBoxJson(category) },
+  json: {
+    id: 'json',
+    name: 'JsonFormatter',
+    extension: '.json',
+    format: (category) => singBoxJson(category),
+    formatWithReport: (category) => singBoxJsonWithReport(category),
+  },
   url: { id: 'url', name: 'UrlFormatter', extension: '.txt', format: (category) => url(category) },
 };
 
@@ -287,10 +361,14 @@ export function resolveFile(data: RulesData, fileName: string) {
     const match = candidates.find(([candidate]) => candidate === lower);
     if (match) {
       const formatter = match[1];
+      const formatted = formatter.formatWithReport
+        ? formatter.formatWithReport(category, data)
+        : { body: formatter.format(category, data), skipped: [] };
       return {
         category,
         formatter,
-        body: formatter.format(category, data),
+        body: formatted.body,
+        skipped: formatted.skipped,
         contentType:
           formatter.id === 'json' || formatter.id === 'sing-box'
             ? 'application/json; charset=utf-8'

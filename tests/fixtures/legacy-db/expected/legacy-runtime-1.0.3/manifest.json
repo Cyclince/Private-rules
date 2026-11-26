@@ -1,0 +1,246 @@
+{
+  "sourceCommit": "5cb9012",
+  "fixture": "legacy-runtime-1.0.3.db",
+  "endpoints": [
+    {
+      "path": "/rules/public-direct.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct.yaml"
+    },
+    {
+      "path": "/rules/public-direct.yml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct.yml"
+    },
+    {
+      "path": "/rules/public-direct_Classical.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct_Classical.yaml"
+    },
+    {
+      "path": "/rules/public-direct_Domain.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct_Domain.yaml"
+    },
+    {
+      "path": "/rules/public-direct_Domian.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct_Domian.yaml"
+    },
+    {
+      "path": "/rules/public-direct_IPCIDR.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct_IPCIDR.yaml"
+    },
+    {
+      "path": "/rules/public-direct.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct.list"
+    },
+    {
+      "path": "/rules/public-direct.conf",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct.conf"
+    },
+    {
+      "path": "/rules/public-direct.txt",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct.txt"
+    },
+    {
+      "path": "/rules/public-direct-loon.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct-loon.list"
+    },
+    {
+      "path": "/rules/public-direct-qx.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct-qx.list"
+    },
+    {
+      "path": "/rules/public-direct-surge.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct-surge.list"
+    },
+    {
+      "path": "/rules/public-direct-shadowrocket.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct-shadowrocket.list"
+    },
+    {
+      "path": "/rules/public-direct-egern.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct-egern.list"
+    },
+    {
+      "path": "/rules/public-direct-surfboard.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct-surfboard.list"
+    },
+    {
+      "path": "/rules/public-direct-sing-box.json",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "file": "rules/public-direct-sing-box.json"
+    },
+    {
+      "path": "/rules/public-direct-v2ray.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/public-direct-v2ray.list"
+    },
+    {
+      "path": "/rules/public-direct.json",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "file": "rules/public-direct.json"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy.yaml"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy.yml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy.yml"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy_Classical.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy_Classical.yaml"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy_Domain.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy_Domain.yaml"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy_Domian.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy_Domian.yaml"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy_IPCIDR.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy_IPCIDR.yaml"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy.list"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy.conf",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy.conf"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy.txt",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy.txt"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy-loon.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy-loon.list"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy-qx.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy-qx.list"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy-surge.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy-surge.list"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy-shadowrocket.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy-shadowrocket.list"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy-egern.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy-egern.list"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy-surfboard.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy-surfboard.list"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy-sing-box.json",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy-sing-box.json"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy-v2ray.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy-v2ray.list"
+    },
+    {
+      "path": "/sub/legacy-token/private-proxy.json",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "file": "sub/legacy-token/private-proxy.json"
+    },
+    {
+      "path": "/rules/private-proxy.yaml",
+      "status": 404,
+      "contentType": "text/plain; charset=UTF-8",
+      "file": "rules/private-proxy.yaml"
+    },
+    {
+      "path": "/rules/internal-only.yaml",
+      "status": 404,
+      "contentType": "text/plain; charset=UTF-8",
+      "file": "rules/internal-only.yaml"
+    },
+    {
+      "path": "/sub/legacy-token/internal-only.yaml",
+      "status": 404,
+      "contentType": "text/plain; charset=UTF-8",
+      "file": "sub/legacy-token/internal-only.yaml"
+    },
+    {
+      "path": "/sub/wrong-token/private-proxy.yaml",
+      "status": 404,
+      "contentType": "text/plain; charset=UTF-8",
+      "file": "sub/wrong-token/private-proxy.yaml"
+    }
+  ]
+}

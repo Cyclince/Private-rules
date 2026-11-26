@@ -1,0 +1,13 @@
+# Generated for Public Direct by Private Rules
+# UPDATED: 2026-11-15 20:30:00
+payload:
+  # --- Direct note ---
+  # LAN v4
+  - IP-CIDR,10.0.0.0/8,no-resolve
+  # ULA v6
+  - IP-CIDR,fd00::/8,no-resolve
+  - SRC-IP-CIDR,192.168.1.0/24
+  - DST-PORT,443
+  # WireGuard
+  - SRC-PORT,41641
+  - IP-CIDR,203.0.113.0/24,no-resolve

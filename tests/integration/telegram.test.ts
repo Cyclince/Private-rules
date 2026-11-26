@@ -67,6 +67,12 @@ describe('private Telegram webhook, commands, and Mini App sessions', () => {
     await rm(directory, { recursive: true, force: true });
   });
 
+  const drainTasks = async () => {
+    while (tasks.length > 0) {
+      await Promise.all(tasks.splice(0));
+    }
+  };
+
   const webhook = (body: string, secret = 'webhook-secret', contentType = 'application/json') => app.request('/api/telegram/webhook', {
     method: 'POST',
     headers: { 'content-type': contentType, 'x-telegram-bot-api-secret-token': secret },
@@ -205,7 +211,7 @@ describe('private Telegram webhook, commands, and Mini App sessions', () => {
       update_id: 50022,
       callback_query: { id: 'callback-sync-all', data: 'sync:a', from: { id: 1001, first_name: 'Admin' }, message: { message_id: 22, date: Math.floor(Date.now() / 1000), chat: { id: 1001 } } },
     }));
-    await Promise.all(tasks.splice(0));
+    await drainTasks();
     expect(fake.sent.some((item) => item.text.includes('同步任务已启动'))).toBe(true);
     expect(fake.sent.at(-1)?.text).toContain('同步完成');
     expect(fake.sent.at(-1)?.text).toContain('没有需要同步的来源');

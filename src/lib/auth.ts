@@ -2,7 +2,18 @@ import type { Context, MiddlewareHandler } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import type { AppVariables, Env } from '../types';
 import { error } from './response';
-import { id, slugify } from './slug';
+import { slugify } from './slug';
+import {
+  authenticateApiKeyToken,
+  createApiKeyRecord,
+  createSessionRecord,
+  deleteApiKeyRecord,
+  deleteSessionRecord,
+  findValidSessionRecord,
+  hasAnyApiKey,
+  listApiKeys,
+  updateApiKeyNoteRecord,
+} from '../application/auth';
 import { currentTelegramSession } from '../integrations/telegram/session';
 
 const COOKIE_NAME = 'private_rules_session';
@@ -44,65 +55,35 @@ async function verify(secret: string, value?: string) {
   return timingSafeEqual(signature ?? '', expected) ? sessionId : null;
 }
 
-async function sha256(value: string) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function randomApiKey() {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  const token = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  return `prk_${token}`;
-}
-
 export async function apiKeyConfigured(env: Env) {
-  return Boolean(await env.DB.prepare('SELECT id FROM api_keys LIMIT 1').first());
+  return hasAnyApiKey(env);
 }
 
 export async function createApiKey(env: Env, note = '') {
-  const apiKey = randomApiKey();
-  const keyId = id('key');
-  const createdAt = new Date().toISOString();
-  const cleanNote = note.trim().slice(0, 80);
-  await env.DB.prepare('INSERT INTO api_keys (id, note, key_hash, key_prefix, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(keyId, cleanNote, await sha256(apiKey), `${apiKey.slice(0, 12)}…`, createdAt).run();
-  return { id: keyId, apiKey, note: cleanNote, keyPrefix: `${apiKey.slice(0, 12)}…`, createdAt };
+  return createApiKeyRecord(env, note);
 }
 
 export async function deleteApiKey(env: Env, keyId: string) {
-  await env.DB.prepare('DELETE FROM api_keys WHERE id = ?').bind(keyId).run();
+  await deleteApiKeyRecord(env, keyId);
 }
 
 export async function updateApiKeyNote(env: Env, keyId: string, note: string) {
-  await env.DB.prepare('UPDATE api_keys SET note = ? WHERE id = ?').bind(note.trim().slice(0, 80), keyId).run();
+  await updateApiKeyNoteRecord(env, keyId, note);
 }
 
 export async function apiKeyStatus(env: Env) {
-  const rows = await env.DB.prepare('SELECT id, note, key_prefix, created_at, last_used_at FROM api_keys ORDER BY created_at DESC')
-    .all<{ id: string; note: string; key_prefix: string; created_at: string; last_used_at: string | null }>();
-  return { keys: (rows.results ?? []).map((row) => ({
-    id: row.id, note: row.note, keyPrefix: row.key_prefix, createdAt: row.created_at, lastUsedAt: row.last_used_at ?? undefined,
-  })) };
+  return listApiKeys(env);
 }
 
 async function validApiKey(c: Context<{ Bindings: Env; Variables: AppVariables }>) {
   const authorization = c.req.header('authorization') ?? '';
   const match = authorization.match(/^Bearer\s+(prk_[A-Za-z0-9_-]+)$/i);
   if (!match) return false;
-  const hash = await sha256(match[1]);
-  const row = await c.env.DB.prepare('SELECT id FROM api_keys WHERE key_hash = ?').bind(hash).first<{ id: string }>();
-  if (!row) return false;
-  await c.env.DB.prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?').bind(new Date().toISOString(), row.id).run();
-  return true;
+  return authenticateApiKeyToken(c.env, match[1]);
 }
 
 export async function createSession(c: Context<{ Bindings: Env; Variables: AppVariables }>) {
-  const sessionId = id('sess');
-  const created = new Date();
-  const expires = new Date(created.getTime() + maxAgeSeconds * 1000);
-  await c.env.DB.prepare('INSERT INTO sessions (id, expires_at, created_at) VALUES (?, ?, ?)')
-    .bind(sessionId, expires.toISOString(), created.toISOString())
-    .run();
+  const { sessionId } = await createSessionRecord(c.env.DB, maxAgeSeconds);
   setCookie(c, COOKIE_NAME, await signed(c.env.SESSION_SECRET!, sessionId), {
     httpOnly: true,
     secure: requestIsSecure(c),
@@ -114,7 +95,7 @@ export async function createSession(c: Context<{ Bindings: Env; Variables: AppVa
 
 export async function destroySession(c: Context<{ Bindings: Env; Variables: AppVariables }>) {
   const sessionId = await currentSessionId(c);
-  if (sessionId) await c.env.DB.prepare('DELETE FROM sessions WHERE id = ?').bind(sessionId).run();
+  if (sessionId) await deleteSessionRecord(c.env.DB, sessionId);
   setCookie(c, COOKIE_NAME, '', { path: '/', maxAge: 0, httpOnly: true, secure: requestIsSecure(c), sameSite: 'Lax' });
 }
 
@@ -122,9 +103,7 @@ export async function currentSessionId(c: Context<{ Bindings: Env; Variables: Ap
   if (!c.env.SESSION_SECRET) return null;
   const sessionId = await verify(c.env.SESSION_SECRET, getCookie(c, COOKIE_NAME));
   if (!sessionId) return null;
-  const row = await c.env.DB.prepare('SELECT id FROM sessions WHERE id = ? AND expires_at > ?')
-    .bind(sessionId, new Date().toISOString())
-    .first<{ id: string }>();
+  const row = await findValidSessionRecord(c.env.DB, sessionId);
   return row?.id ?? null;
 }
 

@@ -8,33 +8,30 @@ import { apiKeyConfigured, apiKeyStatus, authConfigured, checkPassword, clientId
 import {
   addRule,
   batchUpdateRules,
+  bulkImportRules,
   createCategory,
-  createManualRuleConflictIndex,
   deleteCategory,
   deleteRule,
-  getBackupData,
-  getRulesOverview,
   getRulesData,
-  importRulesData,
-  insertRule,
+  getRulesOverview,
   listRules,
   optimizeManualRules,
   previewManualRuleOptimization,
-  saveSettings,
   updateCategory,
   updateRule,
-} from '../lib/db';
-import { parseBulkImport } from '../lib/parser';
+} from '../application/rulesets';
+import { getBackupData, importRulesData } from '../application/backup';
+import { getCachedIconPack, refreshIconPacks, saveSettings } from '../application/settings';
+import { syncRuleSources } from '../application/sync';
+import { createSource, deleteSource, getSource, listSources, previewSource, syncSourceById, toggleSource, updateSource, type SourceInput } from '../application/sources';
 import { error, json, textFile } from '../lib/response';
 import { linksByCategory } from '../lib/links';
-import { resolveFile } from '../lib/formatters';
-import { syncRuleSources } from '../lib/sync';
+import { resolveFile } from '../domain/formatters';
 import { searchGeoSources } from '../lib/geosite';
-import { createSource, deleteSource, getSource, listSources, previewSource, syncSourceById, toggleSource, updateSource, type SourceInput } from '../application/sources/use-cases';
 import { createTelegramSession, currentTelegramSession, logoutTelegramSession } from '../integrations/telegram/session';
 import { telegramWebhook } from '../integrations/telegram/webhook';
 import { TelegramRepository } from '../application/telegram/repository';
-import { getCachedIconPack, refreshIconPacks } from '../lib/icon-packs';
+import { createLogger } from '../infrastructure/logging/logger';
 
 const LOGIN_OPERATION = 'login-failure';
 const LOGIN_MAX_FAILURES = 10;
@@ -379,23 +376,10 @@ app.post('/api/categories/:id/rules/bulk-import', requireAuth, async (c) => {
     confirm?: boolean;
     replaceConflicts?: boolean;
   };
-  const data = await getRulesData(c.env);
-  const category = data.categories.find((item) => item.id === categoryId);
-  if (!category) return error('分类不存在。', 404);
-  const preview = parseBulkImport(body.text ?? '', []);
-  const conflictIndex = await createManualRuleConflictIndex(c.env);
-  preview.conflicts = preview.rules
-    .map((rule) => ({ rule, matches: conflictIndex.findConflicts(rule) }))
-    .filter((item) => item.matches.length);
-  if (!body.confirm) return json({ preview });
-  if (preview.conflicts.length && !body.replaceConflicts) return c.json({ error: '批量规则与现有规则重复或冲突。', preview }, 409);
-  const conflictIds = [...new Set(preview.conflicts.flatMap((item) => item.matches.map((match) => match.id)))];
-  if (conflictIds.length) await c.env.DB.batch(conflictIds.map((id) => c.env.DB.prepare('DELETE FROM rules WHERE id = ? AND source_id IS NULL').bind(id)));
-  for (const [index, rule] of preview.rules.entries()) {
-    await insertRule(c.env, categoryId, rule, Date.now() + index);
-  }
-  const next = await getRulesOverview(c.env);
-  return json({ preview, replaced: conflictIds.length, ...withLinks(c, next) });
+  const outcome = await bulkImportRules(c.env, categoryId, body);
+  if (outcome.status === 'preview') return json({ preview: outcome.preview });
+  if (outcome.status === 'conflict') return c.json({ error: '批量规则与现有规则重复或冲突。', preview: outcome.preview }, 409);
+  return json({ preview: outcome.preview, replaced: outcome.replaced, ...withLinks(c, outcome.data) });
 });
 
 app.get('/api/settings', requireAuth, async (c) => {
@@ -477,6 +461,8 @@ app.put('/api/data', requireAuth, async (c) => {
   return json(withLinks(c, await importRulesData(c.env, data)));
 });
 
+const subscriptionLogger = createLogger({ component: 'subscription' });
+
 async function subscription(c: AppContext, file: string, access: 'public' | 'token') {
   if (!safeFileName(file)) return c.notFound();
   const data = await getRulesData(c.env);
@@ -484,6 +470,14 @@ async function subscription(c: AppContext, file: string, access: 'public' | 'tok
   if (!result) return c.notFound();
   if (access === 'public' && (result.category.tokenLinksEnabled !== false || result.category.publicLinksEnabled === false)) return c.notFound();
   if (access === 'token' && result.category.tokenLinksEnabled === false) return c.notFound();
+  if (result.skipped.length > 0) {
+    subscriptionLogger.warn('skipped unsupported rules during formatting', {
+      rulesetId: result.category.id,
+      formatter: result.formatter.id,
+      skippedCount: result.skipped.length,
+      skippedTypes: [...new Set(result.skipped.map((item) => item.type))],
+    });
+  }
   return textFile(result.body, result.contentType);
 }
 

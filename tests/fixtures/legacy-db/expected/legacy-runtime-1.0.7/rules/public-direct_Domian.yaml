@@ -1,0 +1,8 @@
+# Generated for Public Direct by Private Rules
+# UPDATED: 2026-11-15 20:30:00
+payload:
+  # --- Direct note ---
+  # Exact domain
+  - 'direct.example.com'
+  - '+.cn.example.org'
+  - '+.mirror.example.net'

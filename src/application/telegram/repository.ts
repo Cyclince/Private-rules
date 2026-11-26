@@ -1,6 +1,7 @@
 import type { DatabasePort } from '../ports/database';
 import type { TelegramConfig } from '../../integrations/telegram/config';
-import { id } from '../../lib/slug';
+import { createRepositories } from '../../data/repositories';
+import { id } from '../../domain/rules/slug';
 
 export type TelegramUser = {
   id: string;
@@ -158,29 +159,16 @@ export class TelegramRepository {
   }
 
   async consumeRateLimit(identity: string, operation: string, limit: number, windowSeconds = 60) {
-    const timestamp = new Date();
-    const current = await this.database.prepare('SELECT window_started_at, hits FROM rate_limits WHERE identity = ? AND operation = ?')
-      .bind(identity, operation).first<{ window_started_at: string; hits: number }>();
-    const expired = !current || Date.parse(current.window_started_at) + windowSeconds * 1000 <= timestamp.getTime();
-    const hits = expired ? 1 : current.hits + 1;
-    await this.database.prepare(`INSERT INTO rate_limits (identity, operation, window_started_at, hits)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(identity, operation) DO UPDATE SET window_started_at = excluded.window_started_at, hits = excluded.hits`)
-      .bind(identity, operation, expired ? timestamp.toISOString() : current!.window_started_at, hits).run();
-    return { allowed: hits <= limit, remaining: Math.max(0, limit - hits) };
+    return createRepositories(this.database).rateLimits.consume(identity, operation, limit, windowSeconds);
   }
 
   /** Reads the current window without counting a hit. */
   async peekRateLimit(identity: string, operation: string, limit: number, windowSeconds = 60) {
-    const current = await this.database.prepare('SELECT window_started_at, hits FROM rate_limits WHERE identity = ? AND operation = ?')
-      .bind(identity, operation).first<{ window_started_at: string; hits: number }>();
-    const expired = !current || Date.parse(current.window_started_at) + windowSeconds * 1000 <= Date.now();
-    const hits = expired ? 0 : current.hits;
-    return { allowed: hits < limit, remaining: Math.max(0, limit - hits) };
+    return createRepositories(this.database).rateLimits.peek(identity, operation, limit, windowSeconds);
   }
 
   async resetRateLimit(identity: string, operation: string) {
-    await this.database.prepare('DELETE FROM rate_limits WHERE identity = ? AND operation = ?').bind(identity, operation).run();
+    return createRepositories(this.database).rateLimits.reset(identity, operation);
   }
 
   async audit(input: {

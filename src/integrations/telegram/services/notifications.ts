@@ -1,5 +1,5 @@
 import { TelegramRepository } from '../../../application/telegram/repository';
-import type { SyncResult } from '../../../lib/sync';
+import type { SyncResult } from '../../../application/sync';
 import type { Env } from '../../../types';
 
 const DIGEST_TIME_ZONE = 'Asia/Shanghai';

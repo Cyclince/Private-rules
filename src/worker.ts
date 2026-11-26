@@ -1,7 +1,9 @@
 import { D1DatabaseAdapter } from './infrastructure/database/d1/adapter';
 import { createApp } from './server/app';
 import { ensureDatabaseMigrated } from './data/migrate';
-import { syncRuleSources } from './lib/sync';
+import { cleanupExpiredSessions } from './application/auth';
+import { syncRuleSources } from './application/sync';
+import { refreshIconPacks } from './application/settings';
 import type { Env } from './types';
 import { APP_VERSION } from './version';
 import { parseCloudflareConfig, type CloudflareConfigBindings } from './infrastructure/config/cloudflare';
@@ -10,7 +12,6 @@ import { notifyScheduledSync } from './integrations/telegram/services/notificati
 import { ensureTelegramRegistration } from './integrations/telegram/registration';
 import { ensureRuntimeSecrets } from './lib/runtime-secrets';
 import { cleanupTelegramMessages } from './integrations/telegram/services/message-cleanup';
-import { refreshIconPacks } from './lib/icon-packs';
 
 type CloudflareBindings = CloudflareConfigBindings & {
   DB: D1Database;
@@ -58,6 +59,7 @@ export default {
     context.waitUntil(ensureDatabaseMigrated(env.DB).then(async () => {
       await ensureRuntimeSecrets(env);
       await ensureTelegramRegistration(env.TELEGRAM!, env.TELEGRAM_CLIENT);
+      await cleanupExpiredSessions(env.DB).catch((cause) => console.error('[sessions:cleanup]', cause instanceof Error ? cause.message : 'unknown error'));
       await cleanupTelegramMessages(env);
       await refreshIconPacks(env).catch((cause) => console.error('[icon-packs:update]', cause instanceof Error ? cause.message : 'unknown error'));
       const startedAt = Date.now();

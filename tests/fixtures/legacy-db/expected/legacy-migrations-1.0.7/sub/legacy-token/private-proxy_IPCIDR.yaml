@@ -1,0 +1,6 @@
+# Generated for Private Proxy by Private Rules
+# UPDATED: 2026-11-15 20:30:00
+payload:
+  # --- Proxy note ---
+  - DST-PORT,80-90
+  - IP-CIDR,91.108.56.0/22,no-resolve

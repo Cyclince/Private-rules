@@ -5,6 +5,7 @@ export interface DatabaseStatement {
   all<T = Record<string, unknown>>(): Promise<DatabaseResult<T>>;
   first<T = Record<string, unknown>>(): Promise<T | null>;
   run<T = unknown>(): Promise<DatabaseResult<T>>;
+  raw?<T = unknown[]>(): Promise<T[]>;
 }
 
 export interface DatabasePort {

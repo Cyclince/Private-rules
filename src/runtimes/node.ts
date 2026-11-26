@@ -6,7 +6,9 @@ import { parseNodeConfig } from '../infrastructure/config/node';
 import { SqliteDatabaseAdapter } from '../infrastructure/database/sqlite/adapter';
 import { migrateSqliteDatabase } from '../infrastructure/database/sqlite/migrations';
 import { NodeScheduler } from '../infrastructure/scheduler/node';
-import { syncRuleSources } from '../lib/sync';
+import { cleanupExpiredSessions } from '../application/auth';
+import { syncRuleSources } from '../application/sync';
+import { refreshIconPacks } from '../application/settings';
 import { createApp } from '../server/app';
 import type { Env } from '../types';
 import { APP_VERSION } from '../version';
@@ -16,7 +18,6 @@ import { notifyScheduledSync } from '../integrations/telegram/services/notificat
 import { ensureTelegramRegistration } from '../integrations/telegram/registration';
 import { ensureRuntimeSecrets } from '../lib/runtime-secrets';
 import { cleanupTelegramMessages } from '../integrations/telegram/services/message-cleanup';
-import { refreshIconPacks } from '../lib/icon-packs';
 
 const config = parseNodeConfig(process.env);
 await mkdir(dirname(config.databasePath), { recursive: true });
@@ -47,6 +48,7 @@ if (migrationResult.upgradedFromLegacy && migrationResult.backupPath) {
   logger.info(`upgraded 1.0.x database; pre-upgrade backup saved to ${migrationResult.backupPath}`);
 }
 const scheduler = new NodeScheduler(config.scheduler.intervalSeconds, async () => {
+  await cleanupExpiredSessions(env.DB).catch((cause) => logger.error('Expired session cleanup failed', cause));
   await cleanupTelegramMessages(env);
   await refreshIconPacks(env).catch((cause) => logger.error('Icon pack auto-update failed', cause));
   const startedAt = Date.now();

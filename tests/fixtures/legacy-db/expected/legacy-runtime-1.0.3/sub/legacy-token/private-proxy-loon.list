@@ -1,0 +1,8 @@
+# Generated for Private Proxy by Private Rules
+# UPDATED: 2026-11-15 20:30:00
+# --- Proxy note ---
+# AI
+DOMAIN-SUFFIX,chatgpt.com
+DEST-PORT,80-90
+DOMAIN-SUFFIX,openai.com
+IP-CIDR,91.108.56.0/22

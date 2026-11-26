@@ -63,31 +63,54 @@ describe('1.0.7 security and data-safety fixes', () => {
       expect((await getBackupData(env)).categories.map((category) => category.name)).toEqual(['keep-me']);
     });
 
-    it('rejects 1.1.0-only rule types and options on 1.0.x runtime import without touching existing data', async () => {
+    it('imports 1.1.0 rule types and options losslessly and formats them explicitly without silent drops', async () => {
       await signIn();
       const response = await request('/api/data', {
         method: 'PUT', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          settings: {},
+          version: 2,
+          settings: { policyName: 'PROXY' },
           categories: [{
             name: 'next-rules',
+            publicLinksEnabled: true,
+            tokenLinksEnabled: false,
             rules: [
               { value: '^ad\\..*\\.example$', type: 'DOMAIN-REGEX' },
+              { value: 'curl', type: 'PROCESS-NAME' },
+              { value: 'CustomBot/*', type: 'USER-AGENT' },
+              { value: '^https://ads\\.example/', type: 'URL-REGEX' },
               { value: '10.0.0.0/8', type: 'IP-CIDR', options: { noResolve: true } },
             ],
           }],
         }),
       });
-      expect(response.status).toBe(400);
-      const body = await response.json() as { ok: boolean; code: string; details?: { problems?: string[] } };
-      expect(body.ok).toBe(false);
-      expect(body.code).toBe('BACKUP_INVALID');
-      expect(body.details?.problems?.join('\n')).toContain('categories.0.rules.0.type');
-      expect(body.details?.problems?.join('\n')).toContain('DOMAIN-REGEX');
-      expect(body.details?.problems?.join('\n')).toContain('categories.0.rules.1.options');
+      expect(response.status).toBe(200);
       const after = await getBackupData(env);
-      expect(after.categories.map((category) => category.name)).toEqual(['keep-me']);
-      expect(after.categories[0].rules.map((rule) => rule.value)).toEqual(['keep.example']);
+      expect(after.version).toBe(2);
+      expect(after.categories[0].rules).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type: 'DOMAIN-REGEX', value: '^ad\\..*\\.example$' }),
+        expect.objectContaining({ type: 'IP-CIDR', value: '10.0.0.0/8', options: { noResolve: true } }),
+      ]));
+
+      const yamlText = await (await request('/rules/next-rules.yaml')).text();
+      expect(yamlText).toContain('DOMAIN-REGEX,^ad\\..*\\.example$');
+      expect(yamlText).toContain('PROCESS-NAME,curl');
+      expect(yamlText).toContain('IP-CIDR,10.0.0.0/8,no-resolve');
+
+      const qxText = await (await request('/rules/next-rules-qx.list')).text();
+      expect(qxText).toContain('USER-AGENT,CustomBot/*,PROXY');
+      expect(qxText).toContain('# skipped (Quantumult X does not support DOMAIN-REGEX): DOMAIN-REGEX,^ad\\..*\\.example$');
+      expect(qxText).toContain('# skipped (Quantumult X does not support PROCESS-NAME): PROCESS-NAME,curl');
+      expect(qxText).toContain('# skipped (Quantumult X does not support URL-REGEX): URL-REGEX,^https://ads\\.example/');
+
+      const singboxJson = await (await request('/rules/next-rules.json')).json() as { rules: Array<Record<string, unknown>> };
+      expect(singboxJson.rules).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          domain_regex: ['^ad\\..*\\.example$'],
+          process_name: ['curl'],
+          ip_cidr: ['10.0.0.0/8'],
+        }),
+      ]));
     });
 
     it('still restores a valid backup', async () => {

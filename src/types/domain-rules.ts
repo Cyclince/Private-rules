@@ -1,18 +1,10 @@
+import type { RuleOptions, RuleType } from '../shared/schemas/rule';
+
 export const UPSTREAM_RULE_PREVIEW_LIMIT = 1000;
 
 export type RuleOptimizationMode = 'none' | 'conservative' | 'aggressive';
 
-export type DomainRuleType =
-  | 'DOMAIN'
-  | 'DOMAIN-SUFFIX'
-  | 'DOMAIN-KEYWORD'
-  | 'IP-CIDR'
-  | 'SRC-IP-CIDR'
-  | 'IP-ASN'
-  | 'DST-PORT'
-  | 'SRC-PORT'
-  | 'GEOSITE'
-  | 'GEOIP';
+export type DomainRuleType = RuleType;
 
 export type DomainRule = {
   id: string;
@@ -20,6 +12,7 @@ export type DomainRule = {
   value: string;
   type: DomainRuleType;
   displayType?: string;
+  options?: RuleOptions;
   enabled: boolean;
   note?: string;
   sortOrder?: number;

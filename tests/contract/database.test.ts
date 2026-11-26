@@ -7,7 +7,10 @@ import { migrateDatabase } from '../../src/data/migrate';
 import { D1DatabaseAdapter } from '../../src/infrastructure/database/d1/adapter';
 import { SqliteDatabaseAdapter } from '../../src/infrastructure/database/sqlite/adapter';
 import { migrateSqliteDatabase } from '../../src/infrastructure/database/sqlite/migrations';
-import { addRule, createCategory, deleteCategory, getBackupData, getRulesData, getRulesOverview, importRulesData, insertRule, listRules, optimizeManualRules, previewManualRuleOptimization, saveSettings, updateCategory } from '../../src/lib/db';
+import { addRule, batchUpdateRules, bulkImportRules, createCategory, deleteCategory, getBackupData, getRulesData, getRulesOverview, importRulesData, insertRule, listRules, optimizeManualRules, previewManualRuleOptimization, saveSettings, updateCategory } from '../../src/lib/db';
+import { cleanupExpiredSessions, createSessionRecord } from '../../src/application/auth';
+import { createRepositories } from '../../src/data/repositories';
+import { resolveFile } from '../../src/domain/formatters';
 import { syncRuleSources } from '../../src/lib/sync';
 import type { Env } from '../../src/types';
 import type { DatabasePort } from '../../src/application/ports/database';
@@ -238,6 +241,86 @@ function contract(name: string, setup: () => Promise<{ database: DatabasePort; c
         database.prepare('INSERT INTO categories (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').bind('tx-second', 'Tx second', 'tx-slug', timestamp, timestamp),
       ])).rejects.toThrow();
       expect(await database.prepare('SELECT id FROM categories WHERE id = ?').bind('tx-first').first()).toBeNull();
+    });
+    it('persists rule options, formats new types with explicit skipped reporting, and batches bulk imports', async () => {
+      const created = await createCategory(env, { name: `${name}-options-set`, tokenLinksEnabled: false, publicLinksEnabled: true });
+      const category = created.categories.find((item) => item.name === `${name}-options-set`)!;
+      await addRule(env, category.id, { value: '10.99.0.0/16', type: 'IP-CIDR', options: { noResolve: true } });
+      await addRule(env, category.id, { value: '^ads\\..*\\.test$', type: 'DOMAIN-REGEX' });
+      await addRule(env, category.id, { value: 'MyBot/1.0', type: 'USER-AGENT' });
+
+      const data = await getRulesData(env);
+      const singbox = resolveFile(data, `${category.slug}.json`)!;
+      expect(JSON.parse(singbox.body).rules).toEqual(expect.arrayContaining([
+        expect.objectContaining({ ip_cidr: ['10.99.0.0/16'], domain_regex: ['^ads\\..*\\.test$'] }),
+      ]));
+      expect(singbox.skipped).toEqual([
+        expect.objectContaining({ type: 'USER-AGENT', value: 'MyBot/1.0' }),
+      ]);
+
+      const yamlOut = resolveFile(data, `${category.slug}.yaml`)!;
+      expect(yamlOut.body).toContain('IP-CIDR,10.99.0.0/16,no-resolve');
+      expect(yamlOut.skipped).toEqual([]);
+
+      // Bulk import 180 rules (> 2 chunks of 80-row batches)
+      const bulkLines = Array.from({ length: 180 }, (_, index) => `DOMAIN,bulk-${index}.${name}.example`).join('\n');
+      const bulkOutcome = await bulkImportRules(env, category.id, { text: bulkLines, confirm: true });
+      expect(bulkOutcome.status).toBe('imported');
+      const imported = await listRules(env, { categoryId: category.id, query: `${name}.example`, limit: 0 });
+      expect(imported).toHaveLength(180);
+
+      // Batch update subset
+      await batchUpdateRules(env, category.id, imported.slice(0, 5).map((r) => r.id), 'disable');
+      expect((await listRules(env, { categoryId: category.id, query: `${name}.example`, limit: 0 })).filter((r) => !r.enabled)).toHaveLength(5);
+    });
+    it('exports version 2 backups, preserves templates/cards on 1.0.x backup import, and cleans up expired sessions', async () => {
+      const timestamp = new Date().toISOString();
+      await database.batch([
+        database.prepare(
+          "INSERT OR REPLACE INTO app_cards (id, slug, name, category, body, origin, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'user', ?, ?)",
+        ).bind(`${name}-card-1`, `${name}-ai-card`, 'AI Card', 'ai', '{"group":{"type":"select"}}', timestamp, timestamp),
+        database.prepare(
+          "INSERT OR REPLACE INTO templates (id, slug, name, description, base_kind, base_body, overlay, current_version, created_at, updated_at) VALUES (?, ?, ?, '', 'blank', '{\"output\":\"full\"}', '[]', 1, ?, ?)",
+        ).bind(`${name}-tpl-1`, `${name}-tpl`, 'Main Template', timestamp, timestamp),
+        database.prepare(
+          "INSERT OR REPLACE INTO publications (id, slug, template_id, clients, access, output, created_at, updated_at) VALUES (?, ?, ?, '[\"mihomo\"]', 'token', 'minimal', ?, ?)",
+        ).bind(`${name}-pub-1`, `${name}-pub`, `${name}-tpl-1`, timestamp, timestamp),
+      ]);
+
+      const exported = await getBackupData(env);
+      expect(exported.version).toBe(2);
+      expect(exported.cards.map((c) => c.id)).toContain(`${name}-card-1`);
+      expect(exported.templates.map((t) => t.id)).toContain(`${name}-tpl-1`);
+      expect(exported.publications.map((p) => p.id)).toContain(`${name}-pub-1`);
+
+      // Importing a 1.0.x (version 1) backup replaces categories/settings but preserves cards, templates, publications
+      await importRulesData(env, {
+        version: 1,
+        settings: { policyName: 'LEGACY' },
+        categories: [{ name: `${name}-from-v1`, rules: [{ value: 'legacy-kept.example', type: 'DOMAIN-SUFFIX' }] }],
+      });
+      const afterLegacyImport = await getBackupData(env);
+      expect(afterLegacyImport.categories.map((c) => c.name)).toEqual([`${name}-from-v1`]);
+      expect(afterLegacyImport.cards.map((c) => c.id)).toContain(`${name}-card-1`);
+      expect(afterLegacyImport.templates.map((t) => t.id)).toContain(`${name}-tpl-1`);
+      expect(afterLegacyImport.publications.map((p) => p.id)).toContain(`${name}-pub-1`);
+
+      // Session expiry cleanup & rate_limits repository
+      const active = await createSessionRecord(database, 3600);
+      await database.prepare('INSERT INTO sessions (id, expires_at, created_at) VALUES (?, ?, ?)')
+        .bind(`${name}-expired-sess`, '2020-01-01T00:00:00.000Z', '2020-01-01T00:00:00.000Z').run();
+      const deletedCount = await cleanupExpiredSessions(database);
+      expect(deletedCount).toBeGreaterThanOrEqual(1);
+      const repos = createRepositories(database);
+      expect(await repos.sessions.findValid(active.sessionId, new Date().toISOString())).not.toBeNull();
+      expect(await repos.sessions.findValid(`${name}-expired-sess`, new Date().toISOString())).toBeNull();
+
+      await repos.rateLimits.reset(`${name}-client`, 'contract-op');
+      expect((await repos.rateLimits.consume(`${name}-client`, 'contract-op', 2, 60)).allowed).toBe(true);
+      expect((await repos.rateLimits.consume(`${name}-client`, 'contract-op', 2, 60)).allowed).toBe(true);
+      expect((await repos.rateLimits.consume(`${name}-client`, 'contract-op', 2, 60)).allowed).toBe(false);
+      await repos.rateLimits.reset(`${name}-client`, 'contract-op');
+      expect((await repos.rateLimits.peek(`${name}-client`, 'contract-op', 2, 60)).allowed).toBe(true);
     });
   });
 }

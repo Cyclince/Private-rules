@@ -1,0 +1,6 @@
+# Generated for Private Proxy by Private Rules
+# UPDATED: 2026-11-15 20:30:00
+chatgpt.com
+80-90
+openai.com
+91.108.56.0/22

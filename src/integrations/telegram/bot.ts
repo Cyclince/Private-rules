@@ -1,9 +1,9 @@
 import type { TelegramClient, TelegramReplyMarkup } from '../../application/ports/telegram-client';
 import { TelegramRepository, type TelegramUser } from '../../application/telegram/repository';
-import { deleteSource, getSource, listSources, syncSourceById, toggleSource } from '../../application/sources/use-cases';
-import { deleteRule, getRulesOverview, listRules, updateCategory, updateRule } from '../../lib/db';
+import { deleteSource, getSource, syncSourceById, toggleSource } from '../../application/sources';
+import { deleteRule, getRulesOverview, listRules, updateCategory, updateRule } from '../../application/rulesets';
 import { linksForCategory } from '../../lib/links';
-import { retryFailedSources, syncRuleSources, type SyncResult } from '../../lib/sync';
+import { retryFailedSources, syncRuleSources, type SyncResult } from '../../application/sync';
 import type { Env } from '../../types';
 import type { DomainRule, RuleCategory } from '../../types/domain-rules';
 import type { TelegramCallbackPayload, TelegramMessagePayload, TelegramUpdate } from './types';

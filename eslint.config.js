@@ -12,6 +12,12 @@ export const LINTED = [
   'src/shared/**/*.ts',
   'src/domain/**/*.ts',
   'src/data/**/*.ts',
+  'src/application/auth/**/*.ts',
+  'src/application/backup/**/*.ts',
+  'src/application/rulesets/**/*.ts',
+  'src/application/settings/**/*.ts',
+  'src/application/sources/**/*.ts',
+  'src/application/sync/**/*.ts',
   'src/builtin/**/*.ts',
   'src/infrastructure/http/**/*.ts',
   'src/infrastructure/logging/**/*.ts',
@@ -24,6 +30,7 @@ export const LINTED = [
   'tests/unit/http-fetch.test.ts',
   'tests/unit/logger.test.ts',
   'tests/unit/node-secrets.test.ts',
+  'tests/unit/sync-scheduler.test.ts',
   'tests/integration/migration.test.ts',
 ];
 
