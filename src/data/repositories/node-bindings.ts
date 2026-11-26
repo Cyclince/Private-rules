@@ -2,10 +2,10 @@ import { and, asc, eq } from 'drizzle-orm';
 import type { DatabasePort } from '../../application/ports/database';
 import type { AppDatabase } from '../db';
 import { nodeBindings, nodeSnapshots } from '../schema';
+import type { NodeSnapshotRow } from './node-snapshots';
 
 export type NodeBindingRow = typeof nodeBindings.$inferSelect;
 export type NewNodeBindingRow = typeof nodeBindings.$inferInsert;
-export type NodeSnapshotRow = typeof nodeSnapshots.$inferSelect;
 
 export class NodeBindingsRepository {
   constructor(

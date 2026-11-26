@@ -241,6 +241,21 @@ function templatesAndPublicationsContract(
       expect(rawRow?.subscriptionUrlEnc).not.toContain('airport.secret.example');
       expect(rawRow?.subscriptionUrlEnc).not.toContain('super-secret-xyz');
 
+      // NodeSnapshotsRepository works identically across SQLite and D1
+      await repos.nodeSnapshots.upsert({
+        publicationId: pub.publication.id,
+        slotId,
+        nodesEnc: 'enc:aes-256-gcm:contractiv:contractpayload',
+        fetchedAt: '2026-11-27T00:00:00.000Z',
+        expiresAt: '2026-11-27T00:30:00.000Z',
+      });
+      expect((await repos.nodeSnapshots.findBySlot(pub.publication.id, slotId))?.nodesEnc).toBe(
+        'enc:aes-256-gcm:contractiv:contractpayload',
+      );
+      expect(await repos.nodeSnapshots.listByPublication(pub.publication.id)).toHaveLength(1);
+      await repos.nodeSnapshots.deleteExpiredBefore('2026-11-27T00:31:00.000Z');
+      expect(await repos.nodeSnapshots.findBySlot(pub.publication.id, slotId)).toBeNull();
+
       // Reading publication detail only ever returns masked URL
       const detail = await getPublicationById(env, pub.publication.id);
       expect(detail.bindings).toHaveLength(1);

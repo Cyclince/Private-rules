@@ -1,4 +1,3 @@
-import { parse as parseYaml } from 'yaml';
 import { createRepositories, type NodeBindingRow } from '../../data/repositories';
 import { id, slugify } from '../../domain/rules/slug';
 import {
@@ -15,7 +14,6 @@ import {
   maskSubscriptionUrl,
   requireExplicitSessionSecret,
 } from '../../infrastructure/crypto/node-secrets';
-import { safeFetchText } from '../../infrastructure/http/fetch';
 import { createLogger } from '../../infrastructure/logging/logger';
 import { resolveExplicitSessionSecret } from '../../lib/runtime-secrets';
 import {
@@ -38,10 +36,23 @@ import {
   loadTemplateRulesetContext,
   SUPPORTED_COMPILER_CLIENTS,
 } from '../templates';
+import { bindingAad } from './nodes';
+
+export {
+  NODE_SNAPSHOT_TTL_MS,
+  bindingAad,
+  clearInFlightNodeFetches,
+  fetchNodeSlotNames,
+  resolvePublicationSlotNodes,
+  resolveSlotNodes,
+  sanitizeNodeFetchErrorMessage,
+  snapshotAad,
+  type NodeSlotPreviewResult,
+  type ResolveSlotNodesOptions,
+  type ResolvedSlotNodesResult,
+} from './nodes';
 
 const publicationLogger = createLogger({ component: 'publications' });
-
-const NODE_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
 
 export type MaskedNodeBinding = {
   publicationId: string;
@@ -131,10 +142,6 @@ export type ResolvedPublicationDelivery =
       bindingRows: NodeBindingRow[];
       cacheIdentity: PublicationCacheIdentity;
     };
-
-function bindingAad(publicationId: string, slotId: string): string {
-  return `publication:${publicationId}:slot:${slotId}`;
-}
 
 function decodeOffsetCursor(raw?: string): number {
   if (!raw) return 0;
@@ -532,168 +539,6 @@ export async function deleteNodeSlotBinding(
     publicationSlug: publication.slug,
     slotId,
   };
-}
-
-function extractNodeNamesFromSubscription(rawText: string): string[] {
-  const trimmed = rawText.trim();
-  if (!trimmed) return [];
-
-  // 1. Clash / mihomo YAML (`proxies: [{ name: ... }]`)
-  if (/^\s*proxies\s*:/m.test(trimmed)) {
-    try {
-      const parsed = parseYaml(trimmed) as unknown;
-      if (parsed && typeof parsed === 'object' && Array.isArray((parsed as { proxies?: unknown[] }).proxies)) {
-        const names: string[] = [];
-        for (const item of (parsed as { proxies: unknown[] }).proxies) {
-          if (item && typeof item === 'object' && typeof (item as { name?: unknown }).name === 'string') {
-            const name = (item as { name: string }).name.trim();
-            if (name) names.push(name);
-          }
-        }
-        if (names.length > 0) return names;
-      }
-    } catch {
-      // Fall through to URI list parsing
-    }
-  }
-
-  // 2. Base64-encoded or plain-text proxy URI list (ss://, vmess://, vless://, trojan://, hysteria2://, tuic://)
-  let uriText = trimmed;
-  if (!/^[a-z0-9+.-]+:\/\//im.test(trimmed) && /^[A-Za-z0-9+/_-]+=*$/.test(trimmed.replace(/\s+/g, ''))) {
-    try {
-      const normalized = trimmed.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
-      const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
-      uriText = new TextDecoder().decode(Uint8Array.from(atob(padded), (ch) => ch.charCodeAt(0)));
-    } catch {
-      // Keep original text
-    }
-  }
-
-  const names: string[] = [];
-  for (const line of uriText.split(/\r?\n/)) {
-    const uri = line.trim();
-    if (!uri || !uri.includes('://')) continue;
-    if (uri.toLowerCase().startsWith('vmess://')) {
-      const payload = uri.slice('vmess://'.length).trim();
-      try {
-        const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-        const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
-        const jsonText = new TextDecoder().decode(Uint8Array.from(atob(padded), (ch) => ch.charCodeAt(0)));
-        const decoded = JSON.parse(jsonText) as { ps?: unknown };
-        if (typeof decoded.ps === 'string' && decoded.ps.trim()) {
-          names.push(decoded.ps.trim());
-          continue;
-        }
-      } catch {
-        // Fall through to hash parsing
-      }
-    }
-    const hashIndex = uri.indexOf('#');
-    if (hashIndex !== -1) {
-      const rawFragment = uri.slice(hashIndex + 1).trim();
-      try {
-        const decoded = decodeURIComponent(rawFragment).trim();
-        if (decoded) names.push(decoded);
-      } catch {
-        if (rawFragment) names.push(rawFragment);
-      }
-    }
-  }
-  return names;
-}
-
-/**
- * Fetches node names from a bound subscription URL for UI region/empty-group
- * preview (design §11.4). Stores only encrypted node names in `node_snapshots`;
- * never exposes or logs the subscription URL.
- */
-export async function fetchNodeSlotNames(
-  env: Env,
-  publicationId: string,
-  slotId: string,
-): Promise<{
-  slotId: string;
-  nodeNames: string[];
-  count: number;
-  fetchedAt: string;
-}> {
-  const explicitSecret = requireExplicitSessionSecret(resolveExplicitSessionSecret(env));
-  const repos = createRepositories(env.DB);
-  const publication = await repos.publications.findById(publicationId);
-  if (!publication) throw new AppError('PUBLICATION_NOT_FOUND', '发布配置不存在。');
-
-  const binding = await repos.nodeBindings.findBySlot(publication.id, slotId);
-  if (!binding) throw new AppError('NOT_FOUND', `节点槽位 ${slotId} 尚未绑定订阅地址。`);
-
-  const subscriptionUrl = await decryptNodeSecret(
-    binding.subscriptionUrlEnc,
-    explicitSecret,
-    bindingAad(publication.id, slotId),
-  );
-  const fetchedAt = now();
-
-  try {
-    const response = await safeFetchText(subscriptionUrl, {
-      headers: {
-        ...(binding.userAgent ? { 'user-agent': binding.userAgent } : {}),
-        accept: 'text/yaml, text/plain, */*',
-      },
-    });
-    if (!response.ok) {
-      await repos.nodeBindings.recordFetchMetadata(publication.id, slotId, {
-        lastFetchedAt: fetchedAt,
-        lastStatus: `http_${response.status}`,
-        lastNodeCount: binding.lastNodeCount ?? null,
-      });
-      throw new AppError('UPSTREAM_FAILED', `拉取节点列表失败（HTTP ${response.status}）。`);
-    }
-
-    const nodeNames = extractNodeNamesFromSubscription(response.text);
-    const expiresAt = new Date(Date.now() + NODE_SNAPSHOT_TTL_MS).toISOString();
-    const nodesEnc = await encryptNodeSecret(
-      JSON.stringify(nodeNames),
-      explicitSecret,
-      `${bindingAad(publication.id, slotId)}:names`,
-    );
-
-    await repos.nodeBindings.upsertNodeSnapshot({
-      publicationId: publication.id,
-      slotId,
-      nodesEnc,
-      fetchedAt,
-      expiresAt,
-    });
-    await repos.nodeBindings.recordFetchMetadata(publication.id, slotId, {
-      lastFetchedAt: fetchedAt,
-      lastStatus: 'ok',
-      lastNodeCount: nodeNames.length,
-    });
-
-    publicationLogger.info('fetched node name preview', {
-      publicationId: publication.id,
-      slotId,
-      nodeCount: nodeNames.length,
-    });
-
-    return {
-      slotId,
-      nodeNames,
-      count: nodeNames.length,
-      fetchedAt,
-    };
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    await repos.nodeBindings.recordFetchMetadata(publication.id, slotId, {
-      lastFetchedAt: fetchedAt,
-      lastStatus: 'error',
-      lastNodeCount: binding.lastNodeCount ?? null,
-    });
-    publicationLogger.warn('failed to fetch node name preview', {
-      publicationId: publication.id,
-      slotId,
-    });
-    throw new AppError('UPSTREAM_FAILED', '拉取节点列表失败。');
-  }
 }
 
 /**

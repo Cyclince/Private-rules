@@ -5,6 +5,7 @@ import { CardsRepository } from './cards';
 import { CatalogRepository } from './catalog';
 import { IconPacksRepository } from './icon-packs';
 import { NodeBindingsRepository } from './node-bindings';
+import { NodeSnapshotsRepository } from './node-snapshots';
 import { PublicationsRepository } from './publications';
 import { RateLimitsRepository } from './rate-limits';
 import { RulesRepository } from './rules';
@@ -29,6 +30,7 @@ export type Repositories = {
   templates: TemplatesRepository;
   publications: PublicationsRepository;
   nodeBindings: NodeBindingsRepository;
+  nodeSnapshots: NodeSnapshotsRepository;
 };
 
 export function createRepositories(database: DatabasePort): Repositories {
@@ -48,6 +50,7 @@ export function createRepositories(database: DatabasePort): Repositories {
     templates: new TemplatesRepository(db, database),
     publications: new PublicationsRepository(db),
     nodeBindings: new NodeBindingsRepository(db, database),
+    nodeSnapshots: new NodeSnapshotsRepository(db, database),
   };
 }
 
@@ -56,6 +59,7 @@ export * from './cards';
 export * from './catalog';
 export * from './icon-packs';
 export * from './node-bindings';
+export * from './node-snapshots';
 export * from './publications';
 export * from './rate-limits';
 export * from './rules';

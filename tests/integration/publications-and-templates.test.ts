@@ -428,14 +428,30 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     expect(getPubText).toContain('https://airport.private.example/***');
     expect(getPubText).not.toContain(secretToken);
 
-    // fetch-names parses YAML nodes without logging the subscription URL
+    // fetch-names parses YAML nodes without logging the subscription URL or leaking credentials
     const originalFetch = globalThis.fetch;
+    let shouldFailUpstream = false;
     globalThis.fetch = async (input, init) => {
       if (String(input) === secretSubUrl) {
+        if (shouldFailUpstream) {
+          throw new Error(`ECONNRESET fetching ${secretSubUrl}`);
+        }
         return new Response(
-          ['proxies:', '  - name: "🇭🇰 香港 01"', '    type: ss', '  - name: "🇯🇵 日本 02"', '    type: vmess'].join(
-            '\n',
-          ),
+          [
+            'proxies:',
+            '  - name: "🇭🇰 香港 01"',
+            '    type: ss',
+            '    server: hk-secret.internal.test',
+            '    port: 8388',
+            '    cipher: aes-256-gcm',
+            '    password: SECRET_SS_PASSWORD_123',
+            '  - name: "🇯🇵 日本 02"',
+            '    type: vmess',
+            '    server: jp-secret.internal.test',
+            '    port: 443',
+            '    uuid: 11111111-2222-3333-4444-555555555555',
+            '    alterId: 0',
+          ].join('\n'),
           { status: 200, headers: { 'content-type': 'text/yaml' } },
         );
       }
@@ -446,15 +462,53 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
         method: 'POST',
       });
       expect(fetchNamesRes.status).toBe(200);
-      const fetched = (await fetchNamesRes.json()) as {
+      const fetchNamesText = await fetchNamesRes.text();
+      expect(fetchNamesText).not.toContain('hk-secret.internal.test');
+      expect(fetchNamesText).not.toContain('jp-secret.internal.test');
+      expect(fetchNamesText).not.toContain('SECRET_SS_PASSWORD_123');
+      expect(fetchNamesText).not.toContain('11111111-2222-3333-4444-555555555555');
+      expect(fetchNamesText).not.toContain('8388');
+      expect(fetchNamesText).not.toContain(secretToken);
+
+      const fetched = JSON.parse(fetchNamesText) as {
         slotId: string;
         nodeNames: string[];
+        nodes: Array<{ name: string; protocol: string; regions: string[]; isInfo: boolean }>;
+        regions: Record<string, string[]>;
         count: number;
+        stale: boolean;
         fetchedAt: string;
       };
       expect(fetched.slotId).toBe(slotId);
       expect(fetched.count).toBe(2);
+      expect(fetched.stale).toBe(false);
       expect(fetched.nodeNames).toEqual(['🇭🇰 香港 01', '🇯🇵 日本 02']);
+      expect(fetched.nodes).toEqual([
+        { name: '🇭🇰 香港 01', protocol: 'ss', regions: ['HK'], isInfo: false },
+        { name: '🇯🇵 日本 02', protocol: 'vmess', regions: ['JP'], isInfo: false },
+      ]);
+      expect(fetched.regions).toEqual({
+        HK: ['🇭🇰 香港 01'],
+        JP: ['🇯🇵 日本 02'],
+      });
+
+      // Forced refresh failure degrades to stale cached snapshot with redacted staleReason
+      shouldFailUpstream = true;
+      const staleRes = await adminRequest(
+        `/api/publications/${publication.id}/slots/${slotId}/fetch-names?refresh=true`,
+        { method: 'POST' },
+      );
+      expect(staleRes.status).toBe(200);
+      const staleText = await staleRes.text();
+      expect(staleText).not.toContain(secretToken);
+      const staleBody = JSON.parse(staleText) as {
+        stale: boolean;
+        staleReason?: string;
+        nodeNames: string[];
+      };
+      expect(staleBody.stale).toBe(true);
+      expect(staleBody.staleReason).toContain('https://airport.private.example/***');
+      expect(staleBody.nodeNames).toEqual(['🇭🇰 香港 01', '🇯🇵 日本 02']);
     } finally {
       globalThis.fetch = originalFetch;
     }

@@ -208,7 +208,11 @@ export const publicationRoutes = new Hono<AppBindings>()
     rejectTelegramWrite,
     persistentRateLimit('node-fetch-names', 10),
     async (c) => {
-      const result = await fetchNodeSlotNames(c.env, c.req.param('id'), c.req.param('slotId'));
+      const refreshParam = c.req.query('refresh');
+      const forceRefresh = refreshParam === '1' || refreshParam === 'true';
+      const result = await fetchNodeSlotNames(c.env, c.req.param('id'), c.req.param('slotId'), {
+        forceRefresh,
+      });
       return json(result);
     },
   );

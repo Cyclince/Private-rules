@@ -1,4 +1,5 @@
 import { AppError } from '../../shared/errors';
+import { redactString } from '../logging/logger';
 
 export const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
 export const DEFAULT_FETCH_MAX_BYTES = 20 * 1024 * 1024;
@@ -281,7 +282,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
         if (controller.signal.aborted) {
           throw new AppError('UPSTREAM_FAILED', `上游请求超时（超过 ${Math.round(timeoutMs / 1000)} 秒）。`);
         }
-        throw new AppError('UPSTREAM_FAILED', cause instanceof Error ? cause.message : '上游请求失败。');
+        throw new AppError('UPSTREAM_FAILED', cause instanceof Error ? redactString(cause.message) : '上游请求失败。');
       }
 
       if (REDIRECT_STATUSES.has(response.status)) {
