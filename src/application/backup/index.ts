@@ -17,6 +17,7 @@ import {
   type BackupPublication,
   type BackupTemplate,
 } from '../../shared/schemas/backup';
+import { templateOverlaySchema, type TemplateOverlayOp } from '../../shared/schemas/template';
 import type { TemplateClientId } from '../../shared/clients';
 import type { Env } from '../../types';
 import type { BackupRuleCategory, BackupRuleSource, RulesData } from '../../types/domain-rules';
@@ -47,10 +48,11 @@ function parseJsonObject(raw: string): Record<string, unknown> {
   }
 }
 
-function parseJsonObjectArray(raw: string): Record<string, unknown>[] {
+function parseOverlayArray(raw: string): TemplateOverlayOp[] {
   try {
     const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? (parsed as Record<string, unknown>[]) : [];
+    const result = templateOverlaySchema.safeParse(parsed);
+    return result.success ? result.data : [];
   } catch {
     return [];
   }
@@ -132,7 +134,7 @@ export async function getBackupData(env: Env): Promise<ExportedBackup> {
       baseKind: row.baseKind as BackupTemplate['baseKind'],
       baseSourceUrl: row.baseSourceUrl ?? undefined,
       baseBody,
-      overlay: parseJsonObjectArray(row.overlay),
+      overlay: parseOverlayArray(row.overlay),
       output,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,

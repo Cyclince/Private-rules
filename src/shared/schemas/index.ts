@@ -2,4 +2,7 @@ export * from './rule';
 export * from './source';
 export * from './settings';
 export * from './ruleset';
+export * from './card';
+export * from './publication';
+export * from './template';
 export * from './backup';

@@ -1,85 +1,30 @@
 import { z } from 'zod';
-import { OUTPUT_PROFILES, TEMPLATE_CLIENT_IDS, type TemplateClientId } from '../clients';
+import { CATALOG_CATEGORY_VALUES, backupCardSchema, catalogCategorySchema, type BackupCard } from './card';
+import {
+  backupPublicationSchema,
+  outputProfileSchema,
+  templateClientIdSchema,
+  type BackupPublication,
+} from './publication';
 import { backupRuleSetSchema } from './ruleset';
 import { settingsPatchSchema } from './settings';
+import { backupTemplateSchema, type BackupTemplate } from './template';
 
 /** Current backup format version exported by 1.1.0; version 1 remains importable. */
 export const BACKUP_FORMAT_VERSION = 2 as const;
 
-export const CATALOG_CATEGORY_VALUES = [
-  'ai',
-  'streaming',
-  'social',
-  'gaming',
-  'advertising',
-  'domestic',
-  'infrastructure',
-  'other',
-] as const;
-
-export const catalogCategorySchema = z.enum(CATALOG_CATEGORY_VALUES);
-export const outputProfileSchema = z.enum(OUTPUT_PROFILES);
-export const templateClientIdSchema = z.enum(TEMPLATE_CLIENT_IDS as [TemplateClientId, ...TemplateClientId[]]);
-
-const optionalText = z
-  .string()
-  .nullish()
-  .transform((value) => value ?? undefined);
-
-export const backupCardSchema = z.object({
-  id: optionalText,
-  slug: z.string().trim().min(1),
-  name: z.string().trim().min(1),
-  icon: optionalText,
-  category: catalogCategorySchema,
-  body: z.record(z.string(), z.unknown()),
-  origin: z
-    .enum(['builtin', 'user', 'fork'])
-    .nullish()
-    .transform((value) => value ?? undefined),
-  forkedFrom: optionalText,
-  createdAt: optionalText,
-  updatedAt: optionalText,
-});
-export type BackupCard = z.output<typeof backupCardSchema>;
-
-/** Template snapshot in a backup: current state only, no version history (design §4.1). */
-export const backupTemplateSchema = z.object({
-  id: optionalText,
-  slug: z.string().trim().min(1),
-  name: z.string().trim().min(1),
-  description: optionalText,
-  baseKind: z.enum(['blank', 'acl4ssr-ini', 'mihomo-yaml', 'builtin']),
-  baseSourceUrl: optionalText,
-  baseBody: z.record(z.string(), z.unknown()),
-  overlay: z
-    .array(z.record(z.string(), z.unknown()))
-    .nullish()
-    .transform((value) => value ?? []),
-  output: outputProfileSchema.nullish().transform((value) => value ?? undefined),
-  createdAt: optionalText,
-  updatedAt: optionalText,
-});
-export type BackupTemplate = z.output<typeof backupTemplateSchema>;
-
-/** Publication metadata in a backup: never contains `node_bindings` or `node_snapshots` (design §8.4). */
-export const backupPublicationSchema = z.object({
-  id: optionalText,
-  slug: z.string().trim().min(1),
-  templateId: z.string().trim().min(1),
-  pinnedVersion: z
-    .number()
-    .int()
-    .positive()
-    .nullish()
-    .transform((value) => value ?? undefined),
-  clients: z.array(templateClientIdSchema).min(1),
-  access: z.enum(['token', 'public', 'disabled']),
-  output: outputProfileSchema.nullish().transform((value) => value ?? undefined),
-  createdAt: optionalText,
-  updatedAt: optionalText,
-});
-export type BackupPublication = z.output<typeof backupPublicationSchema>;
+export {
+  CATALOG_CATEGORY_VALUES,
+  backupCardSchema,
+  backupPublicationSchema,
+  backupTemplateSchema,
+  catalogCategorySchema,
+  outputProfileSchema,
+  templateClientIdSchema,
+  type BackupCard,
+  type BackupPublication,
+  type BackupTemplate,
+};
 
 function checkUniqueIdsAndSlugs(
   items: Array<{ id?: string; slug?: string }>,
