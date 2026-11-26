@@ -7,6 +7,7 @@ import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as OpenCC from 'opencc-js';
+import * as prettier from 'prettier';
 import { zhCN, type MessageKey, type Messages } from '../src/web/i18n/zh-CN';
 import { ZH_TW_KEY_OVERRIDES, ZH_TW_TERM_OVERRIDES } from '../src/web/i18n/zh-TW.overrides';
 
@@ -30,7 +31,7 @@ export function convertToZhTW(source: Record<string, string>): Messages {
 }
 
 function quoteSingle(value: string): string {
-  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r/g, '\\r').replace(/\n/g, '\\n')}'`;
 }
 
 export function renderZhTwModule(messages: Messages): string {
@@ -42,7 +43,12 @@ export function renderZhTwModule(messages: Messages): string {
     'export const zhTW: Messages = {',
   ];
   for (const [key, value] of Object.entries(messages)) {
-    lines.push(`  ${quoteSingle(key)}: ${quoteSingle(value)},`);
+    const line = `  ${quoteSingle(key)}: ${quoteSingle(value)},`;
+    if (line.length > 120) {
+      lines.push(`  ${quoteSingle(key)}:`, `    ${quoteSingle(value)},`);
+    } else {
+      lines.push(line);
+    }
   }
   lines.push('};', '');
   return lines.join('\n');
@@ -52,6 +58,9 @@ const isEntrypoint = process.argv[1] && resolve(process.argv[1]) === fileURLToPa
 if (isEntrypoint) {
   const outPath = resolve(process.cwd(), 'src/web/i18n/zh-TW.ts');
   const messages = convertToZhTW(zhCN);
-  await writeFile(outPath, renderZhTwModule(messages), 'utf8');
+  const raw = renderZhTwModule(messages);
+  const prettierConfig = (await prettier.resolveConfig(outPath)) ?? {};
+  const formatted = await prettier.format(raw, { ...prettierConfig, filepath: outPath });
+  await writeFile(outPath, formatted, 'utf8');
   console.info(`[i18n] generated ${Object.keys(messages).length} Traditional Chinese entries in ${outPath}`);
 }

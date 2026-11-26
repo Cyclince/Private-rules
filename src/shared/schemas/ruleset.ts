@@ -42,3 +42,15 @@ export const backupRuleSetSchema = z.object({
     .transform((value) => value ?? []),
 });
 export type BackupRuleSet = z.output<typeof backupRuleSetSchema>;
+
+/** Shared form schema for creating or editing a rule set (used by react-hook-form + API). */
+export const rulesetFormSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  icon: z.string().max(500),
+  description: z.string().max(500),
+  note: z.string().max(2000),
+  enabled: z.boolean(),
+  publicLinksEnabled: z.boolean(),
+  tokenLinksEnabled: z.boolean(),
+});
+export type RulesetFormValues = z.infer<typeof rulesetFormSchema>;

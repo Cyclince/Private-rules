@@ -8,8 +8,9 @@ import {
   deleteRule,
   findRulesetSlug,
   getRulesetById,
+  getRulesetsSummary,
   getRulesOverview,
-  listRules,
+  listRulesPaginated,
   updateCategory,
   updateRule,
 } from '../../application/rulesets';
@@ -27,13 +28,15 @@ import {
   batchRulesBodySchema,
   createRulesetBodySchema,
   importRulesBodySchema,
+  rulesetsQuerySchema,
   rulesQuerySchema,
   updateRuleBodySchema,
   updateRulesetBodySchema,
 } from './schemas';
 
 export async function handleListRulesets(c: AppContext) {
-  return json(withLinks(c, await getRulesOverview(c.env)));
+  const data = c.req.query('summary') === '1' ? await getRulesetsSummary(c.env) : await getRulesOverview(c.env);
+  return json(withLinks(c, data));
 }
 
 export async function handleCreateRuleset(c: AppContext, input: ReturnType<typeof createRulesetBodySchema.parse>) {
@@ -164,7 +167,7 @@ export async function handleSyncRuleset(c: AppContext, categoryId: string) {
 }
 
 export const rulesetRoutes = new Hono<AppBindings>()
-  .get('/api/rulesets', requireAuth, handleListRulesets)
+  .get('/api/rulesets', requireAuth, validate('query', rulesetsQuerySchema), handleListRulesets)
   .post('/api/rulesets', requireAuth, validate('json', createRulesetBodySchema), async (c) => {
     return handleCreateRuleset(c, c.req.valid('json'));
   })
@@ -185,17 +188,17 @@ export const rulesetRoutes = new Hono<AppBindings>()
     validate('query', rulesQuerySchema),
     async (c) => {
       const query = c.req.valid('query');
-      const requestedLimit = Number(query.limit ?? String(UPSTREAM_RULE_PREVIEW_LIMIT));
-      const limit =
-        query.all === '1' ? 0 : Number.isFinite(requestedLimit) ? requestedLimit : UPSTREAM_RULE_PREVIEW_LIMIT;
-      return json({
-        rules: await listRules(c.env, {
-          categoryId: c.req.param('id'),
-          query: query.q || undefined,
-          source: query.source,
-          limit,
-        }),
+      const defaultLimit = query.cursor ? 50 : UPSTREAM_RULE_PREVIEW_LIMIT;
+      const requestedLimit = Number(query.limit ?? String(defaultLimit));
+      const limit = query.all === '1' ? 0 : Number.isFinite(requestedLimit) ? requestedLimit : defaultLimit;
+      const page = await listRulesPaginated(c.env, {
+        categoryId: c.req.param('id'),
+        query: query.q || undefined,
+        source: query.source,
+        cursor: query.cursor || undefined,
+        limit,
       });
+      return json(page);
     },
   )
   .post('/api/rulesets/:id/rules', requireAuth, validate('json', addRuleBodySchema), async (c) => {

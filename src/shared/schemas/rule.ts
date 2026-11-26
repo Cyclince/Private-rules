@@ -68,3 +68,20 @@ export const ruleSchema = z.object({
 });
 export type RuleInput = z.input<typeof ruleSchema>;
 export type Rule = z.output<typeof ruleSchema>;
+
+/** Shared form schema for adding or editing a single manual rule. */
+export const manualRuleFormSchema = z.object({
+  value: z.string().trim().min(1),
+  type: z.enum(['AUTO', ...RULE_INPUT_TYPE_VALUES]),
+  note: z.string().max(500),
+  enabled: z.boolean(),
+  noResolve: z.boolean(),
+});
+export type ManualRuleFormValues = z.infer<typeof manualRuleFormSchema>;
+
+/** Shared form schema for the 3-step bulk import wizard. */
+export const bulkImportFormSchema = z.object({
+  text: z.string().trim().min(1),
+  replaceConflicts: z.boolean(),
+});
+export type BulkImportFormValues = z.infer<typeof bulkImportFormSchema>;

@@ -1,10 +1,55 @@
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import type { DatabasePort } from '../../application/ports/database';
 import type { ConflictIndexedRule } from '../../domain/rules/conflicts';
+import { AppError } from '../../shared/errors';
 import type { RuleOptions } from '../../shared/schemas/rule';
 import { UPSTREAM_RULE_PREVIEW_LIMIT, type DomainRule, type DomainRuleType } from '../../types/domain-rules';
 import type { AppDatabase } from '../db';
 import { categories, rules } from '../schema';
+
+export type RuleCursor = {
+  sortOrder: number;
+  createdAt: string;
+  id: string;
+};
+
+export type PaginatedRulesResult = {
+  rules: DomainRule[];
+  total: number;
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export function encodeRuleCursor(cursor: RuleCursor): string {
+  const bytes = new TextEncoder().encode(JSON.stringify([cursor.sortOrder, cursor.createdAt, cursor.id]));
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+export function decodeRuleCursor(raw: string): RuleCursor {
+  try {
+    const normalized = raw.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    if (
+      !Array.isArray(parsed) ||
+      parsed.length !== 3 ||
+      typeof parsed[0] !== 'number' ||
+      !Number.isFinite(parsed[0]) ||
+      typeof parsed[1] !== 'string' ||
+      typeof parsed[2] !== 'string' ||
+      !parsed[2]
+    ) {
+      throw new Error('invalid cursor shape');
+    }
+    return { sortOrder: parsed[0], createdAt: parsed[1], id: parsed[2] };
+  } catch {
+    throw new AppError('VALIDATION_FAILED', '分页游标无效。');
+  }
+}
 
 export type RuleRow = typeof rules.$inferSelect;
 export type NewRuleRow = typeof rules.$inferInsert;
@@ -231,6 +276,110 @@ export class RulesRepository {
     if (limit) bindings.push(limit);
     const rows = await statement.bind(...bindings).all<RawJoinedRuleRow>();
     return (rows.results ?? []).map(mapRawJoinedRule);
+  }
+
+  /**
+   * Keyset cursor-paginated rule query scoped to a single ruleset. Uses a
+   * category-filtered CTE so 10k+ rule categories stay fast in both SQLite and D1.
+   */
+  async listPaginated(options: {
+    categoryId: string;
+    query?: string;
+    source?: RuleSourceFilter;
+    cursor?: string;
+    limit?: number;
+  }): Promise<PaginatedRulesResult> {
+    const cte = `WITH ranked_rules AS (
+      SELECT r.*, s.name AS source_name, COALESCE(s.source_type, 'url') AS source_type, COALESCE(s.enabled, 1) AS source_enabled,
+        c.name AS category_name, c.description AS category_description,
+        ROW_NUMBER() OVER (
+          PARTITION BY r.category_id, LOWER(r.type), LOWER(r.value)
+          ORDER BY CASE WHEN r.source_id IS NULL THEN 0 ELSE 1 END, COALESCE(r.sort_order, 0) ASC, r.created_at ASC, r.id ASC
+        ) AS duplicate_rank
+      FROM rules r
+      LEFT JOIN category_sources s ON s.id = r.source_id
+      LEFT JOIN categories c ON c.id = r.category_id
+      WHERE r.category_id = ?
+    )`;
+
+    const baseConditions = ['duplicate_rank = 1'];
+    const baseBindings: unknown[] = [options.categoryId];
+
+    if (options.source === 'manual') baseConditions.push('source_id IS NULL');
+    if (options.source === 'upstream') baseConditions.push('source_id IS NOT NULL');
+    if (options.source === 'url') baseConditions.push("source_id IS NOT NULL AND source_type = 'url'");
+    if (options.source === 'geo') baseConditions.push("source_id IS NOT NULL AND source_type <> 'url'");
+
+    const searchQuery = options.query?.trim();
+    if (searchQuery) {
+      baseConditions.push(
+        `(LOWER(value) LIKE LOWER(?) ESCAPE '\\' OR LOWER(COALESCE(note, '')) LIKE LOWER(?) ESCAPE '\\'
+          OR LOWER(type) LIKE LOWER(?) ESCAPE '\\' OR LOWER(COALESCE(display_type, '')) LIKE LOWER(?) ESCAPE '\\'
+          OR LOWER(COALESCE(source_name, '')) LIKE LOWER(?) ESCAPE '\\')`,
+      );
+      const pattern = `%${searchQuery.replace(/[\\%_]/g, '\\$&')}%`;
+      baseBindings.push(pattern, pattern, pattern, pattern, pattern);
+    }
+
+    const decodedCursor = options.cursor ? decodeRuleCursor(options.cursor) : null;
+    const pageConditions = [...baseConditions];
+    const pageBindings = [...baseBindings];
+    if (decodedCursor) {
+      pageConditions.push(
+        '(COALESCE(sort_order, 0) > ? OR (COALESCE(sort_order, 0) = ? AND created_at > ?) OR (COALESCE(sort_order, 0) = ? AND created_at = ? AND id > ?))',
+      );
+      pageBindings.push(
+        decodedCursor.sortOrder,
+        decodedCursor.sortOrder,
+        decodedCursor.createdAt,
+        decodedCursor.sortOrder,
+        decodedCursor.createdAt,
+        decodedCursor.id,
+      );
+    }
+
+    const rawLimit = options.limit ?? 50;
+    const limit = rawLimit === 0 ? 0 : Math.max(1, Math.min(rawLimit, 1000));
+    const pageSql = `${cte}
+      SELECT id, category_id, value, type, display_type, options, note, enabled, sort_order, created_at, updated_at,
+        source_id, source_name, source_type, source_enabled
+      FROM ranked_rules WHERE ${pageConditions.join(' AND ')}
+      ORDER BY COALESCE(sort_order, 0) ASC, created_at ASC, id ASC${limit ? ' LIMIT ?' : ''}`;
+    if (limit) pageBindings.push(limit + 1);
+
+    const countSql = `${cte}
+      SELECT COUNT(*) AS total FROM ranked_rules WHERE ${baseConditions.join(' AND ')}`;
+
+    const [pageResult, countRow] = await Promise.all([
+      this.rawDb
+        .prepare(pageSql)
+        .bind(...pageBindings)
+        .all<RawJoinedRuleRow>(),
+      this.rawDb
+        .prepare(countSql)
+        .bind(...baseBindings)
+        .first<{ total: number }>(),
+    ]);
+
+    const mapped = (pageResult.results ?? []).map(mapRawJoinedRule);
+    const hasMore = limit > 0 && mapped.length > limit;
+    const pageRules = hasMore ? mapped.slice(0, limit) : mapped;
+    const lastRule = pageRules.at(-1);
+    const nextCursor =
+      hasMore && lastRule
+        ? encodeRuleCursor({
+            sortOrder: lastRule.sortOrder ?? 0,
+            createdAt: lastRule.createdAt,
+            id: lastRule.id,
+          })
+        : null;
+
+    return {
+      rules: pageRules,
+      total: Number(countRow?.total ?? pageRules.length),
+      nextCursor,
+      hasMore,
+    };
   }
 
   async findById(ruleId: string, categoryId: string): Promise<RuleRow | null> {

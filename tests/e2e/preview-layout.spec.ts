@@ -75,34 +75,51 @@ test.describe('M2.2 /preview 3-viewport layout, URL search state, and query dedu
   }) => {
     await signInPreview(page);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/preview');
 
-    await expect(page.getByTestId('desktop-sidebar')).toBeHidden();
-    await expect(page.getByTestId('tablet-sidebar-toggle')).toBeHidden();
-    const bottomNav = page.getByTestId('mobile-bottom-nav');
-    await expect(bottomNav).toBeVisible();
-    await expect(bottomNav.getByRole('link')).toHaveCount(4);
+    // Seed a real ruleset before initial page load so QueryClient's first summary fetch includes it
+    const seededName = `AI Mobile ${Date.now().toString(36)}`;
+    const created = await page.request.post('/api/rulesets', {
+      data: { name: seededName, tokenLinksEnabled: true, publicLinksEnabled: false },
+      headers: { origin: 'http://127.0.0.1:5180', 'content-type': 'application/json' },
+    });
+    expect(created.status()).toBe(201);
+    const createdPayload = (await created.json()) as { data: { categories: Array<{ id: string; name: string }> } };
+    const seeded = createdPayload.data.categories.find((item) => item.name === seededName)!;
 
-    const navBox = await bottomNav.boundingBox();
-    expect(navBox).not.toBeNull();
-    expect(navBox!.y + navBox!.height).toBeLessThanOrEqual(845);
-    expect(navBox!.width).toBeLessThanOrEqual(390);
+    try {
+      await page.goto('/preview');
 
-    // Navigate to rulesets, set search filter + selection, reload and verify persistence
-    await bottomNav.getByRole('link', { name: '规则集' }).click();
-    await expect(page).toHaveURL(/\/preview\/rulesets/);
-    await page.getByTestId('rulesets-search-input').fill('ai');
-    await page.getByTestId('ruleset-item-ai').click();
-    await expect(page).toHaveURL(/q=ai/);
-    await expect(page).toHaveURL(/selected=ai/);
+      await expect(page.getByTestId('desktop-sidebar')).toBeHidden();
+      await expect(page.getByTestId('tablet-sidebar-toggle')).toBeHidden();
+      const bottomNav = page.getByTestId('mobile-bottom-nav');
+      await expect(bottomNav).toBeVisible();
+      await expect(bottomNav.getByRole('link')).toHaveCount(4);
 
-    await page.reload();
-    await expect(page.getByTestId('rulesets-search-input')).toHaveValue('ai');
-    await expect(page.getByTestId('rulesets-selected-value')).toHaveText('ai');
+      const navBox = await bottomNav.boundingBox();
+      expect(navBox).not.toBeNull();
+      expect(navBox!.y + navBox!.height).toBeLessThanOrEqual(845);
+      expect(navBox!.width).toBeLessThanOrEqual(390);
 
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
+      // Navigate to rulesets, set search filter + selection, reload and verify persistence
+      await bottomNav.getByRole('link', { name: '规则集' }).click();
+      await expect(page).toHaveURL(/\/preview\/rulesets/);
+      await page.getByTestId('rulesets-search-input').fill(seededName);
+      await page.getByTestId(`ruleset-item-${seeded.id}`).click();
+      await expect(page).toHaveURL(/q=AI/);
+      await expect(page).toHaveURL(new RegExp(`selected=${seeded.id}`));
+
+      await page.reload();
+      await expect(page.getByTestId('rulesets-search-input')).toHaveValue(seededName);
+      await expect(page.getByTestId('rulesets-selected-value')).toHaveText(seeded.id);
+
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow).toBeLessThanOrEqual(0);
+    } finally {
+      await page.request.delete(`/api/rulesets/${seeded.id}`, {
+        headers: { origin: 'http://127.0.0.1:5180', 'content-type': 'application/json' },
+      });
+    }
   });
 });

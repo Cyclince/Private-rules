@@ -39,8 +39,9 @@ function siteBase(requestUrl: string, data: RulesData) {
 
 export function linksForCategory(category: RuleCategory, data: RulesData, requestUrl: string, ruleToken?: string): ClientLink[] {
   const base = siteBase(requestUrl, data);
-  const tokenEnabled = category.tokenLinksEnabled !== false;
-  const publicEnabled = !tokenEnabled && category.publicLinksEnabled !== false;
+  const categoryEnabled = category.enabled !== false;
+  const tokenEnabled = categoryEnabled && category.tokenLinksEnabled !== false;
+  const publicEnabled = categoryEnabled && !tokenEnabled && category.publicLinksEnabled !== false;
   return clients.map((client) => {
     const fileName = fileNameForClient(category, client.id as ClientId);
     const publicUrl = publicEnabled ? `${base}/rules/${fileName}` : '';

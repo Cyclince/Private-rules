@@ -2,6 +2,7 @@ import {
   createRepositories,
   RULE_BATCH_SIZE,
   serializeRuleOptions,
+  type PaginatedRulesResult,
   type RuleCountSummary,
   type RuleSetRow,
   type RuleSourceFilter,
@@ -71,6 +72,7 @@ function buildCategory(
     icon: row.icon ?? undefined,
     description: row.description ?? undefined,
     note: row.note ?? undefined,
+    enabled: row.enabled !== 0,
     sortOrder: row.sortOrder ?? 0,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -286,6 +288,73 @@ export async function listRules(
   options: { categoryId?: string; query?: string; source?: RuleSourceFilter; limit?: number } = {},
 ): Promise<DomainRule[]> {
   return createRepositories(env.DB).rules.listFiltered(options);
+}
+
+/**
+ * Ultra-lightweight summary payload for the 1.1.0 UI (`?summary=1`): omits
+ * rule rows while returning complete ruleset metadata, sources, and counts,
+ * keeping 10k+ rule categories sub-10ms on route transitions.
+ */
+export async function getRulesetsSummary(env: Env): Promise<RulesData> {
+  const repos = createRepositories(env.DB);
+  const [categoryRows, allSources, settings, hasApiKey, countsByCategory] = await Promise.all([
+    repos.rulesets.listAll(),
+    repos.sources.listAll(),
+    repos.settings.getAll(),
+    repos.apiKeys.hasAny(),
+    repos.rules.getCountsByCategory(),
+  ]);
+
+  const categories = categoryRows.map((row) =>
+    buildCategory(
+      row,
+      [],
+      allSources.filter((source) => source.categoryId === row.id),
+      countsByCategory.get(row.id) ?? {
+        categoryId: row.id,
+        ruleCount: 0,
+        enabledRuleCount: 0,
+        manualRuleCount: 0,
+        urlRuleCount: 0,
+        geoRuleCount: 0,
+      },
+    ),
+  );
+  const updatedAt = categories.reduce(
+    (latest, category) => (category.updatedAt > latest ? category.updatedAt : latest),
+    '',
+  );
+
+  return {
+    version: 1,
+    settings,
+    meta: {
+      d1Ready: true,
+      adminPasswordConfigured: Boolean(env.ADMIN_PASSWORD),
+      ruleTokenConfigured: Boolean(env.RULE_TOKEN),
+      sessionSecretConfigured: Boolean(env.SESSION_SECRET),
+      apiKeyConfigured: hasApiKey,
+    },
+    categories,
+    updatedAt: updatedAt || now(),
+    lastSyncedAt: allSources.reduce<string | undefined>(
+      (latest, source) => (!latest || (source.lastSyncedAt ?? '') > latest ? source.lastSyncedAt : latest),
+      undefined,
+    ),
+  };
+}
+
+export async function listRulesPaginated(
+  env: Env,
+  options: {
+    categoryId: string;
+    query?: string;
+    source?: RuleSourceFilter;
+    cursor?: string;
+    limit?: number;
+  },
+): Promise<PaginatedRulesResult> {
+  return createRepositories(env.DB).rules.listPaginated(options);
 }
 
 export type CategoryInput = Partial<RuleCategory> & {
@@ -519,6 +588,7 @@ export async function addRule(
     value: string;
     type?: DomainRule['type'];
     note?: string;
+    enabled?: boolean;
     options?: RuleOptions;
     replaceConflicts?: boolean;
   },
@@ -527,6 +597,7 @@ export async function addRule(
   const category = await repos.rulesets.findById(categoryId);
   if (!category) throw new AppError('RULESET_NOT_FOUND', '分类不存在。');
   const rule = parseRuleInput(input.value, input.type, input.note, input.options);
+  if (input.enabled === false) rule.enabled = false;
   const conflicts = await findRuleConflicts(env, rule);
   if (conflicts.length && !input.replaceConflicts) return { conflicts };
   if (conflicts.length) {

@@ -1,10 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
-import { Sparkles } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { AlertTriangle, CheckCircle2, FolderKanban, Globe, Layers, RefreshCw, Sparkles } from 'lucide-react';
 import loginBgUrl from '../assets/miku-login-bg.webp';
 import { useI18n } from '../i18n';
+import { api, formatApiError, readApiJson } from '../lib/api';
 import { requireAuthBeforeLoad } from '../lib/auth-guard';
-import { authMeQueryOptions, healthQueryOptions } from '../lib/query';
+import { healthQueryOptions, invalidateRulesets, rulesetsListQueryOptions } from '../lib/query';
+import { useToast } from '../lib/toast';
 
 type DashboardRange = '24h' | '7d' | '30d';
 
@@ -23,24 +25,64 @@ export const Route = createFileRoute('/')({
   component: DashboardPage,
 });
 
+function formatTimestamp(iso: string | undefined, fallback: string): string {
+  if (!iso) return fallback;
+  const time = Date.parse(iso);
+  if (!Number.isFinite(time)) return fallback;
+  return new Date(time).toLocaleString();
+}
+
 function DashboardPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const { notify } = useToast();
+  const queryClient = useQueryClient();
   const search = Route.useSearch();
   const range: DashboardRange = search.range ?? '7d';
   const navigate = Route.useNavigate();
-  const authQuery = useQuery(authMeQueryOptions());
+
   const healthQuery = useQuery(healthQueryOptions());
+  const summaryQuery = useQuery(rulesetsListQueryOptions());
+
+  const syncMutation = useMutation({
+    mutationFn: async () => readApiJson<{ results: Array<{ ok: boolean }> }>(await api.api.sync.$post()),
+    onSuccess: async () => {
+      await invalidateRulesets(queryClient);
+      notify({ title: t('dashboard.syncDone'), variant: 'success' });
+    },
+    onError: (error) => {
+      notify({ title: formatApiError(error, locale), variant: 'danger' });
+    },
+  });
+
+  const categories = summaryQuery.data?.data.categories ?? [];
+  const enabledRulesets = categories.filter((c) => c.enabled !== false).length;
+  const totalRules = categories.reduce((sum, c) => sum + (c.ruleCount ?? 0), 0);
+  const manualRules = categories.reduce((sum, c) => sum + (c.manualRuleCount ?? 0), 0);
+  const upstreamRules = Math.max(0, totalRules - manualRules);
+
+  const allSources = categories.flatMap((category) =>
+    (category.sources ?? []).map((source) => ({
+      ...source,
+      categoryName: category.name,
+      categoryId: category.id,
+    })),
+  );
+  const errorSources = allSources
+    .filter((source) => source.lastStatus === 'error')
+    .sort((a, b) => (b.lastSyncedAt ?? '').localeCompare(a.lastSyncedAt ?? ''));
+  const healthySources = allSources.filter((source) => source.lastStatus !== 'error').length;
+  const lastSyncedAt = summaryQuery.data?.data.lastSyncedAt;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5" data-testid="dashboard-page">
       <section className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface text-text shadow-sm">
-        <div className="relative h-40 w-full overflow-hidden border-b border-border bg-surface-muted sm:h-48">
+        <div className="relative h-40 w-full overflow-hidden border-b border-border bg-surface-muted sm:h-44">
           <img
             src={loginBgUrl}
             alt={t('dashboard.title')}
             className="h-full w-full object-cover object-center opacity-85"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-bg/95 via-bg/50 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-bg/95 via-bg/55 to-transparent" />
           <div className="absolute bottom-4 left-5 right-5 flex flex-col gap-1">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
@@ -52,8 +94,8 @@ function DashboardPage() {
             <p className="text-sm text-text-muted">{t('dashboard.subtitle')}</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-text-muted">{t('dashboard.rangeLabel')}:</span>
             {(['24h', '7d', '30d'] as const).map((item) => (
               <button
@@ -70,62 +112,239 @@ function DashboardPage() {
               </button>
             ))}
           </div>
-          <span className="inline-flex items-center rounded-full border border-border px-2.5 py-0.5 text-xs font-medium text-text-muted">
-            range={range}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              data-testid="dashboard-sync-all"
+              disabled={syncMutation.isPending}
+              onClick={() => syncMutation.mutate()}
+              className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 text-xs font-medium text-text transition-colors hover:bg-surface disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+              {syncMutation.isPending ? t('dashboard.syncing') : t('dashboard.syncAll')}
+            </button>
+            <Link
+              to="/rulesets"
+              data-testid="dashboard-manage-rulesets"
+              className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] bg-primary px-3 text-xs font-medium text-primary-foreground shadow-sm transition-shadow hover:shadow-glow"
+            >
+              <FolderKanban className="h-3.5 w-3.5" />
+              {t('dashboard.manageRulesets')}
+            </Link>
+          </div>
         </div>
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <section className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm">
-          <h3 className="text-base font-semibold leading-snug tracking-tight">{t('dashboard.authStatus')}</h3>
-          <p className="mt-1 text-sm text-text-muted">/api/auth/me (deduplicated via TanStack Query)</p>
-          <div className="mt-4">
-            {authQuery.isLoading ? (
-              <div className="h-6 w-28 animate-pulse rounded-[var(--radius-sm)] bg-surface-muted" />
-            ) : (
-              <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  authQuery.data?.authenticated
-                    ? 'bg-success text-success-foreground'
-                    : 'bg-warning text-warning-foreground'
-                }`}
-              >
-                {authQuery.data?.authenticated ? t('dashboard.authenticated') : t('dashboard.guest')}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section
+          data-testid="stat-card-rulesets"
+          className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm"
+        >
+          <div className="flex items-center justify-between text-xs font-medium text-text-muted">
+            <span>{t('dashboard.statRulesets')}</span>
+            <FolderKanban className="h-4 w-4 text-primary" />
+          </div>
+          {summaryQuery.isLoading ? (
+            <div className="mt-3 h-7 w-20 animate-pulse rounded bg-surface-muted" />
+          ) : (
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-bold tracking-tight" data-testid="stat-rulesets-count">
+                {enabledRulesets}
               </span>
-            )}
-          </div>
+              <span className="text-xs text-text-muted">/ {categories.length}</span>
+            </div>
+          )}
+          <p className="mt-1 text-xs text-text-muted">{t('dashboard.statRulesetsHint')}</p>
         </section>
 
-        <section className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm">
-          <h3 className="text-base font-semibold leading-snug tracking-tight">Runtime</h3>
-          <p className="mt-1 text-sm text-text-muted">/health</p>
-          <div className="mt-4">
-            {healthQuery.isLoading ? (
-              <div className="h-6 w-28 animate-pulse rounded-[var(--radius-sm)] bg-surface-muted" />
-            ) : (
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    healthQuery.data?.ok ? 'bg-success text-success-foreground' : 'bg-danger text-danger-foreground'
-                  }`}
-                >
-                  {healthQuery.data?.database ?? 'unknown'}
+        <section
+          data-testid="stat-card-rules"
+          className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm"
+        >
+          <div className="flex items-center justify-between text-xs font-medium text-text-muted">
+            <span>{t('dashboard.statRules')}</span>
+            <Layers className="h-4 w-4 text-primary" />
+          </div>
+          {summaryQuery.isLoading ? (
+            <div className="mt-3 h-7 w-24 animate-pulse rounded bg-surface-muted" />
+          ) : (
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-bold tracking-tight" data-testid="stat-rules-count">
+                {totalRules.toLocaleString()}
+              </span>
+            </div>
+          )}
+          <p className="mt-1 text-xs text-text-muted">
+            {t('dashboard.statRulesHint')}: {manualRules.toLocaleString()} / {upstreamRules.toLocaleString()}
+          </p>
+        </section>
+
+        <section
+          data-testid="stat-card-sources"
+          className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm"
+        >
+          <div className="flex items-center justify-between text-xs font-medium text-text-muted">
+            <span>{t('dashboard.statSources')}</span>
+            <Globe className="h-4 w-4 text-primary" />
+          </div>
+          {summaryQuery.isLoading ? (
+            <div className="mt-3 h-7 w-20 animate-pulse rounded bg-surface-muted" />
+          ) : (
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-bold tracking-tight" data-testid="stat-sources-count">
+                {allSources.length}
+              </span>
+              {errorSources.length > 0 ? (
+                <span className="inline-flex items-center rounded-full bg-danger px-2 py-0.5 text-[11px] font-medium text-danger-foreground">
+                  {errorSources.length}
                 </span>
-                <span className="text-xs text-text-muted">{healthQuery.data?.runtime ?? '-'}</span>
-              </div>
-            )}
-          </div>
+              ) : null}
+            </div>
+          )}
+          <p className="mt-1 text-xs text-text-muted">
+            {t('dashboard.statSourcesHint')}: {healthySources} / {errorSources.length}
+          </p>
         </section>
 
-        <section className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm sm:col-span-2 lg:col-span-1">
-          <h3 className="text-base font-semibold leading-snug tracking-tight">{t('nav.rulesets')}</h3>
-          <p className="mt-1 text-sm text-text-muted">{t('preview.subtitle')}</p>
-          <div className="mt-4">
-            <span className="inline-flex items-center rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">
-              M2.2 Shell Ready
-            </span>
+        <section
+          data-testid="stat-card-sync"
+          className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm"
+        >
+          <div className="flex items-center justify-between text-xs font-medium text-text-muted">
+            <span>{t('dashboard.statSync')}</span>
+            {errorSources.length > 0 ? (
+              <AlertTriangle className="h-4 w-4 text-danger" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4 text-success" />
+            )}
           </div>
+          <div className="mt-2 flex items-center gap-2">
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                healthQuery.data?.ok ? 'bg-success text-success-foreground' : 'bg-danger text-danger-foreground'
+              }`}
+            >
+              {healthQuery.data?.database ?? '…'}
+            </span>
+            <span className="text-xs text-text-muted">{healthQuery.data?.runtime ?? '-'}</span>
+          </div>
+          <p className="mt-1.5 truncate text-xs text-text-muted">
+            {formatTimestamp(lastSyncedAt, t('dashboard.neverSynced'))}
+          </p>
+        </section>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section
+          data-testid="dashboard-recent-errors"
+          className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-base font-semibold tracking-tight">{t('dashboard.recentErrors')}</h3>
+            {errorSources.length > 0 ? (
+              <span className="inline-flex items-center rounded-full bg-danger px-2.5 py-0.5 text-xs font-medium text-danger-foreground">
+                {errorSources.length} {t('dashboard.recentErrorsCount')}
+              </span>
+            ) : null}
+          </div>
+          {errorSources.length === 0 ? (
+            <div className="mt-4 flex items-center gap-3 rounded-[var(--radius-md)] border border-border bg-surface-muted p-4">
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
+              <div>
+                <div className="text-sm font-medium">{t('dashboard.syncHealthy')}</div>
+                <p className="text-xs text-text-muted">{t('dashboard.syncHealthyHint')}</p>
+              </div>
+            </div>
+          ) : (
+            <ul className="mt-4 flex flex-col gap-2.5">
+              {errorSources.slice(0, 8).map((source) => (
+                <li
+                  key={source.id}
+                  data-testid={`dashboard-error-${source.id}`}
+                  className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-danger/40 bg-surface-muted p-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-medium">
+                      {source.categoryName} · {source.name}
+                    </span>
+                    <Link
+                      to="/rulesets"
+                      search={{ selected: source.categoryId }}
+                      className="shrink-0 text-xs font-medium text-primary hover:underline"
+                    >
+                      {t('dashboard.viewRuleset')}
+                    </Link>
+                  </div>
+                  <p className="break-words text-xs text-danger">{source.lastError || 'Sync failed'}</p>
+                  <span className="text-[11px] text-text-muted">
+                    {formatTimestamp(source.lastSyncedAt, t('dashboard.neverSynced'))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section
+          data-testid="dashboard-ruleset-snapshot"
+          className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-base font-semibold tracking-tight">{t('dashboard.rulesetSnapshot')}</h3>
+            <Link to="/rulesets" className="text-xs font-medium text-primary hover:underline">
+              {t('dashboard.manageRulesets')}
+            </Link>
+          </div>
+          {summaryQuery.isLoading ? (
+            <div className="mt-4 flex flex-col gap-2">
+              <div className="h-12 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
+              <div className="h-12 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
+            </div>
+          ) : categories.length === 0 ? (
+            <p className="mt-4 rounded-[var(--radius-md)] border border-border bg-surface-muted p-4 text-sm text-text-muted">
+              {t('dashboard.noRulesets')}
+            </p>
+          ) : (
+            <div className="mt-4 flex max-h-80 flex-col gap-2 overflow-y-auto pr-1">
+              {categories.map((category) => (
+                <Link
+                  key={category.id}
+                  to="/rulesets"
+                  search={{ selected: category.id }}
+                  className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-surface-muted/60 px-3.5 py-2.5 transition-colors hover:bg-surface-muted"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{category.name}</div>
+                    <div className="truncate font-mono text-xs text-text-muted">{category.slug}</div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-text-muted">
+                      {(category.ruleCount ?? 0).toLocaleString()}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                        category.enabled === false
+                          ? 'bg-surface text-text-muted'
+                          : category.tokenLinksEnabled
+                            ? 'bg-primary text-primary-foreground'
+                            : category.publicLinksEnabled
+                              ? 'bg-success text-success-foreground'
+                              : 'bg-surface text-text-muted'
+                      }`}
+                    >
+                      {category.enabled === false
+                        ? t('common.disabled')
+                        : category.tokenLinksEnabled
+                          ? t('rulesets.policyToken')
+                          : category.publicLinksEnabled
+                            ? t('rulesets.policyPublic')
+                            : t('rulesets.policyOff')}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
       </div>
     </div>

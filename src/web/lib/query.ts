@@ -1,5 +1,25 @@
 import { QueryClient, queryOptions } from '@tanstack/react-query';
+import type { ClientLink, DomainRule, RulesData } from '../../types/domain-rules';
 import { api, readApiJson, type ApiClient } from './api';
+
+export type RulesetSummaryPayload = {
+  data: RulesData;
+  links: Record<string, ClientLink[]>;
+};
+
+export type RulesPageFilter = {
+  q?: string;
+  source?: 'manual' | 'upstream' | 'url' | 'geo';
+  cursor?: string;
+  limit?: number;
+};
+
+export type RulesPagePayload = {
+  rules: DomainRule[];
+  total: number;
+  nextCursor: string | null;
+  hasMore: boolean;
+};
 
 export const queryKeys = {
   auth: {
@@ -14,8 +34,8 @@ export const queryKeys = {
     all: ['rulesets'] as const,
     list: () => [...queryKeys.rulesets.all, 'list'] as const,
     detail: (id: string) => [...queryKeys.rulesets.all, 'detail', id] as const,
-    rules: (id: string, filter?: { q?: string; source?: string }) =>
-      [...queryKeys.rulesets.all, 'rules', id, filter ?? {}] as const,
+    rulesPrefix: (id: string) => [...queryKeys.rulesets.all, 'rules', id] as const,
+    rules: (id: string, filter?: RulesPageFilter) => [...queryKeys.rulesets.all, 'rules', id, filter ?? {}] as const,
     sources: (id: string) => [...queryKeys.rulesets.all, 'sources', id] as const,
   },
   links: {
@@ -87,9 +107,38 @@ export function rulesetsListQueryOptions(client: ApiClient = api) {
   return queryOptions({
     queryKey: queryKeys.rulesets.list(),
     queryFn: async () =>
-      readApiJson<{
-        data: { categories: Array<{ id: string; name: string; slug: string; ruleCount?: number }> };
-      }>(await client.api.rulesets.$get()),
+      readApiJson<RulesetSummaryPayload>(await client.api.rulesets.$get({ query: { summary: '1' } })),
+  });
+}
+
+export function rulesetRulesQueryOptions(id: string, filter: RulesPageFilter = {}, client: ApiClient = api) {
+  const normalized: RulesPageFilter = {
+    ...(filter.q ? { q: filter.q } : {}),
+    ...(filter.source ? { source: filter.source } : {}),
+    ...(filter.cursor ? { cursor: filter.cursor } : {}),
+    limit: filter.limit ?? 50,
+  };
+  return queryOptions({
+    queryKey: queryKeys.rulesets.rules(id, normalized),
+    queryFn: async () =>
+      readApiJson<RulesPagePayload>(
+        await client.api.rulesets[':id'].rules.$get({
+          param: { id },
+          query: {
+            ...(normalized.q ? { q: normalized.q } : {}),
+            ...(normalized.source ? { source: normalized.source } : {}),
+            ...(normalized.cursor ? { cursor: normalized.cursor } : {}),
+            limit: String(normalized.limit ?? 50),
+          },
+        }),
+      ),
+  });
+}
+
+export function linksQueryOptions(client: ApiClient = api) {
+  return queryOptions({
+    queryKey: queryKeys.links.all,
+    queryFn: async () => readApiJson<{ links: Record<string, ClientLink[]> }>(await client.api.links.$get()),
   });
 }
 
@@ -102,6 +151,7 @@ export function invalidateRulesets(queryClient: QueryClient, id?: string) {
     return Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.rulesets.list() }),
       queryClient.invalidateQueries({ queryKey: queryKeys.rulesets.detail(id) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.rulesets.rulesPrefix(id) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.links.all }),
     ]);
   }

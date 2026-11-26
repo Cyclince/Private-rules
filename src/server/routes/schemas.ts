@@ -96,10 +96,15 @@ export const sourceIntervalBodySchema = z.object({
   syncIntervalMinutes: z.number().finite(),
 });
 
+export const rulesetsQuerySchema = z.object({
+  summary: z.string().optional(),
+});
+
 export const rulesQuerySchema = z.object({
   categoryId: z.string().optional(),
   q: z.string().optional(),
   source: z.enum(['manual', 'upstream', 'url', 'geo']).optional(),
+  cursor: z.string().optional(),
   limit: z.string().optional(),
   all: z.string().optional(),
 });

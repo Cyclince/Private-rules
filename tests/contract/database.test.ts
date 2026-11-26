@@ -8,6 +8,7 @@ import { D1DatabaseAdapter } from '../../src/infrastructure/database/d1/adapter'
 import { SqliteDatabaseAdapter } from '../../src/infrastructure/database/sqlite/adapter';
 import { migrateSqliteDatabase } from '../../src/infrastructure/database/sqlite/migrations';
 import { addRule, batchUpdateRules, bulkImportRules, createCategory, deleteCategory, getBackupData, getRulesData, getRulesOverview, importRulesData, insertRule, listRules, optimizeManualRules, previewManualRuleOptimization, saveSettings, updateCategory } from '../../src/lib/db';
+import { getRulesetsSummary, listRulesPaginated } from '../../src/application/rulesets';
 import { cleanupExpiredSessions, createSessionRecord } from '../../src/application/auth';
 import { createRepositories } from '../../src/data/repositories';
 import { resolveFile } from '../../src/domain/formatters';
@@ -321,6 +322,46 @@ function contract(name: string, setup: () => Promise<{ database: DatabasePort; c
       expect((await repos.rateLimits.consume(`${name}-client`, 'contract-op', 2, 60)).allowed).toBe(false);
       await repos.rateLimits.reset(`${name}-client`, 'contract-op');
       expect((await repos.rateLimits.peek(`${name}-client`, 'contract-op', 2, 60)).allowed).toBe(true);
+    });
+
+    it('supports cursor pagination, server search, source filters, and lightweight summary', async () => {
+      const created = await createCategory(env, { name: `${name}-paginated` });
+      const category = created.categories.find((c) => c.name === `${name}-paginated`)!;
+      const importLines = Array.from({ length: 12 }, (_, idx) => `DOMAIN-SUFFIX,page-item-${String(idx).padStart(2, '0')}.test`).join('\n');
+      await bulkImportRules(env, category.id, { text: importLines, confirm: true, replaceConflicts: true });
+
+      const summary = await getRulesetsSummary(env);
+      const summaryCat = summary.categories.find((c) => c.id === category.id)!;
+      expect(summaryCat.rules).toEqual([]);
+      expect(summaryCat.ruleCount).toBe(12);
+      expect(summaryCat.manualRuleCount).toBe(12);
+      expect(summaryCat.enabled).toBe(true);
+
+      const seen = new Set<string>();
+      let cursor: string | undefined;
+      let pages = 0;
+      do {
+        const page = await listRulesPaginated(env, { categoryId: category.id, source: 'manual', cursor, limit: 5 });
+        expect(page.total).toBe(12);
+        for (const rule of page.rules) {
+          expect(seen.has(rule.id)).toBe(false);
+          seen.add(rule.id);
+        }
+        pages += 1;
+        cursor = page.nextCursor ?? undefined;
+        expect(page.hasMore).toBe(Boolean(page.nextCursor));
+      } while (cursor);
+      expect(pages).toBe(3);
+      expect(seen.size).toBe(12);
+
+      const searched = await listRulesPaginated(env, { categoryId: category.id, query: 'page-item-09', limit: 10 });
+      expect(searched.total).toBe(1);
+      expect(searched.rules).toHaveLength(1);
+      expect(searched.rules[0].value).toBe('page-item-09.test');
+      expect(searched.hasMore).toBe(false);
+      expect(searched.nextCursor).toBeNull();
+
+      await expect(listRulesPaginated(env, { categoryId: category.id, cursor: 'not-valid-base64-cursor', limit: 5 })).rejects.toThrow();
     });
   });
 }
