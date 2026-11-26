@@ -9,9 +9,11 @@ import {
   listPublications,
   updatePublication,
   upsertNodeSlotBinding,
+  type PublicationDetail,
 } from '../../application/publications';
 import { requireAuth } from '../../lib/auth';
 import { json } from '../../lib/response';
+import { isTemplateClientSupported, TEMPLATE_CLIENTS, type TemplateClientId } from '../../shared/clients';
 import { AppError } from '../../shared/errors';
 import {
   outputProfileSchema,
@@ -20,9 +22,60 @@ import {
   templateClientIdSchema,
 } from '../../shared/schemas/publication';
 import { purgePublicationCacheForIds, purgePublicationCacheForSlugs } from '../cache/subscription-cache';
-import { rejectTelegramWrite, type AppBindings } from '../helpers';
+import { externalBaseUrl, rejectTelegramWrite, type AppBindings, type AppContext } from '../helpers';
 import { persistentRateLimit } from '../middleware/rate-limit';
 import { validate } from '../middleware/validate';
+
+export type PublicationClientLink = {
+  client: TemplateClientId;
+  label: string;
+  fileName: string;
+  supported: boolean;
+  url: string | null;
+};
+
+export type PublicationWithLinks = PublicationDetail & {
+  links: PublicationClientLink[];
+};
+
+function buildPublicationLinks(
+  publication: PublicationDetail,
+  baseUrl: string,
+  ruleToken?: string,
+): PublicationClientLink[] {
+  const encodedSlug = encodeURIComponent(publication.slug);
+  const encodedToken = ruleToken ? encodeURIComponent(ruleToken) : '';
+  const hasBindings = publication.bindings.length > 0;
+
+  return publication.clients.map((client) => {
+    const meta = TEMPLATE_CLIENTS[client];
+    const supported = isTemplateClientSupported(client);
+    let url: string | null = null;
+
+    if (supported && publication.access === 'public' && !hasBindings) {
+      url = `${baseUrl}/p/${encodedSlug}/${meta.fileName}`;
+    } else if (supported && publication.access === 'token' && encodedToken) {
+      url = `${baseUrl}/t/${encodedToken}/${encodedSlug}/${meta.fileName}`;
+    }
+
+    return {
+      client,
+      label: meta.label,
+      fileName: meta.fileName,
+      supported,
+      url,
+    };
+  });
+}
+
+function withPublicationLinks(c: AppContext, publication: PublicationDetail): PublicationWithLinks {
+  const baseUrl = externalBaseUrl(c);
+  const ruleToken = c.get('authType') === 'apiKey' ? undefined : c.env.RULE_TOKEN;
+  return {
+    ...publication,
+    links: buildPublicationLinks(publication, baseUrl, ruleToken),
+  };
+}
 
 const listPublicationsQuerySchema = z.object({
   q: z.string().optional(),
@@ -56,23 +109,36 @@ export const publicationRoutes = new Hono<AppBindings>()
     const query = c.req.valid('query');
     const requestedLimit = query.limit === undefined ? 100 : Number(query.limit);
     const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(Math.trunc(requestedLimit), 200)) : 100;
-    return json(
-      await listPublications(c.env, {
-        query: query.q || undefined,
-        templateId: query.templateId || undefined,
-        cursor: query.cursor || undefined,
-        limit,
-      }),
-    );
+    const result = await listPublications(c.env, {
+      query: query.q || undefined,
+      templateId: query.templateId || undefined,
+      cursor: query.cursor || undefined,
+      limit,
+    });
+    return json({
+      ...result,
+      publications: result.publications.map((pub) => withPublicationLinks(c, pub)),
+      ruleTokenConfigured: Boolean(c.env.RULE_TOKEN),
+    });
   })
   .post('/api/publications', requireAuth, rejectTelegramWrite, validate('json', publicationFormSchema), async (c) => {
     const result = await createPublication(c.env, c.req.valid('json'));
     await purgePublicationCacheForSlugs(c.env, [result.publication.slug]);
-    return json(result, { status: 201 });
+    return json(
+      {
+        ...result,
+        publication: withPublicationLinks(c, result.publication),
+        ruleTokenConfigured: Boolean(c.env.RULE_TOKEN),
+      },
+      { status: 201 },
+    );
   })
   .get('/api/publications/:id', requireAuth, async (c) => {
     const publication = await getPublicationById(c.env, c.req.param('id'));
-    return json({ publication });
+    return json({
+      publication: withPublicationLinks(c, publication),
+      ruleTokenConfigured: Boolean(c.env.RULE_TOKEN),
+    });
   })
   .patch(
     '/api/publications/:id',
@@ -86,7 +152,11 @@ export const publicationRoutes = new Hono<AppBindings>()
         purgePublicationCacheForIds(c.env, [publicationId]),
         purgePublicationCacheForSlugs(c.env, [result.previousSlug, result.publication.slug]),
       ]);
-      return json({ publication: result.publication, lint: result.lint });
+      return json({
+        publication: withPublicationLinks(c, result.publication),
+        lint: result.lint,
+        ruleTokenConfigured: Boolean(c.env.RULE_TOKEN),
+      });
     },
   )
   .delete('/api/publications/:id', requireAuth, rejectTelegramWrite, async (c) => {

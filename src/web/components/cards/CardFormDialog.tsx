@@ -1,0 +1,600 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
+import { Plus, Trash2 } from 'lucide-react';
+import { useEffect } from 'react';
+import { Controller, useFieldArray, useForm } from 'react-hook-form';
+import { z } from 'zod';
+import {
+  CATALOG_CATEGORY_VALUES,
+  GROUP_TYPE_VALUES,
+  REMOTE_RULE_BEHAVIOR_VALUES,
+  REMOTE_RULE_FORMAT_VALUES,
+  STAGE_VALUES,
+  catalogCategorySchema,
+  groupTypeSchema,
+  remoteRuleBehaviorSchema,
+  remoteRuleFormatSchema,
+  stageSchema,
+  type AppCard,
+  type AppCardGroup,
+  type CatalogCategory,
+  type Matcher,
+  type Stage,
+} from '../../../shared/schemas/card';
+import { useI18n, type MessageKey } from '../../i18n';
+import { catalogListQueryOptions, rulesetsListQueryOptions } from '../../lib/query';
+import { Button } from '../ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Input } from '../ui/input';
+import { Switch } from '../ui/switch';
+import {
+  formatConditionLine,
+  parseInlineRulesText,
+  parsePolicyRef,
+  ROUTE_PRESET_OPTIONS,
+  serializePolicyRef,
+} from './card-helpers';
+
+const MATCHER_KINDS = ['catalog', 'ruleset', 'geosite', 'geoip', 'remote', 'inline'] as const;
+type MatcherKind = (typeof MATCHER_KINDS)[number];
+
+const matcherRowSchema = z.object({
+  kind: z.enum(MATCHER_KINDS),
+  value: z.string(),
+  noResolve: z.boolean().optional(),
+  behavior: remoteRuleBehaviorSchema.optional(),
+  format: remoteRuleFormatSchema.optional(),
+});
+
+const cardEditorFormSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  slug: z
+    .string()
+    .trim()
+    .max(80)
+    .refine((value) => value === '' || /^[a-z0-9][a-z0-9_-]*$/i.test(value), { message: 'invalid_slug' }),
+  icon: z.string().trim().max(120),
+  category: catalogCategorySchema,
+  stage: stageSchema,
+  groupType: groupTypeSchema,
+  defaultRoute: z.string().trim().min(1),
+  extraCandidates: z.array(z.object({ value: z.string().trim().min(1) })),
+  matchers: z.array(matcherRowSchema),
+});
+
+type CardEditorFormValues = z.infer<typeof cardEditorFormSchema>;
+
+export type CardSubmitPayload = {
+  name: string;
+  slug?: string;
+  icon?: string;
+  category: CatalogCategory;
+  stage: Stage;
+  group: AppCardGroup;
+  matchers: Matcher[];
+};
+
+type CardFormDialogProps = {
+  open: boolean;
+  mode: 'create' | 'edit';
+  initial?: AppCard | null;
+  submitting: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (payload: CardSubmitPayload) => Promise<void> | void;
+};
+
+function matcherToRow(matcher: Matcher): CardEditorFormValues['matchers'][number] {
+  switch (matcher.kind) {
+    case 'catalog':
+      return { kind: 'catalog', value: matcher.entryId };
+    case 'ruleset':
+      return { kind: 'ruleset', value: matcher.ruleSetId };
+    case 'geosite':
+      return { kind: 'geosite', value: matcher.name };
+    case 'geoip':
+      return { kind: 'geoip', value: matcher.name, noResolve: matcher.noResolve ?? true };
+    case 'remote':
+      return {
+        kind: 'remote',
+        value: matcher.url,
+        behavior: matcher.behavior,
+        format: matcher.format ?? 'text',
+      };
+    case 'inline':
+      return {
+        kind: 'inline',
+        value: matcher.conditions.map(formatConditionLine).join('\n'),
+      };
+  }
+}
+
+function rowToMatcher(row: CardEditorFormValues['matchers'][number], fallbackMatcher?: Matcher): Matcher | null {
+  const value = row.value.trim();
+  if (!value) return null;
+  switch (row.kind) {
+    case 'catalog':
+      return { kind: 'catalog', entryId: value };
+    case 'ruleset':
+      return { kind: 'ruleset', ruleSetId: value };
+    case 'geosite':
+      return { kind: 'geosite', name: value };
+    case 'geoip':
+      return { kind: 'geoip', name: value, ...(row.noResolve ? { noResolve: true } : {}) };
+    case 'remote': {
+      try {
+        new URL(value);
+      } catch {
+        return null;
+      }
+      return {
+        kind: 'remote',
+        url: value,
+        behavior: row.behavior ?? 'classical',
+        format: row.format ?? 'text',
+      };
+    }
+    case 'inline': {
+      const parsed = parseInlineRulesText(value);
+      if (parsed.length > 0) {
+        return { kind: 'inline', conditions: parsed };
+      }
+      if (fallbackMatcher?.kind === 'inline') {
+        return fallbackMatcher;
+      }
+      return null;
+    }
+  }
+}
+
+const selectClassName =
+  'h-10 w-full rounded-[var(--radius-md)] border border-border bg-surface px-3 text-sm text-text focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50';
+
+export function CardFormDialog({ open, mode, initial, submitting, onOpenChange, onSubmit }: CardFormDialogProps) {
+  const { t } = useI18n();
+
+  const catalogQuery = useQuery({
+    ...catalogListQueryOptions({ kind: 'builtin', limit: 100 }),
+    enabled: open,
+  });
+  const rulesetsQuery = useQuery({
+    ...rulesetsListQueryOptions(),
+    enabled: open,
+  });
+
+  const catalogEntries = catalogQuery.data?.items ?? [];
+  const rulesets = rulesetsQuery.data?.data.categories ?? [];
+
+  const form = useForm<CardEditorFormValues>({
+    resolver: zodResolver(cardEditorFormSchema),
+    defaultValues: {
+      name: '',
+      slug: '',
+      icon: '',
+      category: 'other',
+      stage: 'app',
+      groupType: 'select',
+      defaultRoute: 'card:proxy-select',
+      extraCandidates: [{ value: 'builtin:DIRECT' }],
+      matchers: [],
+    },
+  });
+
+  const candidateFields = useFieldArray({ control: form.control, name: 'extraCandidates' });
+  const matcherFields = useFieldArray({ control: form.control, name: 'matchers' });
+
+  useEffect(() => {
+    if (!open) return;
+    if (mode === 'edit' && initial) {
+      const [first, ...rest] = initial.group.candidates;
+      form.reset({
+        name: initial.name,
+        slug: initial.slug,
+        icon: initial.icon ?? '',
+        category: initial.category,
+        stage: initial.stage,
+        groupType: initial.group.type,
+        defaultRoute: first ? serializePolicyRef(first) : 'card:proxy-select',
+        extraCandidates: rest.map((ref) => ({ value: serializePolicyRef(ref) })),
+        matchers: initial.matchers.map(matcherToRow),
+      });
+    } else {
+      form.reset({
+        name: '',
+        slug: '',
+        icon: '',
+        category: 'other',
+        stage: 'app',
+        groupType: 'select',
+        defaultRoute: 'card:proxy-select',
+        extraCandidates: [{ value: 'builtin:DIRECT' }],
+        matchers: [{ kind: 'geosite', value: '' }],
+      });
+    }
+  }, [open, mode, initial, form]);
+
+  const knownPresetValues = new Set(ROUTE_PRESET_OPTIONS.map((item) => item.value));
+  const currentRouteValues = new Set<string>([
+    form.watch('defaultRoute'),
+    ...form.watch('extraCandidates').map((c) => c.value),
+  ]);
+  const customRouteValues = [...currentRouteValues].filter((val) => val && !knownPresetValues.has(val));
+
+  const handleValidSubmit = form.handleSubmit(async (values) => {
+    const candidateKeys: string[] = [];
+    for (const key of [values.defaultRoute, ...values.extraCandidates.map((c) => c.value)]) {
+      const trimmed = key.trim();
+      if (trimmed && !candidateKeys.includes(trimmed)) {
+        candidateKeys.push(trimmed);
+      }
+    }
+    const candidates = candidateKeys.map(parsePolicyRef);
+    const matchers = values.matchers
+      .map((row, idx) => rowToMatcher(row, mode === 'edit' ? initial?.matchers[idx] : undefined))
+      .filter((item): item is Matcher => item !== null);
+
+    await onSubmit({
+      name: values.name.trim(),
+      ...(values.slug.trim() ? { slug: values.slug.trim() } : {}),
+      icon: values.icon.trim() || undefined,
+      category: values.category,
+      stage: values.stage,
+      group: {
+        type: values.groupType,
+        candidates: candidates.length > 0 ? candidates : [{ kind: 'builtin', id: 'DIRECT' }],
+        ...(mode === 'edit' && initial?.group.test ? { test: initial.group.test } : {}),
+      },
+      matchers,
+    });
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent data-testid="card-form-dialog" className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{mode === 'create' ? t('cards.create') : t('cards.edit')}</DialogTitle>
+          <DialogDescription>{t('cards.subtitle')}</DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleValidSubmit} className="flex flex-col gap-4" noValidate>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="card-name" className="text-xs font-medium text-text">
+                {t('cards.fieldName')}
+              </label>
+              <Input
+                id="card-name"
+                data-testid="card-form-name"
+                placeholder={t('cards.fieldNamePlaceholder')}
+                {...form.register('name')}
+              />
+              {form.formState.errors.name ? (
+                <p className="text-xs text-danger" role="alert">
+                  {t('cards.validationNameRequired')}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="card-icon" className="text-xs font-medium text-text">
+                {t('cards.fieldIcon')}
+              </label>
+              <Input
+                id="card-icon"
+                data-testid="card-form-icon"
+                placeholder={t('cards.fieldIconPlaceholder')}
+                {...form.register('icon')}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="card-slug" className="text-xs font-medium text-text">
+                {t('cards.fieldSlug')}
+              </label>
+              <Input
+                id="card-slug"
+                data-testid="card-form-slug"
+                placeholder={t('cards.fieldSlugPlaceholder')}
+                {...form.register('slug')}
+              />
+              {form.formState.errors.slug ? (
+                <p className="text-xs text-danger" role="alert">
+                  {t('cards.validationSlugInvalid')}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="card-category" className="text-xs font-medium text-text">
+                {t('cards.fieldCategory')}
+              </label>
+              <select
+                id="card-category"
+                data-testid="card-form-category"
+                className={selectClassName}
+                {...form.register('category')}
+              >
+                {CATALOG_CATEGORY_VALUES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {t(`taxonomy.category.${cat}` as MessageKey)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="card-stage" className="text-xs font-medium text-text">
+                {t('cards.fieldStage')}
+              </label>
+              <select
+                id="card-stage"
+                data-testid="card-form-stage"
+                className={selectClassName}
+                {...form.register('stage')}
+              >
+                {STAGE_VALUES.map((stage) => (
+                  <option key={stage} value={stage}>
+                    {t(`taxonomy.stage.${stage}` as MessageKey)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-border bg-surface-muted/40 p-3.5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="card-group-type" className="text-xs font-medium text-text">
+                  {t('cards.fieldGroupType')}
+                </label>
+                <select
+                  id="card-group-type"
+                  data-testid="card-form-group-type"
+                  className={selectClassName}
+                  {...form.register('groupType')}
+                >
+                  {GROUP_TYPE_VALUES.map((gt) => (
+                    <option key={gt} value={gt}>
+                      {gt}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="card-default-route" className="text-xs font-medium text-text">
+                  {t('cards.fieldDefaultRoute')}
+                </label>
+                <select
+                  id="card-default-route"
+                  data-testid="card-form-default-route"
+                  className={selectClassName}
+                  {...form.register('defaultRoute')}
+                >
+                  {ROUTE_PRESET_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {t(opt.labelKey)}
+                    </option>
+                  ))}
+                  {customRouteValues.map((val) => (
+                    <option key={val} value={val}>
+                      {val}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-text-muted">{t('cards.fieldExtraCandidates')}</span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => candidateFields.append({ value: 'builtin:DIRECT' })}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>{t('cards.addCandidate')}</span>
+                </Button>
+              </div>
+              {candidateFields.fields.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  {candidateFields.fields.map((field, index) => (
+                    <div key={field.id} className="flex items-center gap-2">
+                      <select
+                        className={`${selectClassName} h-9 text-xs`}
+                        {...form.register(`extraCandidates.${index}.value`)}
+                      >
+                        {ROUTE_PRESET_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {t(opt.labelKey)}
+                          </option>
+                        ))}
+                        {customRouteValues.map((val) => (
+                          <option key={val} value={val}>
+                            {val}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label={t('common.delete')}
+                        onClick={() => candidateFields.remove(index)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-danger" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2.5 rounded-[var(--radius-md)] border border-border bg-surface-muted/40 p-3.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-text">{t('cards.fieldMatchers')}</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                data-testid="card-form-add-matcher"
+                onClick={() => matcherFields.append({ kind: 'catalog', value: '' })}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>{t('cards.addMatcher')}</span>
+              </Button>
+            </div>
+
+            {matcherFields.fields.length === 0 ? (
+              <p className="text-xs text-text-muted">{t('cards.detailNoMatchers')}</p>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {matcherFields.fields.map((field, index) => {
+                  const kind = form.watch(`matchers.${index}.kind`) as MatcherKind;
+                  return (
+                    <div
+                      key={field.id}
+                      data-testid={`card-form-matcher-${index}`}
+                      className="flex flex-col gap-2 rounded-[var(--radius-sm)] border border-border bg-surface p-2.5"
+                    >
+                      <div className="flex items-center gap-2">
+                        <select
+                          data-testid={`card-form-matcher-kind-${index}`}
+                          className={`${selectClassName} h-9 w-40 shrink-0 text-xs`}
+                          {...form.register(`matchers.${index}.kind`)}
+                        >
+                          {MATCHER_KINDS.map((item) => (
+                            <option key={item} value={item}>
+                              {t(`cards.matcherKind.${item}` as MessageKey)}
+                            </option>
+                          ))}
+                        </select>
+
+                        {kind === 'catalog' ? (
+                          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                            <Input
+                              list={`catalog-options-${index}`}
+                              data-testid={`card-form-matcher-value-${index}`}
+                              placeholder="ai-openai"
+                              className="h-9 text-xs font-mono"
+                              {...form.register(`matchers.${index}.value`)}
+                            />
+                            <datalist id={`catalog-options-${index}`}>
+                              {catalogEntries.map((entry) => (
+                                <option key={entry.id} value={entry.id}>
+                                  {entry.name}
+                                </option>
+                              ))}
+                            </datalist>
+                          </div>
+                        ) : kind === 'ruleset' ? (
+                          <select
+                            data-testid={`card-form-matcher-value-${index}`}
+                            className={`${selectClassName} h-9 min-w-0 flex-1 text-xs`}
+                            {...form.register(`matchers.${index}.value`)}
+                          >
+                            <option value="">—</option>
+                            {rulesets.map((rs) => (
+                              <option key={rs.id} value={rs.id}>
+                                {rs.name} ({rs.slug})
+                              </option>
+                            ))}
+                          </select>
+                        ) : kind === 'inline' ? null : (
+                          <Input
+                            data-testid={`card-form-matcher-value-${index}`}
+                            placeholder={
+                              kind === 'remote'
+                                ? t('cards.matcherRemoteUrlPlaceholder')
+                                : kind === 'geoip'
+                                  ? 'cn'
+                                  : 'openai'
+                            }
+                            className="h-9 min-w-0 flex-1 font-mono text-xs"
+                            {...form.register(`matchers.${index}.value`)}
+                          />
+                        )}
+
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          aria-label={t('common.delete')}
+                          data-testid={`card-form-matcher-remove-${index}`}
+                          onClick={() => matcherFields.remove(index)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-danger" />
+                        </Button>
+                      </div>
+
+                      {kind === 'geoip' ? (
+                        <div className="flex items-center justify-between gap-2 pl-1 text-xs text-text-muted">
+                          <span>{t('cards.matcherNoResolve')}</span>
+                          <Controller
+                            control={form.control}
+                            name={`matchers.${index}.noResolve`}
+                            render={({ field: switchField }) => (
+                              <Switch checked={Boolean(switchField.value)} onCheckedChange={switchField.onChange} />
+                            )}
+                          />
+                        </div>
+                      ) : null}
+
+                      {kind === 'remote' ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            className={`${selectClassName} h-8 text-xs`}
+                            {...form.register(`matchers.${index}.behavior`)}
+                          >
+                            {REMOTE_RULE_BEHAVIOR_VALUES.map((b) => (
+                              <option key={b} value={b}>
+                                {b}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            className={`${selectClassName} h-8 text-xs`}
+                            {...form.register(`matchers.${index}.format`)}
+                          >
+                            {REMOTE_RULE_FORMAT_VALUES.map((f) => (
+                              <option key={f} value={f}>
+                                {f}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : null}
+
+                      {kind === 'inline' ? (
+                        <textarea
+                          rows={3}
+                          data-testid={`card-form-matcher-value-${index}`}
+                          placeholder={t('cards.matcherInlinePlaceholder')}
+                          className="w-full rounded-[var(--radius-sm)] border border-border bg-surface-muted/40 p-2 font-mono text-xs text-text placeholder:text-text-muted focus-visible:outline-2 focus-visible:outline-primary"
+                          {...form.register(`matchers.${index}.value`)}
+                        />
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" data-testid="card-form-submit" disabled={submitting}>
+              {submitting ? t('common.loading') : t('common.save')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

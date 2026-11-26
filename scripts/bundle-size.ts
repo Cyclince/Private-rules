@@ -84,7 +84,17 @@ function totalDirectoryBytes(dir: string): number {
 }
 
 function findRouteChunks(entryJsFiles: Set<string>): Array<{ route: string; file: string }> {
-  const knownRoutes = ['index', 'login', 'rulesets', 'settings', 'templates', 'publications', 'PwaInstallPage'];
+  const knownRoutes = [
+    'index',
+    'login',
+    'rulesets',
+    'catalog',
+    'cards',
+    'settings',
+    'templates',
+    'publications',
+    'PwaInstallPage',
+  ];
   const discovered = new Map<string, string>();
   const allAssets = new Set(readdirSync(ASSETS_DIR));
 

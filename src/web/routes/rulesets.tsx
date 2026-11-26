@@ -18,6 +18,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import type { ManualRuleFormValues } from '../../shared/schemas/rule';
 import type { RulesetFormValues } from '../../shared/schemas/ruleset';
 import type { DomainRule, ImportPreview, RuleCategory, RuleConflict } from '../../types/domain-rules';
+import { SectionSubNav } from '../components/layout/SectionSubNav';
 import { Badge } from '../components/ui/badge';
 
 const DeleteConfirmDialog = lazy(() =>
@@ -577,6 +578,7 @@ function RulesetsPage() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="rulesets-page">
+      <SectionSubNav section="rules" />
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>

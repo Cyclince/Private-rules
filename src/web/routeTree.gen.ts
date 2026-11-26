@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CardsRouteImport } from './routes/cards'
+import { Route as CatalogRouteImport } from './routes/catalog'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PublicationsRouteImport } from './routes/publications'
 import { Route as RulesetsRouteImport } from './routes/rulesets'
@@ -19,6 +21,16 @@ import { Route as TemplatesRouteImport } from './routes/templates'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CardsRoute = CardsRouteImport.update({
+  id: '/cards',
+  path: '/cards',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CatalogRoute = CatalogRouteImport.update({
+  id: '/catalog',
+  path: '/catalog',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -49,6 +61,8 @@ const TemplatesRoute = TemplatesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/cards': typeof CardsRoute
+  '/catalog': typeof CatalogRoute
   '/login': typeof LoginRoute
   '/publications': typeof PublicationsRoute
   '/rulesets': typeof RulesetsRoute
@@ -57,6 +71,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/cards': typeof CardsRoute
+  '/catalog': typeof CatalogRoute
   '/login': typeof LoginRoute
   '/publications': typeof PublicationsRoute
   '/rulesets': typeof RulesetsRoute
@@ -66,6 +82,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/cards': typeof CardsRoute
+  '/catalog': typeof CatalogRoute
   '/login': typeof LoginRoute
   '/publications': typeof PublicationsRoute
   '/rulesets': typeof RulesetsRoute
@@ -75,13 +93,29 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/login' | '/publications' | '/rulesets' | '/settings' | '/templates'
+    | '/'
+    | '/cards'
+    | '/catalog'
+    | '/login'
+    | '/publications'
+    | '/rulesets'
+    | '/settings'
+    | '/templates'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/' | '/login' | '/publications' | '/rulesets' | '/settings' | '/templates'
+    | '/'
+    | '/cards'
+    | '/catalog'
+    | '/login'
+    | '/publications'
+    | '/rulesets'
+    | '/settings'
+    | '/templates'
   id:
     | '__root__'
     | '/'
+    | '/cards'
+    | '/catalog'
     | '/login'
     | '/publications'
     | '/rulesets'
@@ -91,6 +125,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CardsRoute: typeof CardsRoute
+  CatalogRoute: typeof CatalogRoute
   LoginRoute: typeof LoginRoute
   PublicationsRoute: typeof PublicationsRoute
   RulesetsRoute: typeof RulesetsRoute
@@ -105,6 +141,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cards': {
+      id: '/cards'
+      path: '/cards'
+      fullPath: '/cards'
+      preLoaderRoute: typeof CardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/catalog': {
+      id: '/catalog'
+      path: '/catalog'
+      fullPath: '/catalog'
+      preLoaderRoute: typeof CatalogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -147,6 +197,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CardsRoute: CardsRoute,
+  CatalogRoute: CatalogRoute,
   LoginRoute: LoginRoute,
   PublicationsRoute: PublicationsRoute,
   RulesetsRoute: RulesetsRoute,

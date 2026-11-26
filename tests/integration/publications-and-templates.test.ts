@@ -862,4 +862,100 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
       expect(await res.json()).toMatchObject({ ok: false, code: 'FORBIDDEN' });
     }
   });
+
+  it('exposes only policy-valid subscription links and client support flags on publication API responses', async () => {
+    const tplRes = await adminRequest('/api/templates', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Links Tpl', slug: 'links-tpl', starterTier: 'standard' }),
+    });
+    expect(tplRes.status).toBe(201);
+    const { template, resolvedBody } = (await tplRes.json()) as {
+      template: { id: string };
+      resolvedBody: { slots: Array<{ id: string }> };
+    };
+
+    // 1. Token access with mihomo + unsupported surge -> token URL for mihomo, null + supported=false for surge
+    const createRes = await adminRequest('/api/publications', {
+      method: 'POST',
+      body: JSON.stringify({
+        slug: 'links-pub',
+        templateId: template.id,
+        clients: ['mihomo', 'surge'],
+        access: 'token',
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const created = (await createRes.json()) as {
+      ruleTokenConfigured: boolean;
+      publication: {
+        id: string;
+        links: Array<{ client: string; supported: boolean; url: string | null }>;
+      };
+    };
+    expect(created.ruleTokenConfigured).toBe(true);
+    expect(created.publication.links).toEqual([
+      expect.objectContaining({
+        client: 'mihomo',
+        supported: true,
+        url: 'https://rules.example.com/t/pub-secret-token/links-pub/mihomo.yaml',
+      }),
+      expect.objectContaining({
+        client: 'surge',
+        supported: false,
+        url: null,
+      }),
+    ]);
+
+    // 2. Public access without bindings -> /p/ link
+    const publicRes = await adminRequest(`/api/publications/${created.publication.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ access: 'public' }),
+    });
+    expect(publicRes.status).toBe(200);
+    const publicBody = (await publicRes.json()) as {
+      publication: { links: Array<{ client: string; url: string | null }> };
+    };
+    expect(publicBody.publication.links[0].url).toBe('https://rules.example.com/p/links-pub/mihomo.yaml');
+    expect(publicBody.publication.links[1].url).toBeNull();
+
+    // 3. Disabled access -> no active links
+    const disabledRes = await adminRequest(`/api/publications/${created.publication.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ access: 'disabled' }),
+    });
+    expect(disabledRes.status).toBe(200);
+    const disabledBody = (await disabledRes.json()) as {
+      publication: { links: Array<{ client: string; url: string | null }> };
+    };
+    expect(disabledBody.publication.links.every((item) => item.url === null)).toBe(true);
+
+    // 4. Switch back to token and bind a slot; verify GET /api/publications returns masked binding + token link
+    await adminRequest(`/api/publications/${created.publication.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ access: 'token' }),
+    });
+    const bindRes = await adminRequest(
+      `/api/publications/${created.publication.id}/slots/${resolvedBody.slots[0].id}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ subscriptionUrl: 'https://sub.links-test.example/api?token=RAW_TOKEN_123' }),
+      },
+    );
+    expect(bindRes.status).toBe(200);
+
+    const listRes = await adminRequest('/api/publications');
+    expect(listRes.status).toBe(200);
+    const listBody = (await listRes.json()) as {
+      ruleTokenConfigured: boolean;
+      publications: Array<{
+        id: string;
+        links: Array<{ client: string; url: string | null }>;
+        bindings: Array<{ maskedUrl: string }>;
+      }>;
+    };
+    expect(listBody.ruleTokenConfigured).toBe(true);
+    const listed = listBody.publications.find((item) => item.id === created.publication.id)!;
+    expect(listed.links[0].url).toBe('https://rules.example.com/t/pub-secret-token/links-pub/mihomo.yaml');
+    expect(listed.bindings[0].maskedUrl).not.toContain('RAW_TOKEN_123');
+  });
 });

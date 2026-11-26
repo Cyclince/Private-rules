@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import emptyStateUrl from '../assets/miku-empty-state.webp';
+import { SectionSubNav } from '../components/layout/SectionSubNav';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -32,43 +33,46 @@ function TemplatesPage() {
   const navigate = Route.useNavigate();
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <CardTitle>{t('templates.title')}</CardTitle>
-            <CardDescription>{t('templates.subtitle')}</CardDescription>
+    <div className="flex flex-col gap-4">
+      <SectionSubNav section="templates" />
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle>{t('templates.title')}</CardTitle>
+              <CardDescription>{t('templates.subtitle')}</CardDescription>
+            </div>
+            <Badge variant="accent">M4.4b</Badge>
           </div>
-          <Badge variant="accent">M4</Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col items-center gap-4">
-        <div className="flex flex-wrap gap-2 self-start">
-          {(['all', 'minimal', 'light', 'standard', 'heavy'] as const).map((item) => (
-            <Button
-              key={item}
-              size="sm"
-              variant={tier === item ? 'primary' : 'outline'}
-              onClick={() => navigate({ search: { tier: item }, replace: true })}
-            >
-              {item === 'all'
-                ? t('templates.tierAll')
-                : item === 'minimal'
-                  ? t('templates.tierMinimal')
-                  : item === 'light'
-                    ? t('templates.tierLight')
-                    : item === 'standard'
-                      ? t('templates.tierStandard')
-                      : t('templates.tierHeavy')}
-            </Button>
-          ))}
-        </div>
-        <img
-          src={emptyStateUrl}
-          alt={t('templates.title')}
-          className="h-44 w-72 max-w-full rounded-[var(--radius-md)] border border-border object-cover"
-        />
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center gap-4">
+          <div className="flex flex-wrap gap-2 self-start">
+            {(['all', 'minimal', 'light', 'standard', 'heavy'] as const).map((item) => (
+              <Button
+                key={item}
+                size="sm"
+                variant={tier === item ? 'primary' : 'outline'}
+                onClick={() => navigate({ search: { tier: item }, replace: true })}
+              >
+                {item === 'all'
+                  ? t('templates.tierAll')
+                  : item === 'minimal'
+                    ? t('templates.tierMinimal')
+                    : item === 'light'
+                      ? t('templates.tierLight')
+                      : item === 'standard'
+                        ? t('templates.tierStandard')
+                        : t('templates.tierHeavy')}
+              </Button>
+            ))}
+          </div>
+          <img
+            src={emptyStateUrl}
+            alt={t('templates.title')}
+            className="h-44 w-72 max-w-full rounded-[var(--radius-md)] border border-border object-cover"
+          />
+        </CardContent>
+      </Card>
+    </div>
   );
 }
