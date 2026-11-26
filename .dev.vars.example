@@ -1,6 +1,9 @@
 # 复制为 .dev.vars 后再填写真实值；不要提交 .dev.vars。
 ADMIN_PASSWORD=dev-password
+# 本地调试节点绑定功能时必需（推荐至少 32 位随机字符串）
+SESSION_SECRET=local-dev-session-secret-change-me-32chars
 RULE_TOKEN=local-rule-token
 BASE_URL=
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_USER_ID=
+TELEGRAM_WEBHOOK_SECRET=

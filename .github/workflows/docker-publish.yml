@@ -29,8 +29,24 @@ jobs:
             echo "package.json version must use MAJOR.MINOR.PATCH with an optional prerelease suffix" >&2
             exit 1
           fi
+          tags="cyclince/private-rules:${version}"
+          is_prerelease="false"
+          if [[ "$version" == *-* ]]; then
+            is_prerelease="true"
+            if [[ "$version" =~ -alpha(\.|$) ]]; then
+              tags="${tags}"$'\n'"cyclince/private-rules:alpha"
+            elif [[ "$version" =~ -beta(\.|$) ]]; then
+              tags="${tags}"$'\n'"cyclince/private-rules:beta"
+            fi
+          else
+            tags="${tags}"$'\n'"cyclince/private-rules:latest"
+          fi
           {
             echo "version=$version"
+            echo "is_prerelease=$is_prerelease"
+            echo "tags<<EOF"
+            echo "$tags"
+            echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
       - name: Log in to Docker Hub
@@ -51,15 +67,14 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            cyclince/private-rules:${{ steps.version.outputs.version }}
-            cyclince/private-rules:latest
+          tags: ${{ steps.version.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: mode=max
           sbom: true
 
       - name: Update Docker Hub Repository overview
+        if: steps.version.outputs.is_prerelease == 'false'
         uses: peter-evans/dockerhub-description@v5
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}

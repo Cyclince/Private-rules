@@ -15,6 +15,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - name: Audit production dependencies (fail on high+)
+        run: pnpm audit --prod --audit-level=high
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
@@ -51,6 +53,8 @@ jobs:
           "/tmp/sing-box-${SINGBOX_VER_NO_V}-linux-amd64/sing-box" version
           SINGBOX_BIN="/tmp/sing-box-${SINGBOX_VER_NO_V}-linux-amd64/sing-box" REQUIRE_SINGBOX_KERNEL=1 pnpm exec vitest run tests/domain/compilers/singbox-kernel.test.ts
       - run: pnpm build
+      - name: Enforce bundle size budgets
+        run: pnpm size
       - run: pnpm wrangler deploy --dry-run --keep-vars
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
