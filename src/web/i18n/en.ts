@@ -49,7 +49,13 @@ export const en: Messages = {
   'auth.password': 'Admin Password',
   'auth.passwordPlaceholder': 'Enter admin password',
   'auth.loginButton': 'Sign In',
+  'auth.loggingIn': 'Signing in…',
   'auth.logout': 'Sign Out',
+  'auth.wrongPassword': 'Incorrect password. Please try again.',
+  'auth.lockedCountdown': 'Too many failed attempts. Try again in:',
+  'auth.telegramConnecting': 'Authenticating via Telegram Mini App…',
+  'auth.telegramBadge': 'Telegram Mini App',
+  'auth.telegramRestricted': 'API keys and backup restore are hidden in Telegram Mini App for security.',
 
   // Error codes
   'error.VALIDATION_FAILED': 'Invalid request parameters. Please check your input.',

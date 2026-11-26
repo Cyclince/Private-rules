@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { useI18n } from '../i18n';
+import { requireAuthBeforeLoad } from '../lib/auth-guard';
 
 type SourceFilter = 'all' | 'manual' | 'upstream';
 
@@ -34,6 +35,7 @@ export const Route = createFileRoute('/rulesets')({
       ...(selected ? { selected } : {}),
     };
   },
+  beforeLoad: ({ context, location }) => requireAuthBeforeLoad(context.queryClient, location.href),
   component: RulesetsPage,
 });
 

@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Sparkles } from 'lucide-react';
 import loginBgUrl from '../assets/miku-login-bg.webp';
 import { useI18n } from '../i18n';
+import { requireAuthBeforeLoad } from '../lib/auth-guard';
 import { authMeQueryOptions, healthQueryOptions } from '../lib/query';
 
 type DashboardRange = '24h' | '7d' | '30d';
@@ -18,6 +19,7 @@ export const Route = createFileRoute('/')({
     const raw = typeof search.range === 'string' ? (search.range as DashboardRange) : undefined;
     return raw && VALID_RANGES.has(raw) ? { range: raw } : {};
   },
+  beforeLoad: ({ context, location }) => requireAuthBeforeLoad(context.queryClient, location.href),
   component: DashboardPage,
 });
 

@@ -47,7 +47,13 @@ export const zhCN = {
   'auth.password': '管理员密码',
   'auth.passwordPlaceholder': '请输入管理员密码',
   'auth.loginButton': '登录',
+  'auth.loggingIn': '正在登录…',
   'auth.logout': '退出登录',
+  'auth.wrongPassword': '密码不正确，请重新输入。',
+  'auth.lockedCountdown': '登录失败次数过多，已暂时锁定，剩余重试时间：',
+  'auth.telegramConnecting': '正在通过 Telegram Mini App 验证身份…',
+  'auth.telegramBadge': 'Telegram Mini App',
+  'auth.telegramRestricted': '为保障账号安全，API Key 与备份恢复仅支持在常规浏览器会话中操作。',
 
   // Error codes (mapped from src/shared/errors.ts ERROR_CODES)
   'error.VALIDATION_FAILED': '请求参数格式不正确，请检查输入内容。',

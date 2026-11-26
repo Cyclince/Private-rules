@@ -1,9 +1,18 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+async function signInPreview(page: Page) {
+  const res = await page.request.post('/api/auth/login', {
+    data: { password: 'e2e-password' },
+    headers: { origin: 'http://127.0.0.1:5180', 'content-type': 'application/json' },
+  });
+  expect(res.status()).toBe(200);
+}
 
 test.describe('M2.2 /preview 3-viewport layout, URL search state, and query deduplication', () => {
   test('desktop (1280x800): fixed sidebar + topbar, no overlap, no horizontal overflow, single /api/auth/me request', async ({
     page,
   }) => {
+    await signInPreview(page);
     let authMeCount = 0;
     page.on('request', (req) => {
       if (new URL(req.url()).pathname === '/api/auth/me') authMeCount += 1;
@@ -28,12 +37,13 @@ test.describe('M2.2 /preview 3-viewport layout, URL search state, and query dedu
     );
     expect(overflow).toBeLessThanOrEqual(0);
 
-    // Wait briefly to confirm both Topbar and DashboardPage share one deduplicated /api/auth/me fetch
+    // Wait briefly to confirm auth guard + Topbar + DashboardPage share one deduplicated /api/auth/me fetch
     await page.waitForTimeout(300);
     expect(authMeCount).toBe(1);
   });
 
   test('tablet (834x1024): collapsible sidebar toggles cleanly with no overflow', async ({ page }) => {
+    await signInPreview(page);
     await page.setViewportSize({ width: 834, height: 1024 });
     await page.goto('/preview');
 
@@ -63,6 +73,7 @@ test.describe('M2.2 /preview 3-viewport layout, URL search state, and query dedu
   test('mobile (390x844): 4-tab bottom nav, zero horizontal overflow, and URL search params survive reload', async ({
     page,
   }) => {
+    await signInPreview(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/preview');
 

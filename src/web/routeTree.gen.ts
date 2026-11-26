@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as PublicationsRouteImport } from './routes/publications'
 import { Route as RulesetsRouteImport } from './routes/rulesets'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -18,6 +19,11 @@ import { Route as TemplatesRouteImport } from './routes/templates'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PublicationsRoute = PublicationsRouteImport.update({
@@ -43,6 +49,7 @@ const TemplatesRoute = TemplatesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
   '/publications': typeof PublicationsRoute
   '/rulesets': typeof RulesetsRoute
   '/settings': typeof SettingsRoute
@@ -50,6 +57,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
   '/publications': typeof PublicationsRoute
   '/rulesets': typeof RulesetsRoute
   '/settings': typeof SettingsRoute
@@ -58,6 +66,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
   '/publications': typeof PublicationsRoute
   '/rulesets': typeof RulesetsRoute
   '/settings': typeof SettingsRoute
@@ -65,12 +74,15 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/publications' | '/rulesets' | '/settings' | '/templates'
+  fullPaths:
+    '/' | '/login' | '/publications' | '/rulesets' | '/settings' | '/templates'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/publications' | '/rulesets' | '/settings' | '/templates'
+  to:
+    '/' | '/login' | '/publications' | '/rulesets' | '/settings' | '/templates'
   id:
     | '__root__'
     | '/'
+    | '/login'
     | '/publications'
     | '/rulesets'
     | '/settings'
@@ -79,6 +91,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LoginRoute: typeof LoginRoute
   PublicationsRoute: typeof PublicationsRoute
   RulesetsRoute: typeof RulesetsRoute
   SettingsRoute: typeof SettingsRoute
@@ -92,6 +105,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/publications': {
@@ -127,6 +147,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LoginRoute: LoginRoute,
   PublicationsRoute: PublicationsRoute,
   RulesetsRoute: RulesetsRoute,
   SettingsRoute: SettingsRoute,

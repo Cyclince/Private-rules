@@ -1,7 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
-import { useRouterState } from '@tanstack/react-router';
-import { Globe, Menu, Moon, Sun } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
+import { Globe, LogOut, Menu, Moon, Sun } from 'lucide-react';
+import { useState } from 'react';
 import { SUPPORTED_LOCALES, useI18n, type Locale } from '../../i18n';
+import { isTelegramSession, performLogout } from '../../lib/auth-guard';
 import { authMeQueryOptions } from '../../lib/query';
 import { useTheme } from '../../theme/ThemeProvider';
 import { SIDEBAR_NAV_ITEMS } from './nav-items';
@@ -13,7 +15,12 @@ export function Topbar({ onOpenTabletSidebar }: { onOpenTabletSidebar: () => voi
   const { t, locale, setLocale } = useI18n();
   const { theme, toggleTheme } = useTheme();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const authQuery = useQuery(authMeQueryOptions());
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const inTelegram = isTelegramSession(authQuery.data);
 
   const activeNav =
     SIDEBAR_NAV_ITEMS.find((item) => {
@@ -25,6 +32,17 @@ export function Topbar({ onOpenTabletSidebar }: { onOpenTabletSidebar: () => voi
     const idx = SUPPORTED_LOCALES.indexOf(locale);
     const next: Locale = SUPPORTED_LOCALES[(idx + 1) % SUPPORTED_LOCALES.length];
     setLocale(next);
+  };
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await performLogout(queryClient, authQuery.data?.authType);
+      await navigate({ to: '/login', replace: true });
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   return (
@@ -46,15 +64,12 @@ export function Topbar({ onOpenTabletSidebar }: { onOpenTabletSidebar: () => voi
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {authQuery.data ? (
+        {authQuery.data?.authenticated ? (
           <span
-            className={`hidden items-center rounded-full border px-2.5 py-0.5 text-xs font-medium sm:inline-flex ${
-              authQuery.data.authenticated
-                ? 'border-transparent bg-success text-success-foreground'
-                : 'border-border bg-transparent text-text-muted'
-            }`}
+            data-testid="session-status-badge"
+            className="hidden items-center rounded-full border border-transparent bg-success px-2.5 py-0.5 text-xs font-medium text-success-foreground sm:inline-flex"
           >
-            {authQuery.data.authenticated ? t('dashboard.authenticated') : t('dashboard.guest')}
+            {inTelegram ? t('auth.telegramBadge') : t('dashboard.authenticated')}
           </span>
         ) : null}
 
@@ -69,15 +84,31 @@ export function Topbar({ onOpenTabletSidebar }: { onOpenTabletSidebar: () => voi
           <span>{t(`lang.${locale}`)}</span>
         </button>
 
-        <button
-          type="button"
-          onClick={toggleTheme}
-          aria-label={t('theme.toggle')}
-          data-testid="theme-toggle"
-          className={`inline-flex ${topbarBtn} h-9 w-9`}
-        >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </button>
+        {!inTelegram ? (
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={t('theme.toggle')}
+            data-testid="theme-toggle"
+            className={`inline-flex ${topbarBtn} h-9 w-9`}
+          >
+            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+        ) : null}
+
+        {authQuery.data?.authenticated ? (
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            aria-label={t('auth.logout')}
+            data-testid="logout-button"
+            className={`inline-flex ${topbarBtn} h-8 px-2.5 text-xs font-medium disabled:opacity-50`}
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{t('auth.logout')}</span>
+          </button>
+        ) : null}
       </div>
     </header>
   );

@@ -7,7 +7,11 @@ export const telegramAuditMiddleware: MiddlewareHandler<{ Bindings: Env; Variabl
   next,
 ) => {
   await next();
-  if (c.req.method === 'GET' || c.get('authType') !== 'telegram' || c.req.path.startsWith('/api/telegram/session')) {
+  if (
+    c.get('authType') !== 'telegram' ||
+    c.req.path.startsWith('/api/telegram/session') ||
+    (c.req.method === 'GET' && c.res.status !== 403)
+  ) {
     return;
   }
   const telegramUserId = c.get('telegramUserId');

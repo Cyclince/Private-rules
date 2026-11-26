@@ -1,9 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 
+const CSRF_HEADERS = { origin: 'http://127.0.0.1:5180', 'content-type': 'application/json' };
+
 async function createCategory(page: Page) {
-  await page.request.post('/api/auth/login', { data: { password: 'e2e-password' } });
+  await page.request.post('/api/auth/login', { data: { password: 'e2e-password' }, headers: CSRF_HEADERS });
   const name = `Compatibility-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  const response = await page.request.post('/api/categories', { data: { name, tokenLinksEnabled: false, publicLinksEnabled: true } });
+  const response = await page.request.post('/api/categories', {
+    data: { name, tokenLinksEnabled: false, publicLinksEnabled: true },
+    headers: CSRF_HEADERS,
+  });
   expect(response.status()).toBe(201);
   const { data } = await response.json();
   return data.categories.find((category: { name: string }) => category.name === name) as { id: string; name: string };
@@ -42,7 +47,7 @@ for (const locale of ['zh-CN', 'zh-TW', 'en']) {
     if (locale === 'en') expect((await groups.allTextContents()).join(' ')).not.toMatch(/[\u3400-\u9fff]/u);
     expect(errors).toEqual([]);
     await page.screenshot({ path: `test-results/subscriptions-${locale}.png`, fullPage: true });
-    await page.request.delete(`/api/categories/${category.id}`);
+    await page.request.delete(`/api/categories/${category.id}`, { headers: CSRF_HEADERS });
   });
 }
 
@@ -68,6 +73,6 @@ for (const viewport of [{ width: 390, height: 667 }, { width: 667, height: 375 }
     const result = await page.request.get('/api/categories');
     const payload = await result.json();
     expect(payload.data.categories.find((item: { id: string }) => item.id === category.id).ruleCount).toBe(100);
-    await page.request.delete(`/api/categories/${category.id}`);
+    await page.request.delete(`/api/categories/${category.id}`, { headers: CSRF_HEADERS });
   });
 }

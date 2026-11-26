@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="dark" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -7,6 +7,29 @@
     <meta name="robots" content="noindex,nofollow" />
     <link rel="icon" type="image/png" href="/src/frontend/assets/private-rules-favicon.png" />
     <title>Private Rules · 1.1.0 Preview</title>
+    <script>
+      (function () {
+        try {
+          var el = document.documentElement;
+          var tg = window.Telegram && window.Telegram.WebApp;
+          var savedTheme = localStorage.getItem('private-rules-theme');
+          var theme =
+            tg && tg.initData
+              ? tg.colorScheme === 'light'
+                ? 'light'
+                : 'dark'
+              : savedTheme === 'light' || savedTheme === 'dark'
+                ? savedTheme
+                : 'dark';
+          el.dataset.theme = theme;
+          el.classList.toggle('dark', theme === 'dark');
+          el.classList.toggle('light', theme === 'light');
+          if (tg && tg.initData) el.dataset.telegram = 'true';
+          var savedLocale = localStorage.getItem('private-rules-locale');
+          if (savedLocale) el.lang = savedLocale;
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -40,6 +40,7 @@ export const LINTED = [
   'tests/integration/security-hardening.test.ts',
   'tests/integration/subscriptions-cache.test.ts',
   'tests/e2e/preview-layout.spec.ts',
+  'tests/e2e/preview-auth-and-telegram.spec.ts',
 ];
 
 export default tseslint.config(

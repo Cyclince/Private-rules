@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { createRootRouteWithContext, Outlet } from '@tanstack/react-router';
+import { createRootRouteWithContext, Outlet, useRouterState } from '@tanstack/react-router';
 import { AppShell } from '../components/layout/AppShell';
 
 export type RouterContext = {
@@ -11,6 +11,13 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function RootLayout() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const isLoginRoute = pathname === '/login' || pathname === '/preview/login';
+
+  if (isLoginRoute) {
+    return <Outlet />;
+  }
+
   return (
     <AppShell>
       <Outlet />

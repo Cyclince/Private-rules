@@ -55,13 +55,17 @@ test('PWA install page and install metadata are available without authentication
 });
 
 test('private Telegram session, theme, deep links, and write access', async ({ page, request }) => {
-  await request.post('/api/auth/login', { data: { password: 'e2e-password' } });
+  const originHeaders = { origin: 'http://127.0.0.1:5180', 'content-type': 'application/json' };
+  await request.post('/api/auth/login', { data: { password: 'e2e-password' }, headers: originHeaders });
   const name = `Telegram-${Date.now()}`;
-  const created = await request.post('/api/categories', { data: { name, tokenLinksEnabled: false, publicLinksEnabled: true } });
+  const created = await request.post('/api/categories', {
+    data: { name, tokenLinksEnabled: false, publicLinksEnabled: true },
+    headers: originHeaders,
+  });
   expect(created.status()).toBe(201);
   const payload = await created.json() as { data: { categories: Array<{ id: string; name: string }> } };
   const category = payload.data.categories.find((item) => item.name === name)!;
-  await request.post('/api/auth/logout');
+  await request.post('/api/auth/logout', { headers: originHeaders, data: {} });
 
   const initData = telegramInitData();
   await page.addInitScript((value) => {
@@ -83,7 +87,7 @@ test('private Telegram session, theme, deep links, and write access', async ({ p
   expect(await page.locator('html').getAttribute('data-telegram')).toBe('true');
   expect(await page.locator('html').getAttribute('data-theme')).toBe('dark');
   await expect(page.getByRole('button', { name: /新增来源/ })).toBeVisible();
-  const allowed = await page.evaluate(async () => (await fetch('/api/sync', { method: 'POST' })).status);
+  const allowed = await page.evaluate(async () => (await fetch('/api/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status);
   expect(allowed).toBe(200);
   errors.length = 0;
   await page.goto('/admin?view=links&category=missing-category');
