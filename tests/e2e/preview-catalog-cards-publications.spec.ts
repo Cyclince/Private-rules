@@ -233,19 +233,20 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await expect(page.getByTestId('publications-page')).toBeVisible();
         await expectNoHorizontalOverflow(page);
 
-        // Unsupported clients are clearly labeled "即将支持" while Stash, Surge & sing-box are now supported
-        await expect(page.getByTestId('publications-client-loon')).toContainText('即将支持');
-        await expect(page.getByTestId('publications-client-stash')).not.toContainText('即将支持');
-        await expect(page.getByTestId('publications-client-surge')).not.toContainText('即将支持');
-        await expect(page.getByTestId('publications-client-sing-box')).not.toContainText('即将支持');
+        // All 7 clients are now supported (no "即将支持" badges on Loon, Quantumult X, or Shadowrocket)
+        for (const client of ['mihomo', 'stash', 'surge', 'sing-box', 'loon', 'quantumult-x', 'shadowrocket']) {
+          await expect(page.getByTestId(`publications-client-${client}`)).not.toContainText('即将支持');
+        }
 
-        // Create a new publication with mihomo + stash + surge + sing-box (supported) + loon (unsupported)
+        // Create a new publication with all 7 supported clients
         await page.getByTestId('publications-create-btn').click();
         await expect(page.getByTestId('publication-form-dialog')).toBeVisible();
-        await expect(page.getByTestId('pub-form-client-coming-soon-loon')).toContainText('即将支持');
-        await expect(page.getByTestId('pub-form-client-coming-soon-stash')).toHaveCount(0);
-        await expect(page.getByTestId('pub-form-client-coming-soon-surge')).toHaveCount(0);
-        await expect(page.getByTestId('pub-form-client-coming-soon-sing-box')).toHaveCount(0);
+        for (const client of ['stash', 'surge', 'sing-box', 'loon', 'quantumult-x', 'shadowrocket']) {
+          await expect(page.getByTestId(`pub-form-client-coming-soon-${client}`)).toHaveCount(0);
+        }
+        // Experimental full-config toggle defaults to unchecked (safe rules-only for Loon & QX)
+        await expect(page.getByTestId('pub-form-experimental-full-config')).not.toBeChecked();
+        await expect(page.getByTestId('pub-form-experimental-warning')).toHaveCount(0);
 
         await page.getByTestId('pub-form-slug').fill(pubSlug);
         await page.getByTestId('pub-form-template').selectOption(templateId);
@@ -254,6 +255,8 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await page.getByTestId('pub-form-client-surge').click();
         await page.getByTestId('pub-form-client-sing-box').click();
         await page.getByTestId('pub-form-client-loon').click();
+        await page.getByTestId('pub-form-client-quantumult-x').click();
+        await page.getByTestId('pub-form-client-shadowrocket').click();
         await page.getByTestId('pub-form-access-token').click();
         await page.getByTestId('pub-form-output').selectOption('minimal');
 
@@ -294,25 +297,30 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await expect(page.getByTestId(`node-slot-masked-${slotId}`)).toContainText('backup-airport.example.test');
         await expect(page.getByTestId(`node-slot-masked-${slotId}`)).not.toContainText(secretTokenB);
 
-        // Open Edit Publication modal: "public" option MUST be disabled with explanation because node is bound
+        // Open Edit Publication modal: "public" option MUST be disabled with explanation because node is bound;
+        // toggling experimentalFullConfig shows a prominent "未经真机验证" warning (without saving)
         await page.getByTestId('publication-edit-btn').click();
         await expect(page.getByTestId('publication-form-dialog')).toBeVisible();
         await expect(page.getByTestId('pub-form-access-public')).toBeDisabled();
         await expect(page.getByTestId('pub-public-disabled-reason')).toBeVisible();
+        await expect(page.getByTestId('pub-form-experimental-full-config')).not.toBeChecked();
+        await page.getByTestId('pub-form-experimental-full-config').check();
+        await expect(page.getByTestId('pub-form-experimental-warning')).toBeVisible();
+        await expect(page.getByTestId('pub-form-experimental-warning')).toContainText('未经真机验证');
         await page.keyboard.press('Escape');
         await expect(page.getByTestId('publication-form-dialog')).toBeHidden();
 
-        // Real-time compile preview (<pre> Mihomo YAML + unsupported client coming-soon state)
+        // Real-time compile preview across all 7 clients + compatibility report
         await page.getByTestId('publication-tab-preview').click();
         await expect(page.getByTestId('publication-preview-panel')).toBeVisible();
         await expect(page.getByTestId('publication-preview-code')).toBeVisible();
         await expect(page.getByTestId('publication-preview-code')).toContainText('rules:');
+        await expect(page.getByTestId('publication-preview-compat-report')).toBeVisible();
         await expectNoHorizontalOverflow(page);
 
-        await expect(page.getByTestId('preview-client-coming-soon-loon')).toContainText('即将支持');
-        await expect(page.getByTestId('preview-client-coming-soon-stash')).toHaveCount(0);
-        await expect(page.getByTestId('preview-client-coming-soon-surge')).toHaveCount(0);
-        await expect(page.getByTestId('preview-client-coming-soon-sing-box')).toHaveCount(0);
+        for (const client of ['stash', 'surge', 'sing-box', 'loon', 'quantumult-x', 'shadowrocket']) {
+          await expect(page.getByTestId(`preview-client-coming-soon-${client}`)).toHaveCount(0);
+        }
         await page.getByTestId('preview-client-stash').click();
         await expect(page.getByTestId('publication-preview-code')).toContainText('proxy-groups:');
         await page.getByTestId('preview-client-surge').click();
@@ -320,18 +328,28 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await page.getByTestId('preview-client-sing-box').click();
         await expect(page.getByTestId('publication-preview-code')).toContainText('"outbounds"');
         await page.getByTestId('preview-client-loon').click();
-        await expect(page.getByTestId('preview-unsupported-notice')).toBeVisible();
+        await expect(page.getByTestId('publication-preview-mode-banner')).toBeVisible();
+        await expect(page.getByTestId('publication-preview-code')).toContainText('Rules-Only Remote Resource');
+        await expect(page.getByTestId('compat-report-item-RULES_ONLY_SAFE_DEFAULT')).toBeVisible();
+        await page.getByTestId('preview-client-quantumult-x').click();
+        await expect(page.getByTestId('publication-preview-mode-banner')).toBeVisible();
+        await expect(page.getByTestId('publication-preview-code')).toContainText('filter_remote Rules-Only Resource');
+        await page.getByTestId('preview-client-shadowrocket').click();
+        await expect(page.getByTestId('publication-preview-code')).toContainText('[Proxy Group]');
         await page.getByTestId('preview-client-mihomo').click();
         await expect(page.getByTestId('publication-preview-code')).toBeVisible();
 
-        // Subscription Links tab: only valid policy links shown; unsupported labeled "即将支持"; copy works
+        // Subscription Links tab: all 7 supported clients have active token links; copy works
         await page.getByTestId('publication-tab-links').click();
         await expect(page.getByTestId('publication-links-panel')).toBeVisible();
-        await expect(page.getByTestId('pub-link-coming-soon-loon')).toContainText('即将支持');
+        await expect(page.getByTestId('pub-link-coming-soon-loon')).toHaveCount(0);
         await expect(page.getByTestId('pub-link-item-mihomo')).toBeVisible();
         await expect(page.getByTestId('pub-link-item-stash')).toBeVisible();
         await expect(page.getByTestId('pub-link-item-surge')).toBeVisible();
         await expect(page.getByTestId('pub-link-item-sing-box')).toBeVisible();
+        await expect(page.getByTestId('pub-link-item-loon')).toBeVisible();
+        await expect(page.getByTestId('pub-link-item-quantumult-x')).toBeVisible();
+        await expect(page.getByTestId('pub-link-item-shadowrocket')).toBeVisible();
         await expect(page.getByTestId('pub-link-url-stash')).toHaveText(
           `${ORIGIN}/t/e2e-rule-token/${pubSlug}/stash.yaml`,
         );
@@ -340,6 +358,15 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         );
         await expect(page.getByTestId('pub-link-url-sing-box')).toHaveText(
           `${ORIGIN}/t/e2e-rule-token/${pubSlug}/singbox.json`,
+        );
+        await expect(page.getByTestId('pub-link-url-loon')).toHaveText(
+          `${ORIGIN}/t/e2e-rule-token/${pubSlug}/loon.conf`,
+        );
+        await expect(page.getByTestId('pub-link-url-quantumult-x')).toHaveText(
+          `${ORIGIN}/t/e2e-rule-token/${pubSlug}/qx.conf`,
+        );
+        await expect(page.getByTestId('pub-link-url-shadowrocket')).toHaveText(
+          `${ORIGIN}/t/e2e-rule-token/${pubSlug}/shadowrocket.conf`,
         );
         const expectedUrl = `${ORIGIN}/t/e2e-rule-token/${pubSlug}/mihomo.yaml`;
         await expect(page.getByTestId('pub-link-url-mihomo')).toHaveText(expectedUrl);

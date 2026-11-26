@@ -44,7 +44,7 @@ type PublicationsSearch = {
   tab?: DetailTab;
 };
 
-const VALID_CLIENTS = new Set<string>(['mihomo', 'stash', 'surge', 'sing-box', 'loon', 'qx', 'shadowrocket']);
+const VALID_CLIENTS = new Set<string>(TEMPLATE_CLIENT_IDS);
 const VALID_TABS = new Set<string>(['links', 'nodes', 'preview']);
 
 export const Route = createFileRoute('/publications')({
@@ -160,6 +160,7 @@ function PublicationsPage() {
             clients: payload.clients,
             access: payload.access,
             ...(payload.output ? { output: payload.output } : {}),
+            experimentalFullConfig: payload.experimentalFullConfig,
           },
         }),
       ),
@@ -186,6 +187,7 @@ function PublicationsPage() {
             clients: payload.clients,
             access: payload.access,
             output: payload.output,
+            experimentalFullConfig: payload.experimentalFullConfig,
           },
         }),
       ),
@@ -352,6 +354,10 @@ function PublicationsPage() {
 
                   <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
                     <Badge variant="outline">{pub.effectiveOutput}</Badge>
+                    {pub.experimentalFullConfig &&
+                    (pub.clients.includes('loon') || pub.clients.includes('quantumult-x')) ? (
+                      <Badge variant="warning">{t('publications.experimentalBadge')}</Badge>
+                    ) : null}
                     {pub.bindings.length > 0 ? (
                       <Badge variant="accent">
                         {pub.bindings.length} {t('publications.boundSlotsBadge')}
@@ -388,6 +394,13 @@ function PublicationsPage() {
                         {t(`publications.access.${selectedPublication.access}` as MessageKey)}
                       </Badge>
                       <Badge variant="outline">{selectedPublication.effectiveOutput}</Badge>
+                      {selectedPublication.experimentalFullConfig &&
+                      (selectedPublication.clients.includes('loon') ||
+                        selectedPublication.clients.includes('quantumult-x')) ? (
+                        <Badge variant="warning" data-testid="publication-detail-experimental-badge">
+                          {t('publications.experimentalBadge')}
+                        </Badge>
+                      ) : null}
                     </div>
                     <CardDescription className="mt-1">
                       {selectedPublication.templateName} · v{selectedPublication.effectiveVersion}

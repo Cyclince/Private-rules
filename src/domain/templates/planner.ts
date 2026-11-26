@@ -121,15 +121,25 @@ function buildSelfHostedRulesetUrl(
 ): string | undefined {
   if (!baseUrl) return undefined;
   const trimmed = baseUrl.replace(/\/+$/, '');
+  const encodedId = encodeURIComponent(ruleSetId);
   if (client === 'surge') {
-    return `${trimmed}/rules/${encodeURIComponent(ruleSetId)}_${behavior}-surge.list`;
+    return `${trimmed}/rules/${encodedId}_${behavior}-surge.list`;
+  }
+  if (client === 'loon') {
+    return `${trimmed}/rules/${encodedId}_${behavior}-loon.list`;
+  }
+  if (client === 'quantumult-x') {
+    return `${trimmed}/rules/${encodedId}_${behavior}-qx.list`;
+  }
+  if (client === 'shadowrocket') {
+    return `${trimmed}/rules/${encodedId}_${behavior}-shadowrocket.list`;
   }
   if (client === 'sing-box') {
-    return `${trimmed}/rules/${encodeURIComponent(ruleSetId)}-sing-box.json`;
+    return `${trimmed}/rules/${encodedId}-sing-box.json`;
   }
   const formatSegment =
     behavior === 'domain' ? 'clash-domain' : behavior === 'ipcidr' ? 'clash-ipcidr' : 'clash-classical';
-  return `${trimmed}/sub/${encodeURIComponent(ruleSetId)}/${formatSegment}`;
+  return `${trimmed}/sub/${encodedId}/${formatSegment}`;
 }
 
 function buildSelfHostedGeositeUrl(
@@ -139,10 +149,20 @@ function buildSelfHostedGeositeUrl(
 ): string | undefined {
   if (!baseUrl) return undefined;
   const trimmed = baseUrl.replace(/\/+$/, '');
+  const encodedName = encodeURIComponent(name.toLowerCase());
   if (client === 'surge') {
-    return `${trimmed}/rules/geosite-${encodeURIComponent(name.toLowerCase())}-surge.list`;
+    return `${trimmed}/rules/geosite-${encodedName}-surge.list`;
   }
-  return `${trimmed}/sub/geosite-${encodeURIComponent(name.toLowerCase())}/clash-domain`;
+  if (client === 'loon') {
+    return `${trimmed}/rules/geosite-${encodedName}-loon.list`;
+  }
+  if (client === 'quantumult-x') {
+    return `${trimmed}/rules/geosite-${encodedName}-qx.list`;
+  }
+  if (client === 'shadowrocket') {
+    return `${trimmed}/rules/geosite-${encodedName}-shadowrocket.list`;
+  }
+  return `${trimmed}/sub/geosite-${encodedName}/clash-domain`;
 }
 
 /**
@@ -372,7 +392,13 @@ export function planRulesetReferences(input: RulesetPlannerInput): RulesetPlan {
           const effectiveBehaviors: RemoteRuleBehavior[] = behaviors.length > 0 ? behaviors : ['classical'];
 
           const providerIds: string[] = [];
-          const selfHostedFormat: RemoteRuleFormat = input.client === 'surge' ? 'text' : 'yaml';
+          const selfHostedFormat: RemoteRuleFormat =
+            input.client === 'surge' ||
+            input.client === 'loon' ||
+            input.client === 'quantumult-x' ||
+            input.client === 'shadowrocket'
+              ? 'text'
+              : 'yaml';
           for (const behavior of effectiveBehaviors) {
             const url = buildSelfHostedRulesetUrl(input.baseUrl, matcher.ruleSetId, behavior, input.client);
             const dedupeKey = `ruleset:${matcher.ruleSetId}|${behavior}`;

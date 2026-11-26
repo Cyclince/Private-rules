@@ -215,7 +215,7 @@ export function TemplatePreviewPanel({
                 ariaLabel={`${TEMPLATE_CLIENTS[client].label} preview`}
                 value={activePreview.content}
                 readOnly
-                language={client === 'surge' ? 'text' : 'yaml'}
+                language={client === 'mihomo' || client === 'stash' ? 'yaml' : 'text'}
                 minHeight="280px"
                 maxHeight="460px"
               />

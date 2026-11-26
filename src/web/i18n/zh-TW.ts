@@ -603,6 +603,15 @@ export const zhTW: Messages = {
   'publications.fieldAccess': '存取方式',
   'publications.fieldOutput': '輸出檔位覆蓋',
   'publications.outputHint': 'full 包含執行引數與 DNS，適合直接匯入；minimal 僅含策略組與規則，適合 OpenClash。',
+  'publications.fieldExperimentalFullConfig': '實驗性完整設定（Loon / Quantumult X）',
+  'publications.experimentalFullConfigLabel': '為 Loon 與 Quantumult X 輸出完整設定（實驗性，預設關閉）',
+  'publications.experimentalFullConfigSafeHint':
+    '預設關閉：Loon 與 Quantumult X 僅輸出安全的“僅規則資源”（QX filter_remote / Loon 遠端規則），不會覆蓋客戶端已有節點訂閱。',
+  'publications.experimentalFullConfigWarningTitle': '警告：實驗性完整設定未經真機驗證',
+  'publications.experimentalFullConfigWarningBody':
+    '開啟後將輸出包含策略組與全域性段的完整設定檔案。將完整設定直接匯入 Loon 或 Quantumult X 可能覆蓋客戶端已有的節點訂閱，且該輸出目前未經真機驗證，請務必先備份客戶端設定。',
+  'publications.experimentalBadge': '實驗完整設定（未驗證）',
+  'publications.safeRulesOnlyBadge': '安全預設：僅規則資源',
   'publications.publicDisabledReason':
     '已繫結節點訂閱地址的釋出禁止設為“公開”存取（避免設定檔案洩露訂閱明文）；如需公開請先清除全部節點繫結。',
   'publications.validationSlug': '請輸入有效的釋出標識（字母、數字、連字元或下劃線）',
@@ -643,14 +652,24 @@ export const zhTW: Messages = {
   'publications.linksComingSoonHint': '該客戶端編譯器即將支援，暫不生成可下載連結。',
   'publications.previewTitle': '即時編譯預覽',
   'publications.previewDesc': '呼叫伺服器端編譯器生成只讀設定預覽（不含真實節點明文）',
-  'publications.previewClientUnsupported':
-    '該客戶端編譯器即將支援，目前可切換至 mihomo / Stash / Surge / sing-box 檢視即時編譯預覽。',
+  'publications.previewClientUnsupported': '該客戶端暫不支援編譯預覽。',
   'publications.previewStatsGroups': '策略組',
   'publications.previewStatsRuleProviders': '規則集源',
   'publications.previewStatsRules': '規則數',
   'publications.previewStatsSkipped': '跳過規則',
   'publications.previewCopyCode': '複製設定',
   'publications.previewCopiedToast': '編譯結果已複製',
+  'publications.previewCompatReportTitle': '客戶端相容性報告',
+  'publications.previewCompatAllClear': '無相容性降級或跳過項，可直接使用。',
+  'publications.previewCompatErrors': '錯誤',
+  'publications.previewCompatWarnings': '警告',
+  'publications.previewCompatInfos': '說明',
+  'publications.previewAppliedModules': '已啟用增強模組',
+  'publications.previewSkippedModules': '已跳過增強模組',
+  'publications.previewSafeRulesOnlyBanner':
+    '當前處於安全預設“僅規則資源”模式，可直接作為遠端規則資源匯入，不會覆蓋客戶端已有節點訂閱。',
+  'publications.previewExperimentalBanner':
+    '當前已開啟實驗性完整設定模式（未經真機驗證）：直接作為完整設定匯入可能覆蓋客戶端已有節點訂閱，請先備份。',
   'publications.boundSlotsBadge': '個槽位已綁',
   'settings.title': '系統設定',
   'settings.subtitle': '基礎引數、圖示包、規則精簡、API Key、備份恢復與版本資訊',

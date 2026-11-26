@@ -97,6 +97,7 @@ const updatePublicationBodySchema = z.object({
   clients: z.array(templateClientIdSchema).min(1).optional(),
   access: publicationAccessSchema.optional(),
   output: outputProfileSchema.nullable().optional(),
+  experimentalFullConfig: z.boolean().optional(),
 });
 
 const upsertSlotBindingBodySchema = z.object({

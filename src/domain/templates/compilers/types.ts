@@ -34,6 +34,10 @@ export type CompatibilityItemCode =
   | 'GROUP_FALLBACK_DIRECT'
   | 'PROXY_SERVER_NAMESERVER_INFERRED'
   | 'REGEX_DIALECT_WARNING'
+  | 'REGEX_DEGRADED_TWO_STAGE'
+  | 'REMOTE_INLINED_FOR_LOCAL_FIRST_CLIENT'
+  | 'RULES_ONLY_SAFE_DEFAULT'
+  | 'EXPERIMENTAL_FULL_CONFIG_UNVERIFIED'
   | 'INVALID_CLIENT_PATCH';
 
 export type CompatibilityItem = {
@@ -128,6 +132,12 @@ export type CompileTemplateInput = {
   applyModules?: boolean;
   /** Optional custom enhancement module registry. */
   moduleRegistry?: readonly EnhancementModule[];
+  /**
+   * Experimental full-config toggle for clients whose full profile may overwrite
+   * existing user node subscriptions (Loon / Quantumult X, design §20).
+   * Defaults to `false` (rules-only safe resource mode).
+   */
+  experimentalFullConfig?: boolean;
 };
 
 export type CompiledConfigResult = {

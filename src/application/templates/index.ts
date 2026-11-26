@@ -834,6 +834,7 @@ export async function previewTemplateById(
     body?: TemplateBody;
     overlay?: TemplateOverlay;
     baseUrl?: string;
+    experimentalFullConfig?: boolean;
   },
 ): Promise<CompiledConfigResult> {
   if (!SUPPORTED_COMPILER_CLIENTS.has(options.client)) {
@@ -871,5 +872,6 @@ export async function previewTemplateById(
     rulesetBehaviors: rulesetCtx.rulesetBehaviors,
     baseUrl: options.baseUrl,
     iconPack,
+    experimentalFullConfig: options.experimentalFullConfig,
   });
 }

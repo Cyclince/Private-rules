@@ -36,6 +36,7 @@ export const publicationSchema = z.object({
   clients: z.array(templateClientIdSchema).min(1),
   access: publicationAccessSchema,
   output: optionalOutputProfile,
+  experimentalFullConfig: z.boolean().default(false),
   createdAt: optionalText,
   updatedAt: optionalText,
 });
@@ -54,6 +55,7 @@ export const publicationFormSchema = z.object({
   clients: z.array(templateClientIdSchema).min(1),
   access: publicationAccessSchema,
   output: optionalOutputProfile,
+  experimentalFullConfig: z.boolean().optional().default(false),
 });
 export type PublicationFormValues = z.infer<typeof publicationFormSchema>;
 
@@ -66,6 +68,7 @@ export const backupPublicationSchema = z.object({
   clients: z.array(templateClientIdSchema).min(1),
   access: publicationAccessSchema,
   output: optionalOutputProfile,
+  experimentalFullConfig: z.boolean().optional(),
   createdAt: optionalText,
   updatedAt: optionalText,
 });

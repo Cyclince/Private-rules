@@ -6,6 +6,7 @@ export type MigrationEntry = {
 export const BASELINE_MIGRATION_NAME = '0000_baseline.sql';
 export const INITIAL_1_1_0_MIGRATION_NAME = '0001_1_1_0_schema.sql';
 export const SOURCE_COVERAGE_DEDUP_MIGRATION_NAME = '0002_source_coverage_dedup.sql';
+export const PUBLICATION_EXPERIMENTAL_FULL_CONFIG_MIGRATION_NAME = '0003_publication_experimental_full_config.sql';
 
 /**
  * Core tables present since 1.0.0 (`0001_init.sql`). A 1.0.x database missing
@@ -768,6 +769,13 @@ const SOURCE_COVERAGE_DEDUP_SQL = `-- Per-source coverage deduplication toggle (
 ALTER TABLE category_sources ADD COLUMN coverage_dedup INTEGER NOT NULL DEFAULT 0;
 `;
 
+const PUBLICATION_EXPERIMENTAL_FULL_CONFIG_SQL = `-- Experimental full-config toggle on publications for Loon / Quantumult X (design §20).
+-- Defaults to 0 (safe rules-only resource mode) so existing and newly created publications
+-- never overwrite client node subscriptions unless explicitly opted in.
+
+ALTER TABLE publications ADD COLUMN experimental_full_config INTEGER NOT NULL DEFAULT 0;
+`;
+
 /**
  * Bundled SQL migrations kept in sync with `src/data/migrations/*.sql` (verified
  * byte-for-byte by `tests/integration/migration.test.ts`). Bundling avoids any
@@ -778,4 +786,8 @@ export const MIGRATIONS: readonly MigrationEntry[] = [
   { name: BASELINE_MIGRATION_NAME, sql: BASELINE_SQL },
   { name: INITIAL_1_1_0_MIGRATION_NAME, sql: SCHEMA_1_1_0_SQL },
   { name: SOURCE_COVERAGE_DEDUP_MIGRATION_NAME, sql: SOURCE_COVERAGE_DEDUP_SQL },
+  {
+    name: PUBLICATION_EXPERIMENTAL_FULL_CONFIG_MIGRATION_NAME,
+    sql: PUBLICATION_EXPERIMENTAL_FULL_CONFIG_SQL,
+  },
 ];

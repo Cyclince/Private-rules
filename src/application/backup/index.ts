@@ -151,6 +151,7 @@ export async function getBackupData(env: Env): Promise<ExportedBackup> {
     clients: parseClientsArray(row.clients),
     access: row.access as BackupPublication['access'],
     output: row.output === 'full' || row.output === 'minimal' ? row.output : undefined,
+    ...(row.experimentalFullConfig ? { experimentalFullConfig: true } : {}),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }));
@@ -381,7 +382,7 @@ export async function importRulesData(env: Env, input: unknown): Promise<RulesDa
       for (const publication of data.publications) {
         statements.push(
           env.DB.prepare(
-            'INSERT INTO publications (id, slug, template_id, pinned_version, clients, access, output, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO publications (id, slug, template_id, pinned_version, clients, access, output, experimental_full_config, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           ).bind(
             publication.id || id('pub'),
             publication.slug,
@@ -390,6 +391,7 @@ export async function importRulesData(env: Env, input: unknown): Promise<RulesDa
             JSON.stringify(publication.clients),
             publication.access,
             publication.output ?? null,
+            publication.experimentalFullConfig ? 1 : 0,
             publication.createdAt ?? timestamp,
             publication.updatedAt ?? timestamp,
           ),

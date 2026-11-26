@@ -25,6 +25,7 @@ export function mapPublicationRow(row: PublicationRow): Publication {
     clients: parseClients(row.clients),
     access: row.access as PublicationAccess,
     output: row.output === 'full' || row.output === 'minimal' ? (row.output as OutputProfile) : undefined,
+    experimentalFullConfig: Boolean(row.experimentalFullConfig),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -67,7 +68,17 @@ export class PublicationsRepository {
   async update(
     id: string,
     patch: Partial<
-      Pick<PublicationRow, 'slug' | 'templateId' | 'pinnedVersion' | 'clients' | 'access' | 'output' | 'updatedAt'>
+      Pick<
+        PublicationRow,
+        | 'slug'
+        | 'templateId'
+        | 'pinnedVersion'
+        | 'clients'
+        | 'access'
+        | 'output'
+        | 'experimentalFullConfig'
+        | 'updatedAt'
+      >
     >,
   ): Promise<void> {
     await this.db.update(publications).set(patch).where(eq(publications.id, id));

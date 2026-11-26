@@ -160,6 +160,7 @@ const probeTemplateBodySchema = z.object({
 const previewTemplateQuerySchema = z.object({
   client: templateClientIdSchema.optional().default('mihomo'),
   output: outputProfileSchema.optional(),
+  experimentalFullConfig: z.enum(['1', 'true', '0', 'false']).optional(),
 });
 
 const previewTemplateBodySchema = z
@@ -167,6 +168,7 @@ const previewTemplateBodySchema = z
     output: outputProfileSchema.optional(),
     body: templateBodySchema.optional(),
     overlay: templateOverlaySchema.optional(),
+    experimentalFullConfig: z.boolean().optional(),
   })
   .optional()
   .default({});
@@ -284,12 +286,19 @@ export const templateRoutes = new Hono<AppBindings>()
     async (c) => {
       const query = c.req.valid('query');
       const body = c.req.valid('json');
+      const queryExp =
+        query.experimentalFullConfig === '1' || query.experimentalFullConfig === 'true'
+          ? true
+          : query.experimentalFullConfig === '0' || query.experimentalFullConfig === 'false'
+            ? false
+            : undefined;
       const compiled = await previewTemplateById(c.env, c.req.param('id'), {
         client: query.client,
         output: body.output ?? query.output,
         body: body.body,
         overlay: body.overlay,
         baseUrl: externalBaseUrl(c),
+        experimentalFullConfig: body.experimentalFullConfig ?? queryExp,
       });
       return json({ preview: compiled });
     },

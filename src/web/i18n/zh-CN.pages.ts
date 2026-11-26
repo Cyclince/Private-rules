@@ -600,6 +600,15 @@ export const zhCNPages = {
   'publications.fieldAccess': '访问方式',
   'publications.fieldOutput': '输出档位覆盖',
   'publications.outputHint': 'full 包含运行参数与 DNS，适合直接导入；minimal 仅含策略组与规则，适合 OpenClash。',
+  'publications.fieldExperimentalFullConfig': '实验性完整配置（Loon / Quantumult X）',
+  'publications.experimentalFullConfigLabel': '为 Loon 与 Quantumult X 输出完整配置（实验性，默认关闭）',
+  'publications.experimentalFullConfigSafeHint':
+    '默认关闭：Loon 与 Quantumult X 仅输出安全的“仅规则资源”（QX filter_remote / Loon 远程规则），不会覆盖客户端已有节点订阅。',
+  'publications.experimentalFullConfigWarningTitle': '警告：实验性完整配置未经真机验证',
+  'publications.experimentalFullConfigWarningBody':
+    '开启后将输出包含策略组与全局段的完整配置文件。将完整配置直接导入 Loon 或 Quantumult X 可能覆盖客户端已有的节点订阅，且该输出目前未经真机验证，请务必先备份客户端配置。',
+  'publications.experimentalBadge': '实验完整配置（未验证）',
+  'publications.safeRulesOnlyBadge': '安全默认：仅规则资源',
   'publications.publicDisabledReason':
     '已绑定节点订阅地址的发布禁止设为“公开”访问（避免配置文件泄露订阅明文）；如需公开请先清除全部节点绑定。',
   'publications.validationSlug': '请输入有效的发布标识（字母、数字、连字符或下划线）',
@@ -640,14 +649,24 @@ export const zhCNPages = {
   'publications.linksComingSoonHint': '该客户端编译器即将支持，暂不生成可下载链接。',
   'publications.previewTitle': '实时编译预览',
   'publications.previewDesc': '调用服务端编译器生成只读配置预览（不含真实节点明文）',
-  'publications.previewClientUnsupported':
-    '该客户端编译器即将支持，目前可切换至 mihomo / Stash / Surge / sing-box 查看实时编译预览。',
+  'publications.previewClientUnsupported': '该客户端暂不支持编译预览。',
   'publications.previewStatsGroups': '策略组',
   'publications.previewStatsRuleProviders': '规则集源',
   'publications.previewStatsRules': '规则数',
   'publications.previewStatsSkipped': '跳过规则',
   'publications.previewCopyCode': '复制配置',
   'publications.previewCopiedToast': '编译结果已复制',
+  'publications.previewCompatReportTitle': '客户端兼容性报告',
+  'publications.previewCompatAllClear': '无兼容性降级或跳过项，可直接使用。',
+  'publications.previewCompatErrors': '错误',
+  'publications.previewCompatWarnings': '警告',
+  'publications.previewCompatInfos': '说明',
+  'publications.previewAppliedModules': '已启用增强模块',
+  'publications.previewSkippedModules': '已跳过增强模块',
+  'publications.previewSafeRulesOnlyBanner':
+    '当前处于安全默认“仅规则资源”模式，可直接作为远程规则资源导入，不会覆盖客户端已有节点订阅。',
+  'publications.previewExperimentalBanner':
+    '当前已开启实验性完整配置模式（未经真机验证）：直接作为完整配置导入可能覆盖客户端已有节点订阅，请先备份。',
   'publications.boundSlotsBadge': '个槽位已绑',
 
   // Settings, API Keys, Backup, About (M3.2)

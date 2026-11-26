@@ -57,6 +57,7 @@ export function publicationCacheKeyUrl(identity: PublicationCacheIdentity): stri
     `v${identity.templateVersion}`,
     encodeURIComponent(identity.client),
     encodeURIComponent(identity.output),
+    identity.experimentalFullConfig ? 'exp-full' : 'safe',
     encodeURIComponent(identity.bindingsVersion),
     encodeURIComponent(identity.depsVersion),
   ];

@@ -406,6 +406,7 @@ export const publications = sqliteTable(
     clients: text('clients').notNull(),
     access: text('access').notNull().default('token'),
     output: text('output'),
+    experimentalFullConfig: integer('experimental_full_config').notNull().default(0),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },

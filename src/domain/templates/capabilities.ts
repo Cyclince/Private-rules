@@ -91,6 +91,57 @@ export type EmptyFallbackMechanism = 'compatible-builtin' | 'explicit-fallback-p
  *   - New DNS servers dial directly by default (do NOT set `detour` to an empty `direct` outbound); domain-based server addresses MUST set `domain_resolver` to an IP-based bootstrap server tag.
  *   - FakeIP uses `{ "type": "fakeip", "tag": "...", "inet4_range": "...", "inet6_range"?: "..." }` (replaces legacy `dns.fakeip`).
  *   - Supports rule-routed DNS (`dns.rules` + proxy `detour` for `dns-leak-guard`) and both standard (non-FakeIP) & FakeIP modes.
+ *
+ * Official `loon` audit notes:
+ * - Docs: https://nsloon.app/docs/ (mirror: https://loon0x00.github.io/docs/)
+ * - Manual: https://github.com/Loon0x00/LoonManual (docs/cn/{rule,domain_rule,ip_rule,http_rule,port_rule,protocol_rule,logic_rule,sub_rule,policy,policygroup,nodefilter,general,plugin}.md)
+ * - Example config: https://github.com/Loon0x00/LoonExampleConfig (`example2.lcf`, `Rule/ExampleRule.list`)
+ * - Rule priority: local `[Rule]` > `[Plugin]` > `[Remote Rule]` (`localFirstRules: true`).
+ *   Remote rule lists placed before local rules MUST be inlined into `[Rule]` to preserve order.
+ * - `rules`: 11 of 14 canonical rule types (`DOMAIN`, `DOMAIN-SUFFIX`, `DOMAIN-KEYWORD`, `IP-CIDR`,
+ *   `IP-ASN`, `GEOIP`, `USER-AGENT`, `URL-REGEX`, `DST-PORT` aliased to `DEST-PORT`, `SRC-PORT` 3.1.7+,
+ *   `PROCESS-NAME` Mac-only). IPv6 CIDR emits `IP-CIDR6`; `no-resolve` valid on `IP-CIDR`, `IP-CIDR6`,
+ *   `IP-ASN`, `GEOIP`; logical rules `AND`/`OR`/`NOT` use double parens `((...))` (3.1.7+);
+ *   no native `GEOSITE`, `DOMAIN-REGEX`, `SRC-IP-CIDR`; built-in policies include `DIRECT`, `REJECT`,
+ *   `REJECT-DROP`, `PROXY`; final keyword is `FINAL`.
+ * - `[Remote Filter]` & `[Proxy Group]`: `[Remote Filter]` supports `NameRegex, FilterKey="<icu-regex>"`
+ *   and `NameKeyword, FilterKey="<keywords>"`; `[Proxy Group]` supports `select`, `url-test`,
+ *   `fallback`, `load-balance` (`algorithm=pcc|round-robin|random`), `img-url=<url>`.
+ * - Safety (§20): importing a full `.conf` may overwrite user `[Remote Proxy]` subscriptions, so
+ *   default output is a rules-only remote rule resource unless `experimentalFullConfig` is explicitly enabled.
+ *
+ * Official `quantumult-x` audit notes:
+ * - Sample config: https://github.com/crossutility/Quantumult-X/blob/master/sample.conf (v1.5.5 build 914)
+ * - Filter snippet: https://github.com/crossutility/Quantumult-X/blob/master/filter.snippet
+ * - Docs: https://github.com/crossutility/Quantumult-X/blob/master/README.md
+ * - Rule priority: `[filter_local]` is evaluated BEFORE `[filter_remote]` (`localFirstRules: true`).
+ *   Remote rule lists placed before local rules MUST be inlined into `[filter_local]` to preserve order.
+ * - `rules`: 7 of 14 canonical rule types using lowercase QX keywords: `host` (`DOMAIN`),
+ *   `host-suffix` (`DOMAIN-SUFFIX`), `host-keyword` (`DOMAIN-KEYWORD`), `ip-cidr` (`IP-CIDR`, IPv6 -> `ip6-cidr`),
+ *   `ip-asn` (`IP-ASN`), `geoip` (`GEOIP`), `user-agent` (`USER-AGENT`). Unsupported: `DOMAIN-REGEX`,
+ *   `SRC-IP-CIDR`, `DST-PORT`, `SRC-PORT`, `PROCESS-NAME`, `URL-REGEX`, `GEOSITE`, and logical rules (`AND`/`OR`/`NOT`).
+ *   Final keyword is `final`. Built-in policies are lowercase `direct`, `reject`, `proxy` (`REJECT-DROP` maps to `reject`).
+ * - `[policy]`: `static`, `url-latency-benchmark`, `available`, `dest-hash` / `round-robin`, `img-url=<url>`,
+ *   `server-tag-regex=<re2-safe-regex>` (no lookahead/lookbehind; excludes degrade to two-stage include/exclude).
+ * - Safety (§20): importing a full `.conf` may overwrite user `[server_remote]` subscriptions, so
+ *   default output is a `filter_remote`-importable rules-only resource (`filter.snippet` format) unless
+ *   `experimentalFullConfig` is explicitly enabled.
+ *
+ * Official `shadowrocket` audit notes:
+ * - Official site: https://shadowlaunch.com/
+ * - Manual & sample: https://github.com/LOWERTOP/Shadowrocket/blob/master/README.md
+ *   & https://github.com/LOWERTOP/Shadowrocket/blob/master/lazy_group.conf (synced with `@ShadowrocketApp`, v2.2.x)
+ * - Rule priority: `[Rule]` evaluates inline rules and `RULE-SET,<url>,<policy>` strictly in top-to-bottom
+ *   order (`localFirstRules: false`). Always emit `RULE-SET` (not `DOMAIN-SET`) for typed `.list` files.
+ * - `rules`: 9 of 14 canonical rule types (`DOMAIN`, `DOMAIN-SUFFIX`, `DOMAIN-KEYWORD`, `IP-CIDR` matching
+ *   both IPv4 & IPv6, `IP-ASN`, `GEOIP`, `USER-AGENT`, `URL-REGEX`, `DST-PORT`). Unsupported: `DOMAIN-REGEX`,
+ *   `SRC-IP-CIDR`, `SRC-PORT`, `PROCESS-NAME`, `GEOSITE`. Logical rules `AND`/`OR`/`NOT` use double parens
+ *   `((...))`; `no-resolve` valid on `IP-CIDR`, `IP-ASN`, `GEOIP`; built-in policies include `DIRECT`, `REJECT`,
+ *   `REJECT-DROP`, `PROXY`; final keyword is `FINAL`.
+ * - `[Proxy Group]`: `select`, `url-test`, `fallback`, `load-balance` (consistent hash), `random` (round-robin);
+ *   supports `policy-regex-filter=<icu-regex>` (lookahead supported, lookbehind unsupported), `url=`, `interval=`,
+ *   `tolerance=`, `timeout=`; does NOT support group icons (`groupIcons: false`).
+ * - Nodes live in Shadowrocket's app database separately from `.conf`, so full config is safe by default.
  */
 export type ClientCapabilities = {
   client: TemplateClientId;
@@ -347,7 +398,7 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     emptyFallback: false,
     emptyFallbackMechanism: 'explicit-fallback-proxy',
     noResolve: true,
-    rejectDrop: false,
+    rejectDrop: true,
     supportedRuleTypes: new Set<RuleType>([
       'DOMAIN',
       'DOMAIN-SUFFIX',
@@ -358,19 +409,23 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
       'USER-AGENT',
       'URL-REGEX',
       'DST-PORT',
+      'SRC-PORT',
+      'PROCESS-NAME',
     ]),
-    ruleTypeAliases: {},
+    ruleTypeAliases: {
+      'DST-PORT': 'DEST-PORT',
+    },
     supportedGroupTypes: new Set<GroupType>(['select', 'url-test', 'fallback', 'load-balance']),
     supportedRemoteFormats: new Set<RemoteRuleFormat>(['text']),
     remoteRulesetField: '[Remote Rule]',
     remoteNodeField: '[Remote Proxy]',
-    nodeFilterField: 'filter',
+    nodeFilterField: 'NameRegex',
     nodeExcludeFilterField: null,
     groupIconField: 'img-url',
     finalRuleKeyword: 'FINAL',
     ipV6RuleType: 'IP-CIDR6',
     noResolveRuleTypes: new Set<RuleType>(['IP-CIDR', 'IP-ASN', 'GEOIP']),
-    builtinPolicies: new Set(['DIRECT', 'REJECT']),
+    builtinPolicies: new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PROXY']),
     mrsSupportedBehaviors: EMPTY_BEHAVIORS,
     supportsRespectRules: false,
     requiresProxyServerNameserverWithRespectRules: false,
@@ -403,7 +458,15 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
       'GEOIP',
       'USER-AGENT',
     ]),
-    ruleTypeAliases: {},
+    ruleTypeAliases: {
+      DOMAIN: 'host',
+      'DOMAIN-SUFFIX': 'host-suffix',
+      'DOMAIN-KEYWORD': 'host-keyword',
+      'IP-CIDR': 'ip-cidr',
+      'IP-ASN': 'ip-asn',
+      GEOIP: 'geoip',
+      'USER-AGENT': 'user-agent',
+    },
     supportedGroupTypes: new Set<GroupType>(['select', 'url-test', 'fallback', 'load-balance']),
     supportedRemoteFormats: new Set<RemoteRuleFormat>(['text']),
     remoteRulesetField: '[filter_remote]',
@@ -411,8 +474,8 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     nodeFilterField: 'server-tag-regex',
     nodeExcludeFilterField: null,
     groupIconField: 'img-url',
-    finalRuleKeyword: 'FINAL',
-    ipV6RuleType: 'IP6-CIDR',
+    finalRuleKeyword: 'final',
+    ipV6RuleType: 'ip6-cidr',
     noResolveRuleTypes: new Set<RuleType>(['IP-CIDR', 'IP-ASN', 'GEOIP']),
     builtinPolicies: new Set(['direct', 'reject', 'proxy']),
     mrsSupportedBehaviors: EMPTY_BEHAVIORS,
@@ -437,7 +500,7 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     emptyFallback: false,
     emptyFallbackMechanism: 'explicit-fallback-proxy',
     noResolve: true,
-    rejectDrop: false,
+    rejectDrop: true,
     supportedRuleTypes: new Set<RuleType>([
       'DOMAIN',
       'DOMAIN-SUFFIX',
@@ -458,9 +521,9 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     nodeExcludeFilterField: null,
     groupIconField: null,
     finalRuleKeyword: 'FINAL',
-    ipV6RuleType: 'IP-CIDR6',
+    ipV6RuleType: 'IP-CIDR',
     noResolveRuleTypes: new Set<RuleType>(['IP-CIDR', 'IP-ASN', 'GEOIP']),
-    builtinPolicies: new Set(['DIRECT', 'REJECT', 'PROXY']),
+    builtinPolicies: new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PROXY']),
     mrsSupportedBehaviors: EMPTY_BEHAVIORS,
     supportsRespectRules: false,
     requiresProxyServerNameserverWithRespectRules: false,

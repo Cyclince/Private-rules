@@ -104,6 +104,7 @@ export type CreatePublicationInput = {
   clients: TemplateClientId[];
   access: PublicationAccess;
   output?: OutputProfile;
+  experimentalFullConfig?: boolean;
 };
 
 export type UpdatePublicationInput = {
@@ -113,6 +114,7 @@ export type UpdatePublicationInput = {
   clients?: TemplateClientId[];
   access?: PublicationAccess;
   output?: OutputProfile | null;
+  experimentalFullConfig?: boolean;
 };
 
 export type UpsertNodeBindingInput = {
@@ -129,6 +131,7 @@ export type PublicationCacheIdentity = {
   templateVersion: number;
   client: TemplateClientId;
   output: OutputProfile;
+  experimentalFullConfig?: boolean;
   bindingsVersion: string;
   depsVersion: string;
   /** Snapshot fingerprint for B-class deliveries (changes when snapshot refreshes or becomes stale). */
@@ -364,6 +367,7 @@ export async function createPublication(
     clients: JSON.stringify(uniqueClients),
     access: input.access,
     output: input.output ?? null,
+    experimentalFullConfig: input.experimentalFullConfig ? 1 : 0,
     createdAt: timestamp,
     updatedAt: timestamp,
   });
@@ -429,6 +433,8 @@ export async function updatePublication(
     }
   }
   const nextOutput = patch.output === undefined ? (existing.output ?? null) : patch.output;
+  const nextExperimentalFullConfig =
+    patch.experimentalFullConfig === undefined ? existing.experimentalFullConfig : patch.experimentalFullConfig;
   const timestamp = now();
 
   await repos.publications.update(existing.id, {
@@ -438,6 +444,7 @@ export async function updatePublication(
     clients: JSON.stringify(nextClients),
     access: nextAccess,
     output: nextOutput,
+    experimentalFullConfig: nextExperimentalFullConfig ? 1 : 0,
     updatedAt: timestamp,
   });
 
@@ -681,6 +688,7 @@ export async function resolvePublicationDelivery(
       templateVersion,
       client,
       output,
+      experimentalFullConfig: publication.experimentalFullConfig,
       bindingsVersion,
       depsVersion,
       ...(snapshotsVersion ? { snapshotsVersion } : {}),
@@ -720,7 +728,7 @@ export async function compilePublicationDelivery(
           expiresAt: snap.expiresAt,
         });
       }
-    } else {
+    } else if (TEMPLATE_CLIENTS[delivery.client].nodeAccess === 'A') {
       const explicitSecret = requireExplicitSessionSecret(resolveExplicitSessionSecret(env));
       for (const row of delivery.bindingRows) {
         const decryptedUrl = await decryptNodeSecret(
@@ -755,5 +763,6 @@ export async function compilePublicationDelivery(
     baseUrl,
     slotBindings,
     iconPack,
+    experimentalFullConfig: delivery.publication.experimentalFullConfig,
   });
 }

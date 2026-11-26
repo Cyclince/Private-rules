@@ -1,4 +1,5 @@
 import type { TemplateClientId } from '../../shared/clients';
+import type { NodeFilter } from '../../shared/schemas/card';
 import { getRegionDefinition, type RegionDefinition } from './regions';
 
 export type RegexEngineKind = 'pcre2-like' | 'icu' | 'js' | 're2-safe';
@@ -412,4 +413,217 @@ export function detectRegexDialectIssues(pattern: string, client: TemplateClient
   }
 
   return issues;
+}
+
+export type CompiledClientNodeFilter = {
+  client: TemplateClientId;
+  dialect: RegexDialect;
+  /** `'regex'` when client supports a single native regex; `'two-stage'` when degraded to include/exclude stages. */
+  mode: 'regex' | 'two-stage';
+  /** Primary regex emitted into the client's filter field (combined when `mode === 'regex'`, safe include when degraded). */
+  regex: string;
+  /** Positive include regex safe for the target client dialect. */
+  includePattern: string;
+  /** Separate exclude regex when `mode === 'two-stage'` or `dialect.supportsSeparateExclude`. */
+  excludePattern?: string;
+  /** Plain keyword tokens for non-regex / `NameKeyword` fallback stages. */
+  includeKeywords: string[];
+  /** Plain exclude keyword tokens for two-stage exclusion stage. */
+  excludeKeywords: string[];
+  /** Human-readable explanation when degraded to two-stage include/exclude. */
+  degradedReason?: string;
+  warnings: RegexDialectWarning[];
+};
+
+function stripInlineFlags(pattern: string): string {
+  return pattern.replace(/^\(\?[imsx-]+\)/, '');
+}
+
+/**
+ * Extracts literal keyword tokens from a user regex or region definition so
+ * clients that cannot run regex (or encounter dialect-incompatible regexes) can
+ * degrade cleanly into two-stage include/exclude keyword matching.
+ */
+function extractKeywordsFromPattern(pattern: string | undefined): string[] {
+  if (!pattern) return [];
+  const stripped = stripInlineFlags(pattern)
+    .replace(/\(\?<[=!][^)]*\)/g, '')
+    .replace(/\(\?[=!][^)]*\)/g, '')
+    .replace(/\(\?:/g, '(')
+    .replace(/[()^$[\]{}*+?\\]/g, '|');
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+  for (const part of stripped.split('|')) {
+    const token = part.trim();
+    if (!token || seen.has(token)) continue;
+    seen.add(token);
+    tokens.push(token);
+  }
+  return tokens;
+}
+
+function collectRegionKeywords(regionCodes: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const keywords: string[] = [];
+  const push = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) return;
+    seen.add(trimmed);
+    keywords.push(trimmed);
+  };
+  for (const rawCode of regionCodes) {
+    const entry = getRegionDefinition(rawCode);
+    if (!entry) continue;
+    if (entry.flag) push(entry.flag);
+    for (const zh of entry.zhTerms) push(zh);
+    for (const en of entry.enTerms) push(en);
+    for (const code of entry.codes) push(code);
+  }
+  return keywords;
+}
+
+function buildSafeAlternationFromKeywords(keywords: readonly string[], dialect: RegexDialect): string {
+  if (keywords.length === 0) return '.*';
+  return withCaseFlag(keywords.map(escapeRegexLiteral).join('|'), dialect);
+}
+
+/**
+ * Compiles a `NodeFilter` (plus optional slot-level `excludeInfo`) for a target
+ * client dialect. When the client cannot natively express the filter in one
+ * regex (e.g. Quantumult X RE2-safe dialect lacking lookahead for excludes,
+ * Shadowrocket lacking lookbehind, or invalid/unsupported user regex), degrades
+ * deterministically to a two-stage "include / exclude" (包含/排除) representation.
+ */
+export function compileClientNodeFilter(
+  filter: NodeFilter | undefined,
+  client: TemplateClientId,
+  options?: { excludeInfo?: boolean },
+): CompiledClientNodeFilter {
+  const dialect = CLIENT_REGEX_DIALECTS[client];
+  const warnings: RegexDialectWarning[] = [];
+
+  const regions = filter?.regions?.map((code) => code.trim().toUpperCase()).filter(Boolean) ?? [];
+  const rawInclude = filter?.include?.trim();
+  const rawExclude = filter?.exclude?.trim();
+  const excludeInfo = Boolean(options?.excludeInfo);
+
+  const includeKeywords: string[] = [...collectRegionKeywords(regions), ...extractKeywordsFromPattern(rawInclude)];
+  const excludeKeywords: string[] = [
+    ...extractKeywordsFromPattern(rawExclude),
+    ...(excludeInfo ? NON_NODE_INFO_KEYWORDS : []),
+  ];
+
+  // Validate user-provided regex fragments against the target client's dialect.
+  const includeIssues = rawInclude ? detectRegexDialectIssues(rawInclude, client) : [];
+  const excludeIssues = rawExclude ? detectRegexDialectIssues(rawExclude, client) : [];
+  warnings.push(...includeIssues, ...excludeIssues);
+
+  const includeHasHardIssue = includeIssues.length > 0;
+  const excludeHasHardIssue = excludeIssues.length > 0;
+
+  const extraExcludeParts: string[] = [];
+  if (rawExclude && !excludeHasHardIssue) {
+    extraExcludeParts.push(`(?:${stripInlineFlags(rawExclude)})`);
+  } else if (rawExclude && excludeHasHardIssue) {
+    const safeExcludeTokens = extractKeywordsFromPattern(rawExclude);
+    if (safeExcludeTokens.length > 0) {
+      extraExcludeParts.push(`(?:${safeExcludeTokens.map(escapeRegexLiteral).join('|')})`);
+    }
+  }
+  if (excludeInfo) {
+    extraExcludeParts.push(`(?:${NON_NODE_INFO_KEYWORDS.map(escapeRegexLiteral).join('|')})`);
+  }
+  const mergedRawExclude = extraExcludeParts.length > 0 ? extraExcludeParts.join('|') : undefined;
+
+  let includePattern: string;
+  if (regions.length > 0) {
+    const regionCompiled = buildRegionRegex(regions, client, {
+      extraInclude: rawInclude && !includeHasHardIssue ? stripInlineFlags(rawInclude) : undefined,
+    });
+    warnings.push(...regionCompiled.warnings);
+    includePattern = regionCompiled.include;
+    if (rawInclude && includeHasHardIssue) {
+      const safeIncludeTokens = extractKeywordsFromPattern(rawInclude);
+      if (safeIncludeTokens.length > 0) {
+        const baseInner = stripInlineFlags(regionCompiled.include);
+        const tokenAlt = safeIncludeTokens.map(escapeRegexLiteral).join('|');
+        includePattern = withCaseFlag(`${baseInner}|${tokenAlt}`, dialect);
+      }
+    }
+  } else if (rawInclude) {
+    if (!includeHasHardIssue) {
+      includePattern = withCaseFlag(stripInlineFlags(rawInclude), dialect);
+    } else {
+      includePattern = buildSafeAlternationFromKeywords(extractKeywordsFromPattern(rawInclude), dialect);
+    }
+  } else {
+    includePattern = '.*';
+  }
+
+  const excludePattern = mergedRawExclude ? withCaseFlag(mergedRawExclude, dialect) : undefined;
+
+  // Determine whether we must degrade to two-stage include/exclude mode.
+  const degradationReasons: string[] = [];
+  if (includeHasHardIssue) {
+    degradationReasons.push(`包含正则包含 ${client} 不支持的语法或语法错误`);
+  }
+  if (excludeHasHardIssue) {
+    degradationReasons.push(`排除正则包含 ${client} 不支持的语法或语法错误`);
+  }
+  if (mergedRawExclude && !dialect.supportsSeparateExclude && !dialect.supportsLookahead) {
+    degradationReasons.push(`${client} 不支持负向前瞻，无法在单条正则内联排除条件`);
+    warnings.push({
+      code: 'EXCLUDE_REQUIRES_LOOKAHEAD',
+      message: `${client} 不支持负向前瞻，已降级为“包含/排除”两段式节点筛选。`,
+    });
+  }
+
+  const mustDegrade = degradationReasons.length > 0;
+
+  if (mustDegrade) {
+    return {
+      client,
+      dialect,
+      mode: 'two-stage',
+      regex: includePattern,
+      includePattern,
+      excludePattern,
+      includeKeywords,
+      excludeKeywords,
+      degradedReason: `${degradationReasons.join('；')}，已降级为“包含/排除”两段式筛选。`,
+      warnings,
+    };
+  }
+
+  // Native single-regex or native separate-exclude mode.
+  if (mergedRawExclude && !dialect.supportsSeparateExclude) {
+    const innerInclude = stripInlineFlags(includePattern);
+    const combined =
+      innerInclude === '.*'
+        ? withCaseFlag(`^(?!.*(?:${mergedRawExclude})).*$`, dialect)
+        : withCaseFlag(`^(?!.*(?:${mergedRawExclude})).*(?:${innerInclude})`, dialect);
+    return {
+      client,
+      dialect,
+      mode: 'regex',
+      regex: combined,
+      includePattern,
+      excludePattern,
+      includeKeywords,
+      excludeKeywords,
+      warnings,
+    };
+  }
+
+  return {
+    client,
+    dialect,
+    mode: 'regex',
+    regex: includePattern,
+    includePattern,
+    excludePattern,
+    includeKeywords,
+    excludeKeywords,
+    warnings,
+  };
 }

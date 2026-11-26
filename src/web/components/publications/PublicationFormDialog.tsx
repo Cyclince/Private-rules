@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ShieldAlert, Sparkles } from 'lucide-react';
+import { AlertTriangle, ShieldAlert, Sparkles } from 'lucide-react';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -41,6 +41,7 @@ const publicationDialogSchema = z.object({
   clients: z.array(templateClientIdSchema).min(1),
   access: publicationAccessSchema,
   output: z.enum(['', ...OUTPUT_PROFILES]),
+  experimentalFullConfig: z.boolean(),
 });
 
 type PublicationDialogFormValues = z.infer<typeof publicationDialogSchema>;
@@ -52,6 +53,7 @@ export type PublicationSubmitPayload = {
   clients: TemplateClientId[];
   access: PublicationAccess;
   output: OutputProfile | null;
+  experimentalFullConfig: boolean;
 };
 
 type PublicationFormDialogProps = {
@@ -97,12 +99,14 @@ export function PublicationFormDialog({
       clients: ['mihomo'],
       access: 'token',
       output: '',
+      experimentalFullConfig: false,
     },
   });
 
   const watchedTemplateId = form.watch('templateId');
   const watchedClients = form.watch('clients');
   const watchedAccess = form.watch('access');
+  const watchedExperimentalFullConfig = form.watch('experimentalFullConfig');
 
   const versionsQuery = useQuery({
     ...templateVersionsQueryOptions(watchedTemplateId),
@@ -120,6 +124,7 @@ export function PublicationFormDialog({
         clients: initial.clients.length > 0 ? [...initial.clients] : ['mihomo'],
         access: initial.access,
         output: initial.output ?? '',
+        experimentalFullConfig: Boolean(initial.experimentalFullConfig),
       });
     } else {
       form.reset({
@@ -129,6 +134,7 @@ export function PublicationFormDialog({
         clients: ['mihomo'],
         access: 'token',
         output: '',
+        experimentalFullConfig: false,
       });
     }
   }, [open, mode, initial, form, templates]);
@@ -166,6 +172,7 @@ export function PublicationFormDialog({
       clients: values.clients,
       access: values.access,
       output: values.output ? (values.output as OutputProfile) : null,
+      experimentalFullConfig: values.experimentalFullConfig,
     });
   });
 
@@ -369,6 +376,35 @@ export function PublicationFormDialog({
               <option value="minimal">{t('publications.output.minimal')}</option>
             </select>
             <p className="text-[11px] text-text-muted">{t('publications.outputHint')}</p>
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-border bg-surface-muted/40 p-3">
+            <span className="text-xs font-medium text-text">{t('publications.fieldExperimentalFullConfig')}</span>
+            <label className="flex cursor-pointer items-start gap-2 text-xs text-text">
+              <input
+                type="checkbox"
+                data-testid="pub-form-experimental-full-config"
+                className="mt-0.5 accent-primary"
+                disabled={readOnly}
+                {...form.register('experimentalFullConfig')}
+              />
+              <span>{t('publications.experimentalFullConfigLabel')}</span>
+            </label>
+            {watchedExperimentalFullConfig ? (
+              <div
+                data-testid="pub-form-experimental-warning"
+                role="alert"
+                className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-warning bg-warning/10 px-3 py-2 text-xs text-text"
+              >
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-semibold">{t('publications.experimentalFullConfigWarningTitle')}</span>
+                  <span className="text-text-muted">{t('publications.experimentalFullConfigWarningBody')}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-[11px] text-text-muted">{t('publications.experimentalFullConfigSafeHint')}</p>
+            )}
           </div>
 
           <DialogFooter>

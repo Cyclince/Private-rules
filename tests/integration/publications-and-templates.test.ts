@@ -316,14 +316,59 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     expect(parsedSingboxPreview.outbounds.length).toBeGreaterThan(0);
     expect(parsedSingboxPreview.route.final).toBeTruthy();
 
-    const previewLoonRes = await adminRequest(`/api/templates/${templateId}/preview?client=loon`, {
+    // Loon & QX default to safe rules-only resource; experimentalFullConfig=true emits full config + unverified warning
+    const previewLoonSafeRes = await adminRequest(`/api/templates/${templateId}/preview?client=loon`, {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify({ output: 'full' }),
     });
-    expect(previewLoonRes.status).toBe(404);
-    expect((await previewLoonRes.json()) as { error: string }).toMatchObject({
-      error: expect.stringContaining('尚未支持'),
+    expect(previewLoonSafeRes.status).toBe(200);
+    const previewLoonSafe = (await previewLoonSafeRes.json()) as {
+      preview: {
+        client: string;
+        content: string;
+        report: { items: Array<{ code: string; message: string }> };
+      };
+    };
+    expect(previewLoonSafe.preview.client).toBe('loon');
+    expect(previewLoonSafe.preview.content).not.toContain('[General]');
+    expect(previewLoonSafe.preview.report.items.some((i) => i.code === 'RULES_ONLY_SAFE_DEFAULT')).toBe(true);
+
+    const previewLoonExpRes = await adminRequest(`/api/templates/${templateId}/preview?client=loon`, {
+      method: 'POST',
+      body: JSON.stringify({ output: 'full', experimentalFullConfig: true }),
     });
+    expect(previewLoonExpRes.status).toBe(200);
+    const previewLoonExp = (await previewLoonExpRes.json()) as {
+      preview: { content: string; report: { items: Array<{ code: string; message: string }> } };
+    };
+    expect(previewLoonExp.preview.content).toContain('[General]');
+    expect(previewLoonExp.preview.content).toContain('[Proxy Group]');
+    expect(
+      previewLoonExp.preview.report.items.some(
+        (i) => i.code === 'EXPERIMENTAL_FULL_CONFIG_UNVERIFIED' && i.message.includes('未经真机验证'),
+      ),
+    ).toBe(true);
+
+    const previewQxSafeRes = await adminRequest(`/api/templates/${templateId}/preview?client=quantumult-x`, {
+      method: 'POST',
+      body: JSON.stringify({ output: 'full' }),
+    });
+    expect(previewQxSafeRes.status).toBe(200);
+    const previewQxSafe = (await previewQxSafeRes.json()) as {
+      preview: { content: string; report: { items: Array<{ code: string }> } };
+    };
+    expect(previewQxSafe.preview.content).not.toContain('[policy]');
+    expect(previewQxSafe.preview.report.items.some((i) => i.code === 'RULES_ONLY_SAFE_DEFAULT')).toBe(true);
+
+    const previewSrRes = await adminRequest(`/api/templates/${templateId}/preview?client=shadowrocket`, {
+      method: 'POST',
+      body: JSON.stringify({ output: 'full' }),
+    });
+    expect(previewSrRes.status).toBe(200);
+    const previewSr = (await previewSrRes.json()) as { preview: { content: string } };
+    expect(previewSr.preview.content).toContain('[General]');
+    expect(previewSr.preview.content).toContain('[Proxy Group]');
+    expect(previewSr.preview.content).toContain('[Rule]');
 
     // Update -> check versions -> restore v1 -> rebase
     const patchTplRes = await adminRequest(`/api/templates/${templateId}`, {
@@ -638,11 +683,10 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     const wrongMode = await app.request('/p/my-mihomo/mihomo.yaml', {}, env);
     expect(wrongMode.status).toBe(404);
 
-    // Unsupported clients return 404 with "尚未支持" hint
+    // Unlisted client on publication returns 404
     for (const file of ['loon.conf', 'qx.conf', 'shadowrocket.conf']) {
-      const unsupported = await app.request(`/t/pub-secret-token/my-mihomo/${file}`, {}, env);
-      expect(unsupported.status).toBe(404);
-      expect(await unsupported.text()).toContain('尚未支持');
+      const unlisted = await app.request(`/t/pub-secret-token/my-mihomo/${file}`, {}, env);
+      expect(unlisted.status).toBe(404);
     }
 
     // /t delivers stash.yaml and surge.conf with decrypted slot URL, ETag/304, and proper content-type
@@ -1030,13 +1074,13 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
       resolvedBody: { slots: Array<{ id: string }> };
     };
 
-    // 1. Token access with mihomo + stash + surge + sing-box (supported) + loon (unsupported)
+    // 1. Token access with all 7 supported clients
     const createRes = await adminRequest('/api/publications', {
       method: 'POST',
       body: JSON.stringify({
         slug: 'links-pub',
         templateId: template.id,
-        clients: ['mihomo', 'stash', 'surge', 'sing-box', 'loon'],
+        clients: ['mihomo', 'stash', 'surge', 'sing-box', 'loon', 'quantumult-x', 'shadowrocket'],
         access: 'token',
       }),
     });
@@ -1045,10 +1089,12 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
       ruleTokenConfigured: boolean;
       publication: {
         id: string;
+        experimentalFullConfig: boolean;
         links: Array<{ client: string; supported: boolean; url: string | null }>;
       };
     };
     expect(created.ruleTokenConfigured).toBe(true);
+    expect(created.publication.experimentalFullConfig).toBe(false);
     expect(created.publication.links).toEqual([
       expect.objectContaining({
         client: 'mihomo',
@@ -1072,12 +1118,22 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
       }),
       expect.objectContaining({
         client: 'loon',
-        supported: false,
-        url: null,
+        supported: true,
+        url: 'https://rules.example.com/t/pub-secret-token/links-pub/loon.conf',
+      }),
+      expect.objectContaining({
+        client: 'quantumult-x',
+        supported: true,
+        url: 'https://rules.example.com/t/pub-secret-token/links-pub/qx.conf',
+      }),
+      expect.objectContaining({
+        client: 'shadowrocket',
+        supported: true,
+        url: 'https://rules.example.com/t/pub-secret-token/links-pub/shadowrocket.conf',
       }),
     ]);
 
-    // 2. Public access without bindings -> /p/ links for supported clients, null for unsupported
+    // 2. Public access without bindings -> /p/ links for all 7 supported clients
     const publicRes = await adminRequest(`/api/publications/${created.publication.id}`, {
       method: 'PATCH',
       body: JSON.stringify({ access: 'public' }),
@@ -1090,7 +1146,9 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     expect(publicBody.publication.links[1].url).toBe('https://rules.example.com/p/links-pub/stash.yaml');
     expect(publicBody.publication.links[2].url).toBe('https://rules.example.com/p/links-pub/surge.conf');
     expect(publicBody.publication.links[3].url).toBe('https://rules.example.com/p/links-pub/singbox.json');
-    expect(publicBody.publication.links[4].url).toBeNull();
+    expect(publicBody.publication.links[4].url).toBe('https://rules.example.com/p/links-pub/loon.conf');
+    expect(publicBody.publication.links[5].url).toBe('https://rules.example.com/p/links-pub/qx.conf');
+    expect(publicBody.publication.links[6].url).toBe('https://rules.example.com/p/links-pub/shadowrocket.conf');
 
     // 3. Disabled access -> no active links
     const disabledRes = await adminRequest(`/api/publications/${created.publication.id}`, {
@@ -1288,5 +1346,132 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
       vi.unstubAllGlobals();
       clearInFlightNodeFetches();
     }
+  });
+
+  it('delivers loon.conf, qx.conf, and shadowrocket.conf on /p and /t, enforces token-only with node bindings, and toggles experimentalFullConfig with cache invalidation', async () => {
+    const tplRes = await adminRequest('/api/templates', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Class C Delivery Tpl', starterTier: 'standard', output: 'full' }),
+    });
+    expect(tplRes.status).toBe(201);
+    const { template, resolvedBody } = (await tplRes.json()) as {
+      template: { id: string };
+      resolvedBody: { slots: Array<{ id: string }> };
+    };
+    const slotId = resolvedBody.slots[0].id;
+
+    // 1. Public publication without node bindings delivers loon.conf, qx.conf (rules-only default), shadowrocket.conf (full)
+    const publicPubRes = await adminRequest('/api/publications', {
+      method: 'POST',
+      body: JSON.stringify({
+        slug: 'class-c-public',
+        templateId: template.id,
+        clients: ['loon', 'quantumult-x', 'shadowrocket'],
+        access: 'public',
+        output: 'full',
+      }),
+    });
+    expect(publicPubRes.status).toBe(201);
+    const publicPub = (
+      (await publicPubRes.json()) as {
+        publication: { id: string; experimentalFullConfig: boolean };
+      }
+    ).publication;
+    expect(publicPub.experimentalFullConfig).toBe(false);
+
+    const loonSafeRes = await app.request('/p/class-c-public/loon.conf', {}, env);
+    expect(loonSafeRes.status).toBe(200);
+    expect(loonSafeRes.headers.get('content-type')).toContain('text/plain');
+    const loonSafeText = await loonSafeRes.text();
+    expect(loonSafeText).toContain('Rules-Only Remote Resource');
+    expect(loonSafeText).not.toContain('[General]');
+    expect(loonSafeText).not.toContain('[Proxy Group]');
+
+    const qxSafeRes = await app.request('/p/class-c-public/qx.conf', {}, env);
+    expect(qxSafeRes.status).toBe(200);
+    const qxSafeText = await qxSafeRes.text();
+    expect(qxSafeText).toContain('filter_remote Rules-Only Resource');
+    expect(qxSafeText).not.toContain('[general]');
+    expect(qxSafeText).not.toContain('[policy]');
+
+    const srRes = await app.request('/p/class-c-public/shadowrocket.conf', {}, env);
+    expect(srRes.status).toBe(200);
+    const srText = await srRes.text();
+    expect(srText).toContain('[General]');
+    expect(srText).toContain('[Proxy Group]');
+    expect(srText).toContain('[Rule]');
+
+    // Toggle experimentalFullConfig=true -> cache invalidated, Loon & QX now emit experimental full config
+    const deletesBeforeToggle = cache.deleteCalls;
+    const toggleRes = await adminRequest(`/api/publications/${publicPub.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ experimentalFullConfig: true }),
+    });
+    expect(toggleRes.status).toBe(200);
+    expect(cache.deleteCalls).toBeGreaterThan(deletesBeforeToggle);
+
+    const loonExpRes = await app.request('/p/class-c-public/loon.conf', {}, env);
+    expect(loonExpRes.status).toBe(200);
+    const loonExpText = await loonExpRes.text();
+    expect(loonExpText).toContain('未经真机验证');
+    expect(loonExpText).toContain('[General]');
+    expect(loonExpText).toContain('[Proxy Group]');
+    expect(loonExpText).toContain('[Rule]');
+
+    const qxExpRes = await app.request('/p/class-c-public/qx.conf', {}, env);
+    expect(qxExpRes.status).toBe(200);
+    const qxExpText = await qxExpRes.text();
+    expect(qxExpText).toContain('未经真机验证');
+    expect(qxExpText).toContain('[general]');
+    expect(qxExpText).toContain('[policy]');
+    expect(qxExpText).toContain('[filter_local]');
+
+    // 2. Publication with node bindings MUST remain token-only even for Loon/QX/Shadowrocket, and never leak node URLs
+    const boundPubRes = await adminRequest('/api/publications', {
+      method: 'POST',
+      body: JSON.stringify({
+        slug: 'class-c-bound',
+        templateId: template.id,
+        clients: ['mihomo', 'loon', 'quantumult-x', 'shadowrocket'],
+        access: 'token',
+        output: 'minimal',
+      }),
+    });
+    expect(boundPubRes.status).toBe(201);
+    const boundPub = ((await boundPubRes.json()) as { publication: { id: string } }).publication;
+
+    const secretSubUrl = 'https://secret-c-provider.example/sub?token=CLASS_C_SECRET_777';
+    const bindRes = await adminRequest(`/api/publications/${boundPub.id}/slots/${slotId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ subscriptionUrl: secretSubUrl }),
+    });
+    expect(bindRes.status).toBe(200);
+
+    // Switching bound publication to public MUST still be rejected
+    const forbiddenPublic = await adminRequest(`/api/publications/${boundPub.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ access: 'public' }),
+    });
+    expect(forbiddenPublic.status).toBe(400);
+
+    for (const file of ['loon.conf', 'qx.conf', 'shadowrocket.conf']) {
+      expect((await app.request(`/p/class-c-bound/${file}`, {}, env)).status).toBe(404);
+      const tokenRes = await app.request(`/t/pub-secret-token/class-c-bound/${file}`, {}, env);
+      expect(tokenRes.status).toBe(200);
+      const bodyText = await tokenRes.text();
+      expect(bodyText).not.toContain('CLASS_C_SECRET_777');
+      expect(bodyText).not.toContain('secret-c-provider.example');
+    }
+
+    // 3. Backup export preserves experimentalFullConfig flag
+    const backupRes = await adminRequest('/api/backup');
+    expect(backupRes.status).toBe(200);
+    const backupJson = (await backupRes.json()) as {
+      publications: Array<{ slug: string; experimentalFullConfig?: boolean }>;
+    };
+    const exportedPublic = backupJson.publications.find((p) => p.slug === 'class-c-public');
+    const exportedBound = backupJson.publications.find((p) => p.slug === 'class-c-bound');
+    expect(exportedPublic?.experimentalFullConfig).toBe(true);
+    expect(exportedBound?.experimentalFullConfig).toBeUndefined();
   });
 });

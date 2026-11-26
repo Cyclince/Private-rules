@@ -11,6 +11,7 @@ import {
   BASELINE_MIGRATION_NAME,
   INITIAL_1_1_0_MIGRATION_NAME,
   MIGRATIONS,
+  PUBLICATION_EXPERIMENTAL_FULL_CONFIG_MIGRATION_NAME,
   SOURCE_COVERAGE_DEDUP_MIGRATION_NAME,
 } from '../../src/data/migrations/index';
 import { schema } from '../../src/data/schema';
@@ -227,6 +228,7 @@ describe('1.1.0 schema and migrations', () => {
         BASELINE_MIGRATION_NAME,
         INITIAL_1_1_0_MIGRATION_NAME,
         SOURCE_COVERAGE_DEDUP_MIGRATION_NAME,
+        PUBLICATION_EXPERIMENTAL_FULL_CONFIG_MIGRATION_NAME,
       ]);
 
       const orm = drizzle(db.native, { schema });
@@ -282,6 +284,7 @@ describe('1.1.0 schema and migrations', () => {
           BASELINE_MIGRATION_NAME,
           INITIAL_1_1_0_MIGRATION_NAME,
           SOURCE_COVERAGE_DEDUP_MIGRATION_NAME,
+          PUBLICATION_EXPERIMENTAL_FULL_CONFIG_MIGRATION_NAME,
         ]);
         expect(firstRun.backupPath).toBe(`${dbPath}.bak-1.0.x`);
 
@@ -361,6 +364,7 @@ describe('1.1.0 schema and migrations', () => {
           expect(d1Names.has(BASELINE_MIGRATION_NAME)).toBe(true);
           expect(d1Names.has(INITIAL_1_1_0_MIGRATION_NAME)).toBe(true);
           expect(d1Names.has(SOURCE_COVERAGE_DEDUP_MIGRATION_NAME)).toBe(true);
+          expect(d1Names.has(PUBLICATION_EXPERIMENTAL_FULL_CONFIG_MIGRATION_NAME)).toBe(true);
         }
 
         const afterSubscriptions = await captureSubscriptions(env, expectedPaths);
@@ -508,11 +512,11 @@ describe('1.1.0 schema and migrations', () => {
       );
       expect(colsBefore.has('coverage_dedup')).toBe(false);
 
-      // Startup auto-applies only 0002 without touching 0000/0001 or treating as 1.0.x legacy
+      // Startup auto-applies 0002 and 0003 without touching 0000/0001 or treating as 1.0.x legacy
       const firstRun = await migrateSqliteDatabase(db);
       expect(firstRun).toEqual({
         upgradedFromLegacy: false,
-        applied: [SOURCE_COVERAGE_DEDUP_MIGRATION_NAME],
+        applied: [SOURCE_COVERAGE_DEDUP_MIGRATION_NAME, PUBLICATION_EXPERIMENTAL_FULL_CONFIG_MIGRATION_NAME],
       });
 
       const colsAfter = new Set(
@@ -525,15 +529,22 @@ describe('1.1.0 schema and migrations', () => {
         coverage_dedup: 0,
       });
 
+      const pubColsAfter = new Set(
+        (db.native.prepare('PRAGMA table_info(publications)').all() as Array<{ name: string }>).map((col) => col.name),
+      );
+      expect(pubColsAfter.has('experimental_full_config')).toBe(true);
+
       // Subsequent startup is a no-op
       expect(await migrateSqliteDatabase(db)).toEqual({ upgradedFromLegacy: false, applied: [] });
 
-      // Reentrancy: if 0002 is re-executed when the column already exists, shouldSkipReentrantStatement skips ALTER cleanly
-      db.native.prepare('DELETE FROM _schema_migrations WHERE name = ?').run(SOURCE_COVERAGE_DEDUP_MIGRATION_NAME);
+      // Reentrancy: if 0002 and 0003 are re-executed when the columns already exist, shouldSkipReentrantStatement skips ALTER cleanly
+      db.native
+        .prepare('DELETE FROM _schema_migrations WHERE name IN (?, ?)')
+        .run(SOURCE_COVERAGE_DEDUP_MIGRATION_NAME, PUBLICATION_EXPERIMENTAL_FULL_CONFIG_MIGRATION_NAME);
       const reentrantRun = await migrateSqliteDatabase(db);
       expect(reentrantRun).toEqual({
         upgradedFromLegacy: false,
-        applied: [SOURCE_COVERAGE_DEDUP_MIGRATION_NAME],
+        applied: [SOURCE_COVERAGE_DEDUP_MIGRATION_NAME, PUBLICATION_EXPERIMENTAL_FULL_CONFIG_MIGRATION_NAME],
       });
       expect(db.native.prepare('SELECT coverage_dedup FROM category_sources WHERE id = ?').get('src_pre0002')).toEqual({
         coverage_dedup: 0,
