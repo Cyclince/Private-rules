@@ -25,6 +25,7 @@ export const LINTED = [
   'src/web/**/*.{ts,tsx}',
   'src/runtimes/worker.ts',
   'src/server/**/*.ts',
+  'scripts/bundle-size.ts',
   'scripts/check-contrast.ts',
   'scripts/generate-zh-tw.ts',
   'tests/shared/**/*.ts',
@@ -37,10 +38,13 @@ export const LINTED = [
   'tests/unit/web-i18n-and-assets.test.ts',
   'tests/unit/web-query-and-api.test.ts',
   'tests/integration/migration.test.ts',
+  'tests/integration/rulesets-pagination.test.ts',
   'tests/integration/security-hardening.test.ts',
   'tests/integration/subscriptions-cache.test.ts',
   'tests/e2e/preview-layout.spec.ts',
   'tests/e2e/preview-auth-and-telegram.spec.ts',
+  'tests/e2e/preview-rulesets-and-rules.spec.ts',
+  'tests/e2e/preview-sources-settings-backup.spec.ts',
 ];
 
 export default tseslint.config(

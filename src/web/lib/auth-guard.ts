@@ -2,7 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { redirect } from '@tanstack/react-router';
 import { api, readApiJson, type ApiClient } from './api';
 import { authMeQueryOptions, type AuthMePayload } from './query';
-import { authenticateTelegramMiniApp, isTelegramMiniApp } from './telegram';
+import { isTelegramMiniApp } from './telegram/webapp';
 
 export const TELEGRAM_HIDDEN_SETTINGS_TABS = new Set(['api-keys', 'backup']);
 
@@ -16,6 +16,7 @@ export async function ensureAuthenticatedSession(
 ): Promise<AuthMePayload> {
   if (isTelegramMiniApp()) {
     try {
+      const { authenticateTelegramMiniApp } = await import('./telegram/auth');
       const telegramMe = await authenticateTelegramMiniApp(queryClient, client);
       if (telegramMe?.authenticated) return telegramMe;
     } catch {

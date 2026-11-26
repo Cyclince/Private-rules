@@ -1,6 +1,39 @@
 import { QueryClient, queryOptions } from '@tanstack/react-query';
-import type { ClientLink, DomainRule, RulesData } from '../../types/domain-rules';
+import type { ClientLink, DomainRule, RuleSettings, RuleSource, RulesData } from '../../types/domain-rules';
 import { api, readApiJson, type ApiClient } from './api';
+
+export type ApiKeySummary = {
+  id: string;
+  note: string;
+  keyPrefix: string;
+  scopes?: string;
+  createdAt: string;
+  lastUsedAt?: string | null;
+};
+
+export type TelegramNotificationsPayload = {
+  enabled: boolean;
+  preferences: {
+    mode: 'immediate' | 'digest' | 'off';
+    muted: boolean;
+    digestTime: string;
+    syncFailed?: boolean;
+    syncCompleted?: boolean;
+    securityAlerts?: boolean;
+  };
+};
+
+export type TelegramAuditLogItem = {
+  id: string;
+  telegram_user_id: string;
+  chat_id: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  summary: string | null;
+  result: string;
+  created_at: string;
+};
 
 export type RulesetSummaryPayload = {
   data: RulesData;
@@ -45,6 +78,8 @@ export const queryKeys = {
     all: ['settings'] as const,
     detail: () => [...queryKeys.settings.all, 'detail'] as const,
     apiKeys: () => [...queryKeys.settings.all, 'api-keys'] as const,
+    telegramNotifications: () => [...queryKeys.settings.all, 'telegram-notifications'] as const,
+    telegramAuditLogs: () => [...queryKeys.settings.all, 'telegram-audit-logs'] as const,
   },
   templates: {
     all: ['templates'] as const,
@@ -135,6 +170,46 @@ export function rulesetRulesQueryOptions(id: string, filter: RulesPageFilter = {
   });
 }
 
+export function rulesetSourcesQueryOptions(id: string, client: ApiClient = api) {
+  return queryOptions({
+    queryKey: queryKeys.rulesets.sources(id),
+    queryFn: async () =>
+      readApiJson<{ sources: RuleSource[] }>(await client.api.rulesets[':id'].sources.$get({ param: { id } })),
+  });
+}
+
+export function settingsDetailQueryOptions(client: ApiClient = api) {
+  return queryOptions({
+    queryKey: queryKeys.settings.detail(),
+    queryFn: async () =>
+      readApiJson<{ settings: RuleSettings; meta?: RulesData['meta'] }>(await client.api.settings.$get()),
+  });
+}
+
+export function apiKeysQueryOptions(client: ApiClient = api) {
+  return queryOptions({
+    queryKey: queryKeys.settings.apiKeys(),
+    queryFn: async () => readApiJson<{ keys: ApiKeySummary[] }>(await client.api['api-keys'].$get()),
+  });
+}
+
+export function telegramNotificationsQueryOptions(client: ApiClient = api) {
+  return queryOptions({
+    queryKey: queryKeys.settings.telegramNotifications(),
+    queryFn: async () => readApiJson<TelegramNotificationsPayload>(await client.api.telegram.notifications.$get()),
+  });
+}
+
+export function telegramAuditLogsQueryOptions(limit = 30, client: ApiClient = api) {
+  return queryOptions({
+    queryKey: queryKeys.settings.telegramAuditLogs(),
+    queryFn: async () =>
+      readApiJson<{ logs: TelegramAuditLogItem[] }>(
+        await client.api.telegram['audit-logs'].$get({ query: { limit: String(limit) } }),
+      ),
+  });
+}
+
 export function linksQueryOptions(client: ApiClient = api) {
   return queryOptions({
     queryKey: queryKeys.links.all,
@@ -152,6 +227,7 @@ export function invalidateRulesets(queryClient: QueryClient, id?: string) {
       queryClient.invalidateQueries({ queryKey: queryKeys.rulesets.list() }),
       queryClient.invalidateQueries({ queryKey: queryKeys.rulesets.detail(id) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.rulesets.rulesPrefix(id) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.rulesets.sources(id) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.links.all }),
     ]);
   }

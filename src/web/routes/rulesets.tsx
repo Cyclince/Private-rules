@@ -36,11 +36,14 @@ const BulkImportDialog = lazy(() =>
 const SubscriptionLinksDrawer = lazy(() =>
   import('../components/rulesets/SubscriptionLinksDrawer').then((m) => ({ default: m.SubscriptionLinksDrawer })),
 );
+const SourcesPanel = lazy(() =>
+  import('../components/rulesets/SourcesPanel').then((m) => ({ default: m.SourcesPanel })),
+);
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Switch } from '../components/ui/switch';
-import { useI18n } from '../i18n';
+import { loadPageTranslations, useI18n } from '../i18n';
 import { api, ApiClientError, formatApiError, readApiJson } from '../lib/api';
 import { requireAuthBeforeLoad } from '../lib/auth-guard';
 import {
@@ -56,15 +59,18 @@ import {
 import { useToast } from '../lib/toast';
 
 type SourceFilter = 'all' | 'manual' | 'upstream';
+type DetailTab = 'rules' | 'sources';
 
 type RulesetsSearch = {
   q?: string;
   rq?: string;
   source?: SourceFilter;
   selected?: string;
+  tab?: DetailTab;
 };
 
 const VALID_SOURCES = new Set<SourceFilter>(['all', 'manual', 'upstream']);
+const VALID_DETAIL_TABS = new Set<DetailTab>(['rules', 'sources']);
 const RULES_PAGE_SIZE = 50;
 
 export const Route = createFileRoute('/rulesets')({
@@ -74,14 +80,19 @@ export const Route = createFileRoute('/rulesets')({
     const rawSource = typeof search.source === 'string' ? (search.source as SourceFilter) : undefined;
     const source = rawSource && VALID_SOURCES.has(rawSource) && rawSource !== 'all' ? rawSource : undefined;
     const selected = typeof search.selected === 'string' && search.selected ? search.selected : undefined;
+    const rawTab = typeof search.tab === 'string' ? (search.tab as DetailTab) : undefined;
+    const tab = rawTab && VALID_DETAIL_TABS.has(rawTab) && rawTab !== 'rules' ? rawTab : undefined;
     return {
       ...(q ? { q } : {}),
       ...(rq ? { rq } : {}),
       ...(source ? { source } : {}),
       ...(selected ? { selected } : {}),
+      ...(tab ? { tab } : {}),
     };
   },
-  beforeLoad: ({ context, location }) => requireAuthBeforeLoad(context.queryClient, location.href),
+  beforeLoad: async ({ context, location }) => {
+    await Promise.all([requireAuthBeforeLoad(context.queryClient, location.href), loadPageTranslations()]);
+  },
   component: RulesetsPage,
 });
 
@@ -103,6 +114,7 @@ function RulesetsPage() {
     rq: rawSearch.rq ?? '',
     source: rawSearch.source ?? ('all' as SourceFilter),
     selected: rawSearch.selected ?? '',
+    tab: rawSearch.tab ?? ('rules' as DetailTab),
   };
 
   const authQuery = useQuery(authMeQueryOptions());
@@ -799,264 +811,296 @@ function RulesetsPage() {
                 </CardContent>
               </Card>
 
-              {/* Rules management card with server-side search & cursor pagination */}
-              <Card data-testid="rules-list-card">
-                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <span>{t('rules.sectionTitle')}</span>
-                      <Badge variant="outline" data-testid="rules-total-badge">
-                        {totalRules.toLocaleString()}
-                      </Badge>
-                    </CardTitle>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      data-testid="bulk-import-open-btn"
-                      onClick={() => setBulkImportOpen(true)}
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                      <span>{t('rules.bulkImport')}</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      data-testid="add-rule-btn"
-                      onClick={() => setRuleDialog({ open: true, mode: 'create', rule: null, conflicts: [] })}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>{t('rules.add')}</span>
-                    </Button>
-                  </div>
-                </CardHeader>
+              {/* Detail view switcher: Rules vs Upstream Sources */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  data-testid="ruleset-tab-rules"
+                  variant={search.tab === 'rules' ? 'primary' : 'outline'}
+                  onClick={() => updateSearch({ tab: undefined })}
+                >
+                  <span>{t('rulesets.tabRules')}</span>
+                  <Badge variant={search.tab === 'rules' ? 'default' : 'outline'} className="ml-1 text-[10px]">
+                    {(selectedRuleset.ruleCount ?? 0).toLocaleString()}
+                  </Badge>
+                </Button>
+                <Button
+                  size="sm"
+                  data-testid="ruleset-tab-sources"
+                  variant={search.tab === 'sources' ? 'primary' : 'outline'}
+                  onClick={() => updateSearch({ tab: 'sources' })}
+                >
+                  <span>{t('rulesets.tabSources')}</span>
+                  <Badge variant={search.tab === 'sources' ? 'default' : 'outline'} className="ml-1 text-[10px]">
+                    {(selectedRuleset.sources ?? []).length}
+                  </Badge>
+                </Button>
+              </div>
 
-                <CardContent className="flex flex-col gap-3">
-                  {/* Server search & source filter */}
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <div className="relative flex-1">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-                      <Input
-                        data-testid="rules-search-input"
-                        value={ruleSearchInput}
-                        onChange={(event) => setRuleSearchInput(event.target.value)}
-                        placeholder={t('rules.searchPlaceholder')}
-                        className="pl-9"
-                      />
+              {search.tab === 'sources' ? (
+                <Suspense fallback={<div className="h-32 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />}>
+                  <SourcesPanel rulesetId={selectedRuleset.id} />
+                </Suspense>
+              ) : (
+                /* Rules management card with server-side search & cursor pagination */
+                <Card data-testid="rules-list-card">
+                  <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <span>{t('rules.sectionTitle')}</span>
+                        <Badge variant="outline" data-testid="rules-total-badge">
+                          {totalRules.toLocaleString()}
+                        </Badge>
+                      </CardTitle>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {(['all', 'manual', 'upstream'] as const).map((item) => (
-                        <Button
-                          key={item}
-                          size="sm"
-                          data-testid={`rulesets-source-${item}`}
-                          variant={search.source === item ? 'primary' : 'outline'}
-                          onClick={() => updateSearch({ source: item === 'all' ? undefined : item })}
-                        >
-                          {item === 'all'
-                            ? t('rulesets.filterAll')
-                            : item === 'manual'
-                              ? t('rulesets.filterManual')
-                              : t('rulesets.filterUpstream')}
-                        </Button>
-                      ))}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        data-testid="bulk-import-open-btn"
+                        onClick={() => setBulkImportOpen(true)}
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        <span>{t('rules.bulkImport')}</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        data-testid="add-rule-btn"
+                        onClick={() => setRuleDialog({ open: true, mode: 'create', rule: null, conflicts: [] })}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>{t('rules.add')}</span>
+                      </Button>
                     </div>
-                  </div>
+                  </CardHeader>
 
-                  {/* Batch selection bar */}
-                  {manualPageRuleIds.length > 0 ? (
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-sm)] border border-border bg-surface-muted/60 px-3 py-2 text-xs">
-                      <label className="flex cursor-pointer items-center gap-2">
-                        <input
-                          type="checkbox"
-                          data-testid="rules-select-all"
-                          checked={allManualPageSelected}
-                          onChange={toggleSelectAllPage}
-                          className="h-4 w-4 accent-primary"
+                  <CardContent className="flex flex-col gap-3">
+                    {/* Server search & source filter */}
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <div className="relative flex-1">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+                        <Input
+                          data-testid="rules-search-input"
+                          value={ruleSearchInput}
+                          onChange={(event) => setRuleSearchInput(event.target.value)}
+                          placeholder={t('rules.searchPlaceholder')}
+                          className="pl-9"
                         />
-                        <span>{t('rules.selectAllPage')}</span>
-                        {selectedRuleIds.length > 0 ? (
-                          <Badge variant="primary">
-                            {t('rules.selectedCount')} {selectedRuleIds.length}
-                          </Badge>
-                        ) : null}
-                      </label>
-                      {selectedRuleIds.length > 0 ? (
-                        <div className="flex flex-wrap items-center gap-1.5" data-testid="rules-batch-actions">
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(['all', 'manual', 'upstream'] as const).map((item) => (
                           <Button
+                            key={item}
                             size="sm"
-                            variant="outline"
-                            data-testid="rules-batch-enable"
-                            disabled={batchRuleMutation.isPending}
-                            onClick={() => batchRuleMutation.mutate({ ruleIds: selectedRuleIds, action: 'enable' })}
+                            data-testid={`rulesets-source-${item}`}
+                            variant={search.source === item ? 'primary' : 'outline'}
+                            onClick={() => updateSearch({ source: item === 'all' ? undefined : item })}
                           >
-                            {t('rules.batchEnable')}
+                            {item === 'all'
+                              ? t('rulesets.filterAll')
+                              : item === 'manual'
+                                ? t('rulesets.filterManual')
+                                : t('rulesets.filterUpstream')}
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            data-testid="rules-batch-disable"
-                            disabled={batchRuleMutation.isPending}
-                            onClick={() => batchRuleMutation.mutate({ ruleIds: selectedRuleIds, action: 'disable' })}
-                          >
-                            {t('rules.batchDisable')}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            data-testid="rules-batch-delete"
-                            disabled={batchRuleMutation.isPending}
-                            onClick={() => setBatchDeleteOpen(true)}
-                          >
-                            {t('rules.batchDelete')}
-                          </Button>
-                        </div>
-                      ) : null}
+                        ))}
+                      </div>
                     </div>
-                  ) : null}
 
-                  {/* Paginated rules list */}
-                  {rulesQuery.isLoading ? (
-                    <div className="flex flex-col gap-2">
-                      <div className="h-11 animate-pulse rounded bg-surface-muted" />
-                      <div className="h-11 animate-pulse rounded bg-surface-muted" />
-                    </div>
-                  ) : rules.length === 0 ? (
-                    <div
-                      data-testid="rules-empty-state"
-                      className="rounded-[var(--radius-md)] border border-border bg-surface-muted/40 py-8 text-center text-sm text-text-muted"
-                    >
-                      {t('rules.emptyRules')}
-                    </div>
-                  ) : (
-                    <div
-                      className="flex flex-col divide-y divide-border rounded-[var(--radius-md)] border border-border"
-                      data-testid="rules-rows"
-                    >
-                      {rules.map((rule) => {
-                        const isManual = !rule.sourceId;
-                        const isChecked = selectedRuleIds.includes(rule.id);
-                        return (
-                          <div
-                            key={rule.id}
-                            data-testid={`rule-row-${rule.id}`}
-                            className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
-                          >
-                            <div className="flex min-w-0 flex-1 items-start gap-2.5">
-                              <input
-                                type="checkbox"
-                                disabled={!isManual}
-                                checked={isChecked}
-                                data-testid={`rule-checkbox-${rule.id}`}
-                                onChange={() => toggleRuleSelection(rule.id)}
-                                className="mt-1 h-4 w-4 shrink-0 accent-primary disabled:opacity-30"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <Badge variant="outline" className="font-mono text-[11px]">
-                                    {rule.type}
-                                  </Badge>
-                                  <span
-                                    className={`break-all font-mono text-xs ${
-                                      rule.enabled ? 'text-text' : 'text-text-muted line-through'
-                                    }`}
-                                  >
-                                    {rule.value}
-                                  </span>
-                                  {rule.options?.noResolve ? (
-                                    <Badge variant="accent" className="text-[10px]">
-                                      no-resolve
+                    {/* Batch selection bar */}
+                    {manualPageRuleIds.length > 0 ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-sm)] border border-border bg-surface-muted/60 px-3 py-2 text-xs">
+                        <label className="flex cursor-pointer items-center gap-2">
+                          <input
+                            type="checkbox"
+                            data-testid="rules-select-all"
+                            checked={allManualPageSelected}
+                            onChange={toggleSelectAllPage}
+                            className="h-4 w-4 accent-primary"
+                          />
+                          <span>{t('rules.selectAllPage')}</span>
+                          {selectedRuleIds.length > 0 ? (
+                            <Badge variant="primary">
+                              {t('rules.selectedCount')} {selectedRuleIds.length}
+                            </Badge>
+                          ) : null}
+                        </label>
+                        {selectedRuleIds.length > 0 ? (
+                          <div className="flex flex-wrap items-center gap-1.5" data-testid="rules-batch-actions">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              data-testid="rules-batch-enable"
+                              disabled={batchRuleMutation.isPending}
+                              onClick={() => batchRuleMutation.mutate({ ruleIds: selectedRuleIds, action: 'enable' })}
+                            >
+                              {t('rules.batchEnable')}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              data-testid="rules-batch-disable"
+                              disabled={batchRuleMutation.isPending}
+                              onClick={() => batchRuleMutation.mutate({ ruleIds: selectedRuleIds, action: 'disable' })}
+                            >
+                              {t('rules.batchDisable')}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              data-testid="rules-batch-delete"
+                              disabled={batchRuleMutation.isPending}
+                              onClick={() => setBatchDeleteOpen(true)}
+                            >
+                              {t('rules.batchDelete')}
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {/* Paginated rules list */}
+                    {rulesQuery.isLoading ? (
+                      <div className="flex flex-col gap-2">
+                        <div className="h-11 animate-pulse rounded bg-surface-muted" />
+                        <div className="h-11 animate-pulse rounded bg-surface-muted" />
+                      </div>
+                    ) : rules.length === 0 ? (
+                      <div
+                        data-testid="rules-empty-state"
+                        className="rounded-[var(--radius-md)] border border-border bg-surface-muted/40 py-8 text-center text-sm text-text-muted"
+                      >
+                        {t('rules.emptyRules')}
+                      </div>
+                    ) : (
+                      <div
+                        className="flex flex-col divide-y divide-border rounded-[var(--radius-md)] border border-border"
+                        data-testid="rules-rows"
+                      >
+                        {rules.map((rule) => {
+                          const isManual = !rule.sourceId;
+                          const isChecked = selectedRuleIds.includes(rule.id);
+                          return (
+                            <div
+                              key={rule.id}
+                              data-testid={`rule-row-${rule.id}`}
+                              className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                                <input
+                                  type="checkbox"
+                                  disabled={!isManual}
+                                  checked={isChecked}
+                                  data-testid={`rule-checkbox-${rule.id}`}
+                                  onChange={() => toggleRuleSelection(rule.id)}
+                                  className="mt-1 h-4 w-4 shrink-0 accent-primary disabled:opacity-30"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <Badge variant="outline" className="font-mono text-[11px]">
+                                      {rule.type}
                                     </Badge>
-                                  ) : null}
-                                  <Badge variant={isManual ? 'primary' : 'outline'} className="text-[10px]">
-                                    {isManual
-                                      ? t('rules.manualBadge')
-                                      : (rule.sourceName ?? t('rules.readonlyUpstream'))}
-                                  </Badge>
+                                    <span
+                                      className={`break-all font-mono text-xs ${
+                                        rule.enabled ? 'text-text' : 'text-text-muted line-through'
+                                      }`}
+                                    >
+                                      {rule.value}
+                                    </span>
+                                    {rule.options?.noResolve ? (
+                                      <Badge variant="accent" className="text-[10px]">
+                                        no-resolve
+                                      </Badge>
+                                    ) : null}
+                                    <Badge variant={isManual ? 'primary' : 'outline'} className="text-[10px]">
+                                      {isManual
+                                        ? t('rules.manualBadge')
+                                        : (rule.sourceName ?? t('rules.readonlyUpstream'))}
+                                    </Badge>
+                                  </div>
+                                  {rule.note ? <p className="mt-0.5 text-xs text-text-muted">{rule.note}</p> : null}
                                 </div>
-                                {rule.note ? <p className="mt-0.5 text-xs text-text-muted">{rule.note}</p> : null}
+                              </div>
+
+                              <div className="flex shrink-0 items-center justify-end gap-2">
+                                <Switch
+                                  data-testid={`rule-toggle-${rule.id}`}
+                                  disabled={!isManual}
+                                  checked={rule.enabled}
+                                  onCheckedChange={(checked) =>
+                                    toggleRuleMutation.mutate({ ruleId: rule.id, enabled: checked })
+                                  }
+                                />
+                                {isManual ? (
+                                  <>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      aria-label={t('rules.edit')}
+                                      data-testid={`rule-edit-${rule.id}`}
+                                      onClick={() => setRuleDialog({ open: true, mode: 'edit', rule, conflicts: [] })}
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      aria-label={t('rules.delete')}
+                                      data-testid={`rule-delete-${rule.id}`}
+                                      onClick={() => setDeleteRuleTarget(rule)}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5 text-danger" />
+                                    </Button>
+                                  </>
+                                ) : null}
                               </div>
                             </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
-                            <div className="flex shrink-0 items-center justify-end gap-2">
-                              <Switch
-                                data-testid={`rule-toggle-${rule.id}`}
-                                disabled={!isManual}
-                                checked={rule.enabled}
-                                onCheckedChange={(checked) =>
-                                  toggleRuleMutation.mutate({ ruleId: rule.id, enabled: checked })
-                                }
-                              />
-                              {isManual ? (
-                                <>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    aria-label={t('rules.edit')}
-                                    data-testid={`rule-edit-${rule.id}`}
-                                    onClick={() => setRuleDialog({ open: true, mode: 'edit', rule, conflicts: [] })}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    aria-label={t('rules.delete')}
-                                    data-testid={`rule-delete-${rule.id}`}
-                                    onClick={() => setDeleteRuleTarget(rule)}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5 text-danger" />
-                                  </Button>
-                                </>
-                              ) : null}
-                            </div>
-                          </div>
-                        );
-                      })}
+                    {/* Cursor Pagination Footer */}
+                    <div
+                      data-testid="rules-pagination"
+                      className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs text-text-muted"
+                    >
+                      <span>
+                        {t('rules.pageSummary')} {currentPageIndex} · {t('rules.totalLabel')}{' '}
+                        {totalRules.toLocaleString()} {t('rules.unitItems')}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          data-testid="rules-prev-page"
+                          disabled={cursorStack.length <= 1 || rulesQuery.isFetching}
+                          onClick={() => {
+                            setSelectedRuleIds([]);
+                            setCursorStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
+                          }}
+                        >
+                          <ChevronLeft className="h-3.5 w-3.5" />
+                          <span>{t('rules.prevPage')}</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          data-testid="rules-next-page"
+                          disabled={!hasMore || !nextCursor || rulesQuery.isFetching}
+                          onClick={() => {
+                            if (!nextCursor) return;
+                            setSelectedRuleIds([]);
+                            setCursorStack((prev) => [...prev, nextCursor]);
+                          }}
+                        >
+                          <span>{t('rules.nextPage')}</span>
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                  )}
-
-                  {/* Cursor Pagination Footer */}
-                  <div
-                    data-testid="rules-pagination"
-                    className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs text-text-muted"
-                  >
-                    <span>
-                      {t('rules.pageSummary')} {currentPageIndex} · {t('rules.totalLabel')}{' '}
-                      {totalRules.toLocaleString()} {t('rules.unitItems')}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        data-testid="rules-prev-page"
-                        disabled={cursorStack.length <= 1 || rulesQuery.isFetching}
-                        onClick={() => {
-                          setSelectedRuleIds([]);
-                          setCursorStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
-                        }}
-                      >
-                        <ChevronLeft className="h-3.5 w-3.5" />
-                        <span>{t('rules.prevPage')}</span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        data-testid="rules-next-page"
-                        disabled={!hasMore || !nextCursor || rulesQuery.isFetching}
-                        onClick={() => {
-                          if (!nextCursor) return;
-                          setSelectedRuleIds([]);
-                          setCursorStack((prev) => [...prev, nextCursor]);
-                        }}
-                      >
-                        <span>{t('rules.nextPage')}</span>
-                        <ChevronRight className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
             </>
           )}
         </div>

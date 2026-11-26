@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { useI18n } from '../i18n';
+import { loadPageTranslations, useI18n } from '../i18n';
 import { requireAuthBeforeLoad } from '../lib/auth-guard';
 
 type ClientFilter = 'all' | 'mihomo' | 'surge' | 'sing-box';
@@ -18,7 +18,9 @@ export const Route = createFileRoute('/publications')({
     const raw = typeof search.client === 'string' ? (search.client as ClientFilter) : undefined;
     return raw && VALID_CLIENTS.has(raw) && raw !== 'all' ? { client: raw } : {};
   },
-  beforeLoad: ({ context, location }) => requireAuthBeforeLoad(context.queryClient, location.href),
+  beforeLoad: async ({ context, location }) => {
+    await Promise.all([requireAuthBeforeLoad(context.queryClient, location.href), loadPageTranslations()]);
+  },
   component: PublicationsPage,
 });
 

@@ -1,6 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { AlertTriangle, CheckCircle2, FolderKanban, Globe, Layers, RefreshCw, Sparkles } from 'lucide-react';
+import { useState } from 'react';
 import loginBgUrl from '../assets/miku-login-bg.webp';
 import { useI18n } from '../i18n';
 import { api, formatApiError, readApiJson } from '../lib/api';
@@ -42,17 +43,21 @@ function DashboardPage() {
 
   const healthQuery = useQuery(healthQueryOptions());
   const summaryQuery = useQuery(rulesetsListQueryOptions());
+  const [syncing, setSyncing] = useState(false);
 
-  const syncMutation = useMutation({
-    mutationFn: async () => readApiJson<{ results: Array<{ ok: boolean }> }>(await api.api.sync.$post()),
-    onSuccess: async () => {
+  const handleSyncAll = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      await readApiJson<{ results: Array<{ ok: boolean }> }>(await api.api.sync.$post());
       await invalidateRulesets(queryClient);
       notify({ title: t('dashboard.syncDone'), variant: 'success' });
-    },
-    onError: (error) => {
+    } catch (error) {
       notify({ title: formatApiError(error, locale), variant: 'danger' });
-    },
-  });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const categories = summaryQuery.data?.data.categories ?? [];
   const enabledRulesets = categories.filter((c) => c.enabled !== false).length;
@@ -116,12 +121,12 @@ function DashboardPage() {
             <button
               type="button"
               data-testid="dashboard-sync-all"
-              disabled={syncMutation.isPending}
-              onClick={() => syncMutation.mutate()}
+              disabled={syncing}
+              onClick={() => void handleSyncAll()}
               className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 text-xs font-medium text-text transition-colors hover:bg-surface disabled:opacity-50"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
-              {syncMutation.isPending ? t('dashboard.syncing') : t('dashboard.syncAll')}
+              <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? t('dashboard.syncing') : t('dashboard.syncAll')}
             </button>
             <Link
               to="/rulesets"

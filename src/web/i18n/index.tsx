@@ -1,30 +1,54 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { ErrorCode } from '../../shared/errors';
-import { zhCN, type MessageKey, type Messages } from './zh-CN';
+import type { MessageKey, Messages } from './zh-CN';
+import { zhCNCore } from './zh-CN.core';
 
 export const SUPPORTED_LOCALES = ['zh-CN', 'zh-TW', 'en'] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
 const STORAGE_KEY = 'private-rules-locale';
 
-const loadedDictionaries: Partial<Record<Locale, Messages>> = {
-  'zh-CN': zhCN,
+const zhCNMerged: Partial<Messages> = { ...zhCNCore };
+let zhCNPagesLoaded = false;
+
+const loadedDictionaries: Partial<Record<Locale, Partial<Messages>>> = {
+  'zh-CN': zhCNMerged,
 };
 
+const dictListeners = new Set<() => void>();
+
+function notifyDictionaryUpdated() {
+  for (const listener of dictListeners) listener();
+}
+
+export async function loadPageTranslations(): Promise<void> {
+  if (zhCNPagesLoaded) return;
+  const mod = await import('./zh-CN.pages');
+  Object.assign(zhCNMerged, mod.zhCNPages);
+  zhCNPagesLoaded = true;
+  notifyDictionaryUpdated();
+}
+
 export async function loadLocaleDictionary(locale: Locale): Promise<Messages> {
+  if (locale === 'zh-CN') {
+    await loadPageTranslations();
+    return zhCNMerged as Messages;
+  }
   const cached = loadedDictionaries[locale];
-  if (cached) return cached;
+  if (cached) return cached as Messages;
   if (locale === 'zh-TW') {
     const mod = await import('./zh-TW');
     loadedDictionaries['zh-TW'] = mod.zhTW;
+    notifyDictionaryUpdated();
     return mod.zhTW;
   }
   if (locale === 'en') {
     const mod = await import('./en');
     loadedDictionaries.en = mod.en;
+    notifyDictionaryUpdated();
     return mod.en;
   }
-  return zhCN;
+  return zhCNMerged as Messages;
 }
 
 export function resolveLocale(raw?: string | null): Locale {
@@ -49,13 +73,13 @@ function readInitialLocale(): Locale {
 }
 
 export function getDictionary(locale: Locale): Messages {
-  return loadedDictionaries[locale] ?? zhCN;
+  return (loadedDictionaries[locale] ?? zhCNMerged) as Messages;
 }
 
 export function translateErrorCode(code: ErrorCode, locale: Locale = 'zh-CN'): string {
   const dict = getDictionary(locale);
   const key = `error.${code}` as MessageKey;
-  return dict[key] ?? dict['error.INTERNAL'];
+  return dict[key] ?? dict['error.INTERNAL'] ?? code;
 }
 
 type I18nContextValue = {
@@ -69,12 +93,10 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ children, initialLocale }: { children: ReactNode; initialLocale?: Locale }) {
   const [locale, setLocaleState] = useState<Locale>(() => initialLocale ?? readInitialLocale());
-  const [dict, setDict] = useState<Messages>(() => getDictionary(initialLocale ?? readInitialLocale()));
+  const [version, setVersion] = useState(0);
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
-    const cached = loadedDictionaries[next];
-    if (cached) setDict(cached);
     try {
       window.localStorage.setItem(STORAGE_KEY, next);
     } catch {
@@ -83,30 +105,34 @@ export function I18nProvider({ children, initialLocale }: { children: ReactNode;
   }, []);
 
   useEffect(() => {
-    let active = true;
+    const onUpdate = () => setVersion((v) => v + 1);
+    dictListeners.add(onUpdate);
+    return () => {
+      dictListeners.delete(onUpdate);
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.lang = locale;
     }
-    void loadLocaleDictionary(locale).then((loaded) => {
-      if (active) setDict(loaded);
-    });
-    return () => {
-      active = false;
-    };
+    if (locale !== 'zh-CN') {
+      void loadLocaleDictionary(locale);
+    }
   }, [locale]);
 
-  const value = useMemo<I18nContextValue>(
-    () => ({
+  const value = useMemo<I18nContextValue>(() => {
+    const dict = getDictionary(locale);
+    return {
       locale,
       setLocale,
-      t: (key) => dict[key],
+      t: (key) => dict[key] ?? zhCNMerged[key] ?? key,
       tError: (code) => {
         const key = `error.${code}` as MessageKey;
-        return dict[key] ?? dict['error.INTERNAL'];
+        return dict[key] ?? dict['error.INTERNAL'] ?? code;
       },
-    }),
-    [locale, setLocale, dict],
-  );
+    };
+  }, [locale, setLocale, version]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

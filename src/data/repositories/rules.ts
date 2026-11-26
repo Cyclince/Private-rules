@@ -339,13 +339,13 @@ export class RulesRepository {
     }
 
     const rawLimit = options.limit ?? 50;
-    const limit = rawLimit === 0 ? 0 : Math.max(1, Math.min(rawLimit, 1000));
+    const limit = Math.max(1, Math.min(rawLimit, 200));
     const pageSql = `${cte}
       SELECT id, category_id, value, type, display_type, options, note, enabled, sort_order, created_at, updated_at,
         source_id, source_name, source_type, source_enabled
       FROM ranked_rules WHERE ${pageConditions.join(' AND ')}
-      ORDER BY COALESCE(sort_order, 0) ASC, created_at ASC, id ASC${limit ? ' LIMIT ?' : ''}`;
-    if (limit) pageBindings.push(limit + 1);
+      ORDER BY COALESCE(sort_order, 0) ASC, created_at ASC, id ASC LIMIT ?`;
+    pageBindings.push(limit + 1);
 
     const countSql = `${cte}
       SELECT COUNT(*) AS total FROM ranked_rules WHERE ${baseConditions.join(' AND ')}`;

@@ -18,7 +18,6 @@ import { syncRuleSources } from '../../application/sync';
 import { requireAuth } from '../../lib/auth';
 import { json } from '../../lib/response';
 import { AppError } from '../../shared/errors';
-import { UPSTREAM_RULE_PREVIEW_LIMIT } from '../../types/domain-rules';
 import { purgeSubscriptionCacheForSlugs } from '../cache/subscription-cache';
 import { withLinks, type AppBindings, type AppContext } from '../helpers';
 import { persistentRateLimit } from '../middleware/rate-limit';
@@ -188,9 +187,11 @@ export const rulesetRoutes = new Hono<AppBindings>()
     validate('query', rulesQuerySchema),
     async (c) => {
       const query = c.req.valid('query');
-      const defaultLimit = query.cursor ? 50 : UPSTREAM_RULE_PREVIEW_LIMIT;
-      const requestedLimit = Number(query.limit ?? String(defaultLimit));
-      const limit = query.all === '1' ? 0 : Number.isFinite(requestedLimit) ? requestedLimit : defaultLimit;
+      if (query.all !== undefined) {
+        throw new AppError('VALIDATION_FAILED', '新路由不支持 all=1，请使用游标分页（limit <= 200）。');
+      }
+      const requestedLimit = query.limit === undefined ? 50 : Number(query.limit);
+      const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(Math.trunc(requestedLimit), 200)) : 50;
       const page = await listRulesPaginated(c.env, {
         categoryId: c.req.param('id'),
         query: query.q || undefined,

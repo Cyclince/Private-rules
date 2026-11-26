@@ -56,3 +56,31 @@ export const backupSourceSchema = z
       ctx.addIssue({ code: 'custom', path: ['geoipName'], message: '缺少 geoipName 或 url' });
   });
 export type BackupSource = z.output<typeof backupSourceSchema>;
+
+export const SOURCE_SYNC_INTERVALS = [15, 30, 60, 360, 720, 1440] as const;
+
+/** Shared form schema for creating, editing, or previewing a rule source. */
+export const sourceFormSchema = z
+  .object({
+    sourceType: sourceTypeSchema,
+    name: z.string().max(120),
+    url: z.string().max(2000),
+    geositeName: z.string().max(120),
+    geoipName: z.string().max(120),
+    syncIntervalMinutes: z.number().int().min(15).max(1440),
+    userAgent: z.string().max(256),
+    ruleOptimization: ruleOptimizationSchema,
+    enabled: z.boolean(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.sourceType === 'url' && !value.url.trim()) {
+      ctx.addIssue({ code: 'custom', path: ['url'], message: 'url_required' });
+    }
+    if (value.sourceType === 'geosite' && !value.geositeName.trim()) {
+      ctx.addIssue({ code: 'custom', path: ['geositeName'], message: 'geosite_required' });
+    }
+    if (value.sourceType === 'geoip' && !value.geoipName.trim()) {
+      ctx.addIssue({ code: 'custom', path: ['geoipName'], message: 'geoip_required' });
+    }
+  });
+export type SourceFormValues = z.infer<typeof sourceFormSchema>;

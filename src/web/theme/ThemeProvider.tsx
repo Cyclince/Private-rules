@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { applyTelegramTheme, isTelegramMiniApp } from '../lib/telegram';
+import { isTelegramMiniApp } from '../lib/telegram/webapp';
 
 export type Theme = 'dark' | 'light';
 
@@ -63,12 +63,18 @@ export function ThemeProvider({ children, initialTheme }: { children: ReactNode;
 
   useEffect(() => {
     if (isTelegramMiniApp()) {
-      const applied = applyTelegramTheme();
-      if (applied) {
-        setThemeState(applied);
-        mounted.current = true;
-        return;
-      }
+      let active = true;
+      void import('../lib/telegram/theme').then(({ applyTelegramTheme }) => {
+        if (!active) return;
+        const applied = applyTelegramTheme();
+        if (applied) {
+          setThemeState(applied);
+          mounted.current = true;
+        }
+      });
+      return () => {
+        active = false;
+      };
     }
     const animate = mounted.current;
     mounted.current = true;

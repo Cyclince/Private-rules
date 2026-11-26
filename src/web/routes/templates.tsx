@@ -3,7 +3,7 @@ import emptyStateUrl from '../assets/miku-empty-state.webp';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { useI18n } from '../i18n';
+import { loadPageTranslations, useI18n } from '../i18n';
 import { requireAuthBeforeLoad } from '../lib/auth-guard';
 
 type TemplateTier = 'all' | 'minimal' | 'light' | 'standard' | 'heavy';
@@ -19,7 +19,9 @@ export const Route = createFileRoute('/templates')({
     const raw = typeof search.tier === 'string' ? (search.tier as TemplateTier) : undefined;
     return raw && VALID_TIERS.has(raw) && raw !== 'all' ? { tier: raw } : {};
   },
-  beforeLoad: ({ context, location }) => requireAuthBeforeLoad(context.queryClient, location.href),
+  beforeLoad: async ({ context, location }) => {
+    await Promise.all([requireAuthBeforeLoad(context.queryClient, location.href), loadPageTranslations()]);
+  },
   component: TemplatesPage,
 });
 

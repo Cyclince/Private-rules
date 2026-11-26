@@ -135,6 +135,28 @@ describe('M3.1 rulesets summary & cursor pagination API', () => {
     expect(badCursorRes.status).toBe(400);
     expect(await badCursorRes.json()).toMatchObject({ ok: false, code: 'VALIDATION_FAILED' });
 
+    // New route clamps limit to <= 200 (design §12.1)
+    const clampedRes = await app.request(`/api/rulesets/${categoryId}/rules?limit=500`, { headers: { cookie } }, env);
+    expect(clampedRes.status).toBe(200);
+    const clamped = (await clampedRes.json()) as { rules: DomainRule[]; hasMore: boolean; total: number };
+    expect(clamped.rules).toHaveLength(200);
+    expect(clamped.hasMore).toBe(true);
+    expect(clamped.total).toBe(10_000);
+
+    // New route rejects ?all=1 while 1.0.x /api/rules keeps ?all=1 compatibility
+    const rejectAllRes = await app.request(`/api/rulesets/${categoryId}/rules?all=1`, { headers: { cookie } }, env);
+    expect(rejectAllRes.status).toBe(400);
+    expect(await rejectAllRes.json()).toMatchObject({ ok: false, code: 'VALIDATION_FAILED' });
+
+    const legacyAllRes = await app.request(
+      `/api/rules?categoryId=${categoryId}&q=item-0999&all=1`,
+      { headers: { cookie } },
+      env,
+    );
+    expect(legacyAllRes.status).toBe(200);
+    const legacyAll = (await legacyAllRes.json()) as { rules: DomainRule[] };
+    expect(legacyAll.rules).toHaveLength(10);
+
     // Disabling a ruleset hides its subscription URLs in /api/links
     const disableRes = await app.request(
       `/api/rulesets/${categoryId}`,
