@@ -1,3 +1,1 @@
-import packageMetadata from '../package.json';
-
-export const APP_VERSION = packageMetadata.version;
+export { APP_VERSION } from './shared/version';

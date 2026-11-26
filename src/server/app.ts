@@ -3,6 +3,7 @@ import type { Context, MiddlewareHandler } from 'hono';
 import type { AppVariables, Env } from '../types';
 import { UPSTREAM_RULE_PREVIEW_LIMIT } from '../types/domain-rules';
 import { APP_VERSION } from '../version';
+import { handleError } from './middleware/errors';
 import { apiKeyConfigured, apiKeyStatus, authConfigured, checkPassword, clientIdentity, createApiKey, createSession, deleteApiKey, destroySession, isAuthenticated, requireAuth, requireSessionAuth, safeFileName, tokenMatches, updateApiKeyNote } from '../lib/auth';
 import {
   addRule,
@@ -10,7 +11,6 @@ import {
   createCategory,
   deleteCategory,
   deleteRule,
-  BackupValidationError,
   getBackupData,
   findRuleConflicts,
   getRulesOverview,
@@ -119,12 +119,7 @@ async function adminApp(c: AppContext) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
-app.onError((err) => {
-  const correlationId = crypto.randomUUID().slice(0, 12);
-  console.error(`[request:${correlationId}]`, err instanceof Error ? err.message : 'unknown error');
-  const known = err instanceof Error && /不存在|无效|格式|请输入|请选择|只读|不能|必须|重复|正在同步|任务正在执行|SSRF|上游|GeoSite|GeoIP|来源/.test(err.message);
-  return error(known && err instanceof Error ? err.message : `服务器处理失败。错误编号：${correlationId}`, known ? 400 : 500);
-});
+app.onError(handleError);
 
 app.get('/api/auth/me', async (c) => {
   const authed = await isAuthenticated(c);
@@ -476,12 +471,7 @@ app.get('/api/data', requireAuth, async (c) => json(await getBackupData(c.env)))
 
 app.put('/api/data', requireAuth, async (c) => {
   const data = await c.req.json().catch(() => null);
-  try {
-    return json(withLinks(c, await importRulesData(c.env, data)));
-  } catch (cause) {
-    if (cause instanceof BackupValidationError) return c.json({ ok: false, error: cause.message, problems: cause.problems }, 400);
-    throw cause;
-  }
+  return json(withLinks(c, await importRulesData(c.env, data)));
 });
 
 async function subscription(c: AppContext, file: string, access: 'public' | 'token') {

@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, 'release/**']
 
 jobs:
   quality:
@@ -16,7 +16,9 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - run: pnpm format:check
       - run: pnpm typecheck
+      - run: pnpm test:shared
       - run: pnpm test:unit
       - run: pnpm test:contract
       - run: pnpm test:api
@@ -25,6 +27,19 @@ jobs:
       - run: pnpm wrangler deploy --dry-run --keep-vars
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+
+  # Compatibility check on the newest Node release (1.0.6 broke on it).
+  node-current:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.11.1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: current, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
 
   docker:
     runs-on: ubuntu-latest

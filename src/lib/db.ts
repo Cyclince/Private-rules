@@ -4,7 +4,8 @@ import type { Env } from '../types';
 import { normalizeGithubMirrorUrl, sourceNameFromSubscriptionUrl } from './github-mirror';
 import { parseRuleInput } from './parser';
 import { id, slugify, validateCategoryName } from './slug';
-import { validateBackup } from './backup-validation';
+import { backupSchema, describeIssues } from '../shared/schemas/backup';
+import { AppError } from '../shared/errors';
 
 type CategoryRow = {
   id: string;
@@ -927,9 +928,9 @@ export async function insertRule(env: Env, categoryId: string, rule: DomainRule,
   await insertRuleStatement(env, categoryId, rule, sortOrder, sourceId).run();
 }
 
-export class BackupValidationError extends Error {
+export class BackupValidationError extends AppError {
   constructor(readonly problems: string[]) {
-    super(`备份 JSON 格式不正确：${problems.slice(0, 5).join('；')}`);
+    super('BACKUP_INVALID', `备份 JSON 格式不正确：${problems.slice(0, 5).join('；')}`, { problems });
   }
 }
 
@@ -940,9 +941,9 @@ export class BackupValidationError extends Error {
  * both atomic).
  */
 export async function importRulesData(env: Env, input: unknown) {
-  const problems = validateBackup(input);
-  if (problems.length) throw new BackupValidationError(problems);
-  const data = input as RulesData | RulesBackupData;
+  const parsed = backupSchema.safeParse(input);
+  if (!parsed.success) throw new BackupValidationError(describeIssues(parsed.error));
+  const data = parsed.data;
   const timestamp = now();
   const settings = resolveSettings(await getSettings(env), data.settings);
   const statements = [
@@ -969,8 +970,8 @@ export async function importRulesData(env: Env, input: unknown) {
       category.createdAt ?? timestamp,
       category.updatedAt ?? timestamp,
     ));
-    for (const [sourceIndex, source] of (category.sources ?? []).entries()) {
-      const sourceType = source.sourceType ?? 'url';
+    for (const [sourceIndex, source] of category.sources.entries()) {
+      const sourceType = source.sourceType;
       const sourceUrl = source.url || (sourceType === 'geosite' && source.geositeName
         ? `https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/${encodeURIComponent(source.geositeName)}`
         : sourceType === 'geoip' && source.geoipName
@@ -994,7 +995,6 @@ export async function importRulesData(env: Env, input: unknown) {
       statements.push(insertRuleStatement(env, categoryId, {
         ...rule,
         id: rule.id || id('rule'),
-        enabled: rule.enabled !== false,
         createdAt: rule.createdAt ?? timestamp,
         updatedAt: rule.updatedAt ?? timestamp,
       }, rule.sortOrder ?? ruleIndex));
