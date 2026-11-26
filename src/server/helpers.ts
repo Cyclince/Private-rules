@@ -22,11 +22,9 @@ export function withLinks(c: AppContext, data: Awaited<ReturnType<typeof getRule
   };
 }
 
-export async function adminApp(c: AppContext): Promise<Response> {
+async function htmlEntryApp(c: AppContext, entryPathname: string): Promise<Response> {
   const url = new URL(c.req.url);
-  // Assets canonicalises /index.html to /. Fetching / directly avoids a
-  // redirect back into the application's authenticated root route.
-  url.pathname = '/';
+  url.pathname = entryPathname;
   url.search = '';
   // Pass an explicit init: using the incoming Request as RequestInit fails
   // undici's brand check on newer Node releases ("Illegal invocation").
@@ -38,4 +36,14 @@ export async function adminApp(c: AppContext): Promise<Response> {
   headers.delete('etag');
   headers.delete('last-modified');
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+export async function adminApp(c: AppContext): Promise<Response> {
+  // Assets canonicalises /index.html to /. Fetching / directly avoids a
+  // redirect back into the application's authenticated root route.
+  return htmlEntryApp(c, '/');
+}
+
+export async function previewApp(c: AppContext): Promise<Response> {
+  return htmlEntryApp(c, '/preview.html');
 }

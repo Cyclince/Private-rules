@@ -4,7 +4,7 @@ import type { AssetsPort } from '../../application/ports/assets';
 
 const contentTypes: Record<string, string> = {
   '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
-  '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+  '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
 };
 
 export class NodeAssetsAdapter implements AssetsPort {
@@ -13,7 +13,12 @@ export class NodeAssetsAdapter implements AssetsPort {
 
   async fetch(request: Request) {
     const pathname = decodeURIComponent(new URL(request.url).pathname);
-    const requested = pathname === '/' || pathname.startsWith('/admin') ? 'index.html' : pathname.replace(/^\/+/, '');
+    const requested =
+      pathname === '/' || pathname.startsWith('/admin')
+        ? 'index.html'
+        : pathname === '/preview' || pathname.startsWith('/preview/')
+          ? 'preview.html'
+          : pathname.replace(/^\/+/, '');
     const candidate = resolve(join(this.root, normalize(requested)));
     if (!candidate.startsWith(this.root)) return new Response('Not Found', { status: 404 });
     try {

@@ -1,0 +1,145 @@
+@import 'tailwindcss';
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #0b1418;
+  --surface: #122027;
+  --surface-muted: #182a33;
+  --border: #1f3540;
+
+  /* Text */
+  --text: #e8f4f4;
+  --text-muted: #8fa9b0;
+
+  /* Brand (Miku Teal + Magenta Accent) */
+  --primary: #39c5bb;
+  --primary-foreground: #06201e;
+  --accent: #f25ca2;
+  --accent-foreground: #0b1418;
+  --glow: rgba(57, 197, 187, 0.35);
+
+  /* Semantic */
+  --success: #3dd68c;
+  --success-foreground: #06201e;
+  --warning: #f5b93d;
+  --warning-foreground: #141004;
+  --danger: #ff7885;
+  --danger-foreground: #1a0508;
+
+  /* Shape & Elevation */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --shadow-sm: 0 1px 2px rgba(2, 10, 14, 0.35);
+  --shadow-md: 0 8px 24px rgba(2, 10, 14, 0.45);
+  --shadow-lg: 0 18px 42px rgba(2, 10, 14, 0.6);
+  --shadow-glow: 0 0 24px var(--glow);
+
+  /* Typography */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'JetBrains Mono', Menlo, Monaco, Consolas, monospace;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* Surfaces */
+  --bg: #f5fafa;
+  --surface: #ffffff;
+  --surface-muted: #eef5f5;
+  --border: #d5e6e6;
+
+  /* Text */
+  --text: #10232a;
+  --text-muted: #5a7178;
+
+  /* Brand */
+  --primary: #137a7f;
+  --primary-foreground: #ffffff;
+  --accent: #c8186f;
+  --accent-foreground: #ffffff;
+  --glow: rgba(19, 122, 127, 0.2);
+
+  /* Semantic (WCAG AA >= 4.5:1 across bg, surface, surface-muted & fill foregrounds) */
+  --success: #117a43;
+  --success-foreground: #ffffff;
+  --warning: #8c580a;
+  --warning-foreground: #ffffff;
+  --danger: #c0212f;
+  --danger-foreground: #ffffff;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(16, 35, 42, 0.06);
+  --shadow-md: 0 8px 24px rgba(16, 35, 42, 0.08);
+  --shadow-lg: 0 18px 42px rgba(16, 35, 42, 0.12);
+  --shadow-glow: 0 0 16px var(--glow);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-glow: var(--shadow-glow);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+@layer base {
+  html,
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  code,
+  pre,
+  kbd {
+    font-family: var(--font-mono);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity !important;
+    transition-duration: 150ms !important;
+    scroll-behavior: auto !important;
+  }
+}

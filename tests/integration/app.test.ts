@@ -15,4 +15,30 @@ describe('shared Hono application', () => {
     expect(response.status).toBe(404);
     expect(await response.text()).not.toContain('<html>');
   });
+  it('mounts the 1.1.0 /preview entry independently without affecting /admin', async () => {
+    const requestedPaths: string[] = [];
+    const env = {
+      DB: { ping: async () => true },
+      ASSETS: {
+        fetch: async (request: Request) => {
+          const pathname = new URL(request.url).pathname;
+          requestedPaths.push(pathname);
+          return new Response(`<html>${pathname}</html>`, { headers: { 'content-type': 'text/html' } });
+        },
+      },
+    } as Env;
+    const app = createApp();
+    const adminRes = await app.request('/admin', {}, env);
+    expect(adminRes.status).toBe(200);
+    expect(await adminRes.text()).toContain('<html>/</html>');
+
+    const previewRes = await app.request('/preview', {}, env);
+    expect(previewRes.status).toBe(200);
+    expect(await previewRes.text()).toContain('<html>/preview.html</html>');
+
+    const nestedPreview = await app.request('/preview/tokens', {}, env);
+    expect(nestedPreview.status).toBe(200);
+    expect(await nestedPreview.text()).toContain('<html>/preview.html</html>');
+    expect(requestedPaths).toEqual(['/', '/preview.html', '/preview.html']);
+  });
 });

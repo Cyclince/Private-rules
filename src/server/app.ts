@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { isAuthenticated } from '../lib/auth';
-import { adminApp, type AppBindings } from './helpers';
+import { adminApp, previewApp, type AppBindings } from './helpers';
 import { telegramAuditMiddleware } from './middleware/audit';
 import { publicSubscriptionCors } from './middleware/cors';
 import { csrfProtection } from './middleware/csrf';
@@ -52,6 +52,8 @@ export function createApp() {
     })
     .get('/admin', (c) => adminApp(c))
     .get('/admin/login', (c) => adminApp(c))
+    .get('/preview', (c) => previewApp(c))
+    .get('/preview/*', (c) => previewApp(c))
     .get('/pwa-install', (c) => adminApp(c))
     .get('/pwa-install/', (c) => adminApp(c))
     .all('/api/*', (c) => c.notFound())
