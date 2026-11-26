@@ -1,0 +1,863 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`template importers (subconverter .ini and mihomo YAML) > imports mihomo YAML into schema-valid template IR, strips secrets & static proxies, and preserves unrecognized content 1`] = `
+{
+  "baseKind": "mihomo-yaml",
+  "body": {
+    "cards": [
+      {
+        "cardId": "direct-rules",
+        "enabled": true,
+      },
+      {
+        "cardId": "ai",
+        "enabled": true,
+      },
+      {
+        "cardId": "direct-rules-2",
+        "enabled": true,
+      },
+      {
+        "cardId": "card-ee2dee37",
+        "enabled": true,
+      },
+    ],
+    "clientPatches": {
+      "mihomo": "tun:
+  enable: true
+  stack: mixed
+unrecognized-rules:
+  - SUB-RULE,(NETWORK,udp),udp-chain",
+    },
+    "dns": {
+      "custom": {
+        "nameserver-policy": {
+          "geosite:cn": "223.5.5.5",
+        },
+      },
+      "defaultNameserver": [
+        "223.5.5.5",
+      ],
+      "enable": true,
+      "fakeIpFilter": [
+        "*.lan",
+      ],
+      "fallback": [
+        "https://1.1.1.1/dns-query",
+      ],
+      "ipv6": false,
+      "mode": "fake-ip",
+      "nameserver": [
+        "https://dns.alidns.com/dns-query",
+      ],
+      "respectRules": true,
+    },
+    "final": {
+      "cardId": "card-ee2dee37",
+      "kind": "card",
+    },
+    "general": {
+      "allowLan": true,
+      "ipv6": false,
+      "logLevel": "info",
+      "mixedPort": 7890,
+    },
+    "groupMode": "select",
+    "modules": [
+      {
+        "enabled": true,
+        "id": "ip-no-resolve",
+      },
+    ],
+    "output": "full",
+    "regionGroups": [
+      {
+        "extraExclude": "倍|实验",
+        "extraInclude": "(?i)港|HK|Hong Kong",
+        "id": "region-hk",
+        "name": "🇭🇰 香港节点",
+        "region": "HK",
+        "slotId": "slot-airporta",
+        "test": {
+          "intervalSec": 300,
+          "toleranceMs": 50,
+          "url": "https://cp.cloudflare.com/generate_204",
+        },
+        "type": "url-test",
+      },
+      {
+        "extraInclude": "(?i)日本|JP|Tokyo",
+        "id": "region-jp",
+        "name": "🇯🇵 日本节点",
+        "region": "JP",
+        "slotId": "slot-airporta",
+        "test": {
+          "intervalSec": 300,
+          "url": "https://cp.cloudflare.com/generate_204",
+        },
+        "type": "fallback",
+      },
+    ],
+    "slots": [
+      {
+        "excludeInfo": true,
+        "healthCheck": {
+          "intervalSec": 300,
+          "url": "https://cp.cloudflare.com/generate_204",
+        },
+        "id": "slot-airporta",
+        "name": "AirportA",
+        "udp": true,
+      },
+    ],
+  },
+  "cards": [
+    {
+      "category": "domestic",
+      "group": {
+        "candidates": [
+          {
+            "id": "DIRECT",
+            "kind": "builtin",
+          },
+        ],
+        "type": "select",
+      },
+      "icon": "domestic",
+      "id": "direct-rules",
+      "matchers": [
+        {
+          "conditions": [
+            {
+              "op": "rule",
+              "rule": {
+                "type": "DOMAIN-SUFFIX",
+                "value": "local",
+              },
+            },
+            {
+              "op": "rule",
+              "rule": {
+                "type": "DOMAIN",
+                "value": "router.home",
+              },
+            },
+          ],
+          "kind": "inline",
+        },
+      ],
+      "name": "DIRECT",
+      "origin": "user",
+      "slug": "direct-rules",
+      "stage": "domestic",
+    },
+    {
+      "category": "ai",
+      "group": {
+        "candidates": [
+          {
+            "kind": "region",
+            "regionGroupId": "region-jp",
+          },
+          {
+            "cardId": "card-ee2dee37",
+            "kind": "card",
+          },
+        ],
+        "type": "select",
+      },
+      "icon": "ai",
+      "id": "ai",
+      "matchers": [
+        {
+          "behavior": "domain",
+          "format": "text",
+          "kind": "remote",
+          "updateIntervalSec": 28800,
+          "url": "https://rules.example/openai.list",
+        },
+        {
+          "kind": "geosite",
+          "name": "openai",
+        },
+        {
+          "conditions": [
+            {
+              "items": [
+                {
+                  "op": "rule",
+                  "rule": {
+                    "type": "DOMAIN-SUFFIX",
+                    "value": "anthropic.com",
+                  },
+                },
+                {
+                  "op": "rule",
+                  "rule": {
+                    "type": "DST-PORT",
+                    "value": "443",
+                  },
+                },
+              ],
+              "op": "and",
+            },
+          ],
+          "kind": "inline",
+        },
+      ],
+      "name": "🤖 AI 服务",
+      "origin": "user",
+      "slug": "ai",
+      "stage": "app",
+    },
+    {
+      "category": "domestic",
+      "group": {
+        "candidates": [
+          {
+            "id": "DIRECT",
+            "kind": "builtin",
+          },
+        ],
+        "type": "select",
+      },
+      "icon": "domestic",
+      "id": "direct-rules-2",
+      "matchers": [
+        {
+          "conditions": [
+            {
+              "op": "rule",
+              "rule": {
+                "options": {
+                  "noResolve": true,
+                },
+                "type": "IP-CIDR",
+                "value": "2001:db8::/32",
+              },
+            },
+          ],
+          "kind": "inline",
+        },
+        {
+          "kind": "geoip",
+          "name": "CN",
+          "noResolve": true,
+        },
+      ],
+      "name": "DIRECT",
+      "origin": "user",
+      "slug": "direct-rules-2",
+      "stage": "domestic",
+    },
+    {
+      "category": "infrastructure",
+      "group": {
+        "candidates": [
+          {
+            "kind": "region",
+            "regionGroupId": "region-hk",
+          },
+          {
+            "kind": "region",
+            "regionGroupId": "region-jp",
+          },
+          {
+            "id": "DIRECT",
+            "kind": "builtin",
+          },
+          {
+            "kind": "slot",
+            "slotId": "slot-airporta",
+          },
+        ],
+        "type": "select",
+      },
+      "icon": "proxy",
+      "id": "card-ee2dee37",
+      "matchers": [],
+      "name": "🚀 节点选择",
+      "origin": "user",
+      "slug": "card-ee2dee37",
+      "stage": "final",
+    },
+  ],
+  "name": "mihomo Inline Sample",
+  "report": {
+    "importedCards": 4,
+    "importedMatchers": 6,
+    "importedRegionGroups": 2,
+    "items": [
+      {
+        "code": "YAML_UNRECOGNIZED_SECTION",
+        "message": "顶层配置段「tun」未直接映射到中间结构，已保留至 mihomo 客户端补丁。",
+        "severity": "info",
+        "source": "tun",
+      },
+      {
+        "code": "YAML_PROXIES_IGNORED",
+        "message": "已按模板规范忽略 1 条静态 proxies 节点，节点将在发布阶段通过节点槽位绑定。",
+        "severity": "info",
+        "source": "proxies",
+      },
+      {
+        "code": "YAML_PROVIDER_SECRET_STRIPPED",
+        "message": "节点槽位 AirportA 的订阅地址与请求头已脱敏剥离，请在发布时重新绑定订阅地址。",
+        "severity": "info",
+        "source": "proxy-providers.AirportA",
+      },
+      {
+        "code": "YAML_UNSUPPORTED_GROUP_TYPE",
+        "message": "策略组「⛓️ 不支持的组」使用了不支持的类型「relay」，已写入兼容性报告。",
+        "raw": "⛓️ 不支持的组 (relay)",
+        "severity": "warning",
+        "source": "proxy-groups[4]",
+      },
+      {
+        "code": "YAML_UNRECOGNIZED_RULE",
+        "message": "规则「SUB-RULE,(NETWORK,udp),udp-chain」使用未识别类型或语法，已保留至兼容性报告与 mihomo 补丁。",
+        "raw": "SUB-RULE,(NETWORK,udp),udp-chain",
+        "severity": "warning",
+        "source": "rules[6]",
+      },
+      {
+        "code": "YAML_DNS_EXTRA_FIELD",
+        "message": "DNS 扩展字段 dns.nameserver-policy 已保留在 dns.custom 中。",
+        "severity": "info",
+        "source": "dns.nameserver-policy",
+      },
+    ],
+    "skippedCount": 2,
+    "sourceFormat": "mihomo-yaml",
+    "unrecognizedCount": 2,
+  },
+}
+`;
+
+exports[`template importers (subconverter .ini and mihomo YAML) > imports subconverter .ini into schema-valid template IR and preserves unrecognized items in compatibility report 1`] = `
+{
+  "baseKind": "acl4ssr-ini",
+  "body": {
+    "cards": [
+      {
+        "cardId": "card-ee2dee37",
+        "enabled": true,
+      },
+      {
+        "cardId": "card-9b3f6b5c",
+        "enabled": true,
+      },
+      {
+        "cardId": "card-e6f27397",
+        "enabled": true,
+      },
+      {
+        "cardId": "card-2f0e4158",
+        "enabled": true,
+      },
+      {
+        "cardId": "openai",
+        "enabled": true,
+      },
+      {
+        "cardId": "telegram",
+        "enabled": true,
+      },
+      {
+        "cardId": "card-e6f27397-rules",
+        "enabled": true,
+      },
+      {
+        "cardId": "card-2acc2a8c",
+        "enabled": true,
+      },
+    ],
+    "clientPatches": {
+      "mihomo": "# Unrecognized subconverter .ini lines
+# unknown_custom_option=keep-in-report
+# ruleset=🚀 节点选择,[]UNSUPPORTED-FOO,bar
+# custom_proxy_group=⛓️ 链式代理\`relay\`[]🇭🇰 香港节点\`[]🇺🇸 美国节点
+# [extra_unrecognized_section]
+# foo=bar",
+    },
+    "dns": {
+      "enable": true,
+      "mode": "fake-ip",
+    },
+    "final": {
+      "cardId": "card-2acc2a8c",
+      "kind": "card",
+    },
+    "groupMode": "select",
+    "modules": [
+      {
+        "enabled": true,
+        "id": "ip-no-resolve",
+      },
+    ],
+    "output": "full",
+    "regionGroups": [
+      {
+        "extraInclude": "(港|HK|Hong Kong)",
+        "id": "region-hk",
+        "name": "🇭🇰 香港节点",
+        "region": "HK",
+        "slotId": "slot-main",
+        "test": {
+          "intervalSec": 300,
+          "toleranceMs": 50,
+          "url": "http://www.gstatic.com/generate_204",
+        },
+        "type": "url-test",
+      },
+      {
+        "extraInclude": "(美|US|United States)",
+        "id": "region-us",
+        "name": "🇺🇸 美国节点",
+        "region": "US",
+        "slotId": "slot-main",
+        "test": {
+          "intervalSec": 300,
+          "toleranceMs": 100,
+          "url": "http://www.gstatic.com/generate_204",
+        },
+        "type": "fallback",
+      },
+    ],
+    "slots": [
+      {
+        "excludeInfo": true,
+        "healthCheck": {
+          "intervalSec": 300,
+          "url": "https://cp.cloudflare.com/generate_204",
+        },
+        "id": "slot-main",
+        "name": "主力订阅",
+        "udp": true,
+      },
+    ],
+  },
+  "cards": [
+    {
+      "category": "infrastructure",
+      "group": {
+        "candidates": [
+          {
+            "cardId": "card-9b3f6b5c",
+            "kind": "card",
+          },
+          {
+            "kind": "region",
+            "regionGroupId": "region-hk",
+          },
+          {
+            "kind": "region",
+            "regionGroupId": "region-us",
+          },
+          {
+            "id": "DIRECT",
+            "kind": "builtin",
+          },
+          {
+            "kind": "slot",
+            "slotId": "slot-main",
+          },
+        ],
+        "type": "select",
+      },
+      "hidden": true,
+      "icon": "proxy",
+      "id": "card-ee2dee37",
+      "matchers": [],
+      "name": "🚀 节点选择",
+      "origin": "user",
+      "slug": "card-ee2dee37",
+      "stage": "proxy-fallback",
+    },
+    {
+      "category": "other",
+      "group": {
+        "candidates": [
+          {
+            "kind": "slot",
+            "slotId": "slot-main",
+          },
+        ],
+        "test": {
+          "intervalSec": 300,
+          "toleranceMs": 50,
+          "url": "http://www.gstatic.com/generate_204",
+        },
+        "type": "url-test",
+      },
+      "hidden": true,
+      "icon": "auto",
+      "id": "card-9b3f6b5c",
+      "matchers": [],
+      "name": "⚡ 自动选择",
+      "origin": "user",
+      "slug": "card-9b3f6b5c",
+      "stage": "proxy-fallback",
+    },
+    {
+      "category": "domestic",
+      "group": {
+        "candidates": [
+          {
+            "id": "DIRECT",
+            "kind": "builtin",
+          },
+          {
+            "cardId": "card-ee2dee37",
+            "kind": "card",
+          },
+        ],
+        "type": "select",
+      },
+      "icon": "domestic",
+      "id": "card-e6f27397",
+      "matchers": [
+        {
+          "behavior": "classical",
+          "format": "text",
+          "kind": "remote",
+          "updateIntervalSec": 1800,
+          "url": "https://rules.example/LocalAreaNetwork.list",
+        },
+      ],
+      "name": "🎯 全球直连",
+      "origin": "user",
+      "slug": "card-e6f27397",
+      "stage": "pre-direct",
+    },
+    {
+      "category": "advertising",
+      "group": {
+        "candidates": [
+          {
+            "id": "REJECT",
+            "kind": "builtin",
+          },
+          {
+            "id": "DIRECT",
+            "kind": "builtin",
+          },
+        ],
+        "type": "select",
+      },
+      "icon": "advertising",
+      "id": "card-2f0e4158",
+      "matchers": [
+        {
+          "behavior": "domain",
+          "format": "yaml",
+          "kind": "remote",
+          "updateIntervalSec": 28800,
+          "url": "https://rules.example/BanAD.yaml",
+        },
+      ],
+      "name": "🛑 广告拦截",
+      "origin": "user",
+      "slug": "card-2f0e4158",
+      "stage": "pre-direct",
+    },
+    {
+      "category": "ai",
+      "group": {
+        "candidates": [
+          {
+            "kind": "region",
+            "regionGroupId": "region-us",
+          },
+          {
+            "cardId": "card-ee2dee37",
+            "kind": "card",
+          },
+        ],
+        "type": "select",
+      },
+      "icon": "openai",
+      "id": "openai",
+      "matchers": [
+        {
+          "kind": "geosite",
+          "name": "openai",
+        },
+        {
+          "conditions": [
+            {
+              "op": "rule",
+              "rule": {
+                "type": "DOMAIN-SUFFIX",
+                "value": "chatgpt.com",
+              },
+            },
+          ],
+          "kind": "inline",
+        },
+      ],
+      "name": "🤖 OpenAI",
+      "origin": "user",
+      "slug": "openai",
+      "stage": "app",
+    },
+    {
+      "category": "social",
+      "group": {
+        "candidates": [
+          {
+            "kind": "region",
+            "regionGroupId": "region-hk",
+          },
+          {
+            "kind": "region",
+            "regionGroupId": "region-us",
+          },
+        ],
+        "test": {
+          "intervalSec": 300,
+          "toleranceMs": 50,
+          "url": "http://www.gstatic.com/generate_204",
+        },
+        "type": "load-balance",
+      },
+      "icon": "telegram",
+      "id": "telegram",
+      "matchers": [
+        {
+          "behavior": "ipcidr",
+          "format": "yaml",
+          "kind": "remote",
+          "updateIntervalSec": 43200,
+          "url": "https://rules.example/TelegramIP.yaml",
+        },
+        {
+          "conditions": [
+            {
+              "op": "rule",
+              "rule": {
+                "options": {
+                  "noResolve": true,
+                },
+                "type": "IP-CIDR",
+                "value": "2001:b28:f23d::/48",
+              },
+            },
+          ],
+          "kind": "inline",
+        },
+      ],
+      "name": "✈️ Telegram",
+      "origin": "user",
+      "slug": "telegram",
+      "stage": "ip",
+    },
+    {
+      "category": "domestic",
+      "group": {
+        "candidates": [
+          {
+            "cardId": "card-e6f27397",
+            "kind": "card",
+          },
+        ],
+        "type": "select",
+      },
+      "icon": "domestic",
+      "id": "card-e6f27397-rules",
+      "matchers": [
+        {
+          "kind": "geoip",
+          "name": "CN",
+          "noResolve": true,
+        },
+      ],
+      "name": "🎯 全球直连（分段规则）",
+      "origin": "user",
+      "slug": "card-e6f27397-rules",
+      "stage": "domestic",
+    },
+    {
+      "category": "other",
+      "group": {
+        "candidates": [
+          {
+            "cardId": "card-ee2dee37",
+            "kind": "card",
+          },
+          {
+            "id": "DIRECT",
+            "kind": "builtin",
+          },
+        ],
+        "type": "select",
+      },
+      "icon": "final",
+      "id": "card-2acc2a8c",
+      "matchers": [],
+      "name": "🐟 漏网之鱼",
+      "origin": "user",
+      "slug": "card-2acc2a8c",
+      "stage": "final",
+    },
+  ],
+  "name": "ACL4SSR Inline Sample",
+  "report": {
+    "importedCards": 8,
+    "importedMatchers": 7,
+    "importedRegionGroups": 2,
+    "items": [
+      {
+        "code": "INI_UNRECOGNIZED_KEY",
+        "message": "第 5 行字段「unknown_custom_option」不在标准映射范围内，已记录到兼容性报告。",
+        "raw": "unknown_custom_option=keep-in-report",
+        "severity": "info",
+        "source": "line:5",
+      },
+      {
+        "code": "INI_UNSUPPORTED_INLINE_RULE",
+        "message": "第 16 行包含无法识别的内置规则「[]UNSUPPORTED-FOO,bar」，已写入兼容性报告。",
+        "raw": "ruleset=🚀 节点选择,[]UNSUPPORTED-FOO,bar",
+        "severity": "warning",
+        "source": "line:16",
+      },
+      {
+        "code": "INI_UNSUPPORTED_GROUP_TYPE",
+        "message": "第 28 行策略组「⛓️ 链式代理」使用了暂不支持的类型「relay」，已写入兼容性报告。",
+        "raw": "custom_proxy_group=⛓️ 链式代理\`relay\`[]🇭🇰 香港节点\`[]🇺🇸 美国节点",
+        "severity": "warning",
+        "source": "line:28",
+      },
+      {
+        "code": "INI_UNRECOGNIZED_SECTION",
+        "message": "第 30 行存在非 [custom] 分段 [extra_unrecognized_section]，内容将记录在兼容性报告中。",
+        "raw": "[extra_unrecognized_section]",
+        "severity": "info",
+        "source": "line:30",
+      },
+      {
+        "code": "INI_UNRECOGNIZED_KEY",
+        "message": "分段 [extra_unrecognized_section] 中的字段 foo 未映射，已记录到兼容性报告。",
+        "raw": "foo=bar",
+        "severity": "info",
+        "source": "line:31",
+      },
+    ],
+    "skippedCount": 2,
+    "sourceFormat": "acl4ssr-ini",
+    "unrecognizedCount": 3,
+  },
+}
+`;
+
+exports[`template importers (subconverter .ini and mihomo YAML) > infers minimal output profile for mihomo YAML without dns or general runtime fields 1`] = `
+{
+  "baseKind": "mihomo-yaml",
+  "body": {
+    "cards": [
+      {
+        "cardId": "proxy",
+        "enabled": true,
+      },
+      {
+        "cardId": "direct-rules",
+        "enabled": true,
+      },
+    ],
+    "dns": {
+      "enable": true,
+      "mode": "fake-ip",
+    },
+    "final": {
+      "cardId": "proxy",
+      "kind": "card",
+    },
+    "groupMode": "select",
+    "modules": [
+      {
+        "enabled": true,
+        "id": "ip-no-resolve",
+      },
+    ],
+    "output": "minimal",
+    "regionGroups": [],
+    "slots": [
+      {
+        "excludeInfo": true,
+        "healthCheck": {
+          "intervalSec": 300,
+          "url": "https://cp.cloudflare.com/generate_204",
+        },
+        "id": "slot-main",
+        "name": "主力订阅",
+        "udp": true,
+      },
+    ],
+  },
+  "cards": [
+    {
+      "category": "infrastructure",
+      "group": {
+        "candidates": [
+          {
+            "id": "DIRECT",
+            "kind": "builtin",
+          },
+          {
+            "kind": "slot",
+            "slotId": "slot-main",
+          },
+        ],
+        "type": "select",
+      },
+      "icon": "proxy",
+      "id": "proxy",
+      "matchers": [
+        {
+          "kind": "geosite",
+          "name": "gfw",
+        },
+      ],
+      "name": "🚀 Proxy",
+      "origin": "user",
+      "slug": "proxy",
+      "stage": "proxy-fallback",
+    },
+    {
+      "category": "domestic",
+      "group": {
+        "candidates": [
+          {
+            "id": "DIRECT",
+            "kind": "builtin",
+          },
+        ],
+        "type": "select",
+      },
+      "icon": "domestic",
+      "id": "direct-rules",
+      "matchers": [
+        {
+          "kind": "geoip",
+          "name": "CN",
+          "noResolve": true,
+        },
+      ],
+      "name": "DIRECT",
+      "origin": "user",
+      "slug": "direct-rules",
+      "stage": "domestic",
+    },
+  ],
+  "name": "Minimal OpenClash YAML",
+  "report": {
+    "importedCards": 2,
+    "importedMatchers": 2,
+    "importedRegionGroups": 0,
+    "items": [],
+    "skippedCount": 0,
+    "sourceFormat": "mihomo-yaml",
+    "unrecognizedCount": 0,
+  },
+}
+`;
