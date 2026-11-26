@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { convertToZhTW } from '../../scripts/generate-zh-tw';
 import { ERROR_CODES, type ErrorCode } from '../../src/shared/errors';
 import { en } from '../../src/web/i18n/en';
-import { getDictionary, resolveLocale, translateErrorCode } from '../../src/web/i18n';
+import { getDictionary, loadLocaleDictionary, resolveLocale, translateErrorCode } from '../../src/web/i18n';
 import { zhCN } from '../../src/web/i18n/zh-CN';
 import { zhTW } from '../../src/web/i18n/zh-TW';
 
@@ -27,7 +27,8 @@ async function listFilesRecursive(dir: string): Promise<string[]> {
 }
 
 describe('M2.1 build-time i18n, zero runtime OpenCC, and WebP assets', () => {
-  it('keeps zh-CN, zh-TW, and en dictionaries in exact key parity and covers all ERROR_CODES', () => {
+  it('keeps zh-CN, zh-TW, and en dictionaries in exact key parity and covers all ERROR_CODES', async () => {
+    await Promise.all([loadLocaleDictionary('zh-TW'), loadLocaleDictionary('en')]);
     const cnKeys = Object.keys(zhCN).sort();
     const twKeys = Object.keys(zhTW).sort();
     const enKeys = Object.keys(en).sort();

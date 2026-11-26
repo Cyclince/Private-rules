@@ -1,19 +1,31 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { ErrorCode } from '../../shared/errors';
-import { en } from './en';
 import { zhCN, type MessageKey, type Messages } from './zh-CN';
-import { zhTW } from './zh-TW';
 
 export const SUPPORTED_LOCALES = ['zh-CN', 'zh-TW', 'en'] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
 const STORAGE_KEY = 'private-rules-locale';
 
-const DICTIONARIES: Record<Locale, Messages> = {
+const loadedDictionaries: Partial<Record<Locale, Messages>> = {
   'zh-CN': zhCN,
-  'zh-TW': zhTW,
-  en,
 };
+
+export async function loadLocaleDictionary(locale: Locale): Promise<Messages> {
+  const cached = loadedDictionaries[locale];
+  if (cached) return cached;
+  if (locale === 'zh-TW') {
+    const mod = await import('./zh-TW');
+    loadedDictionaries['zh-TW'] = mod.zhTW;
+    return mod.zhTW;
+  }
+  if (locale === 'en') {
+    const mod = await import('./en');
+    loadedDictionaries.en = mod.en;
+    return mod.en;
+  }
+  return zhCN;
+}
 
 export function resolveLocale(raw?: string | null): Locale {
   if (!raw) return 'zh-CN';
@@ -37,12 +49,13 @@ function readInitialLocale(): Locale {
 }
 
 export function getDictionary(locale: Locale): Messages {
-  return DICTIONARIES[locale];
+  return loadedDictionaries[locale] ?? zhCN;
 }
 
 export function translateErrorCode(code: ErrorCode, locale: Locale = 'zh-CN'): string {
+  const dict = getDictionary(locale);
   const key = `error.${code}` as MessageKey;
-  return DICTIONARIES[locale][key] ?? DICTIONARIES[locale]['error.INTERNAL'];
+  return dict[key] ?? dict['error.INTERNAL'];
 }
 
 type I18nContextValue = {
@@ -56,9 +69,12 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ children, initialLocale }: { children: ReactNode; initialLocale?: Locale }) {
   const [locale, setLocaleState] = useState<Locale>(() => initialLocale ?? readInitialLocale());
+  const [dict, setDict] = useState<Messages>(() => getDictionary(initialLocale ?? readInitialLocale()));
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
+    const cached = loadedDictionaries[next];
+    if (cached) setDict(cached);
     try {
       window.localStorage.setItem(STORAGE_KEY, next);
     } catch {
@@ -67,20 +83,30 @@ export function I18nProvider({ children, initialLocale }: { children: ReactNode;
   }, []);
 
   useEffect(() => {
+    let active = true;
     if (typeof document !== 'undefined') {
       document.documentElement.lang = locale;
     }
+    void loadLocaleDictionary(locale).then((loaded) => {
+      if (active) setDict(loaded);
+    });
+    return () => {
+      active = false;
+    };
   }, [locale]);
 
-  const value = useMemo<I18nContextValue>(() => {
-    const dict = DICTIONARIES[locale];
-    return {
+  const value = useMemo<I18nContextValue>(
+    () => ({
       locale,
       setLocale,
       t: (key) => dict[key],
-      tError: (code) => translateErrorCode(code, locale),
-    };
-  }, [locale, setLocale]);
+      tError: (code) => {
+        const key = `error.${code}` as MessageKey;
+        return dict[key] ?? dict['error.INTERNAL'];
+      },
+    }),
+    [locale, setLocale, dict],
+  );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

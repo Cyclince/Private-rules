@@ -1,0 +1,5 @@
+dist
+node_modules
+.wrangler
+coverage
+src/web/routeTree.gen.ts

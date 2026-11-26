@@ -1,11 +1,23 @@
 import { resolve } from 'node:path';
 import { cloudflare } from '@cloudflare/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
+import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [tailwindcss(), react(), cloudflare()],
+  plugins: [
+    tanstackRouter({
+      target: 'react',
+      routesDirectory: './src/web/routes',
+      generatedRouteTree: './src/web/routeTree.gen.ts',
+      autoCodeSplitting: true,
+      quoteStyle: 'single',
+    }),
+    tailwindcss(),
+    react(),
+    cloudflare(),
+  ],
   resolve: {
     alias: {
       '@': new URL('./src', import.meta.url).pathname,

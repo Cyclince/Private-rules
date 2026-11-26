@@ -35,13 +35,15 @@ export const LINTED = [
   'tests/unit/node-secrets.test.ts',
   'tests/unit/sync-scheduler.test.ts',
   'tests/unit/web-i18n-and-assets.test.ts',
+  'tests/unit/web-query-and-api.test.ts',
   'tests/integration/migration.test.ts',
   'tests/integration/security-hardening.test.ts',
   'tests/integration/subscriptions-cache.test.ts',
+  'tests/e2e/preview-layout.spec.ts',
 ];
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**', '.wrangler/**', 'coverage/**'] },
+  { ignores: ['dist/**', 'node_modules/**', '.wrangler/**', 'coverage/**', 'src/web/routeTree.gen.ts'] },
   {
     files: LINTED,
     extends: [js.configs.recommended, ...tseslint.configs.recommended, prettier],
