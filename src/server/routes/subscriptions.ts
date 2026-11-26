@@ -4,7 +4,7 @@ import { getSubscriptionFile } from '../../application/rulesets';
 import { createLogger } from '../../infrastructure/logging/logger';
 import { safeFileName, tokenMatches } from '../../lib/auth';
 import { json } from '../../lib/response';
-import { SUPPORTED_TEMPLATE_CLIENTS } from '../../shared/clients';
+import { SUPPORTED_TEMPLATE_CLIENTS, TEMPLATE_CLIENTS } from '../../shared/clients';
 import {
   computeSubscriptionEtag,
   matchCachedPublication,
@@ -101,32 +101,56 @@ async function servePublication(c: AppContext, slug: string, file: string, acces
     );
   }
 
+  const isBClassWithBindings = TEMPLATE_CLIENTS[delivery.client].nodeAccess === 'B' && delivery.bindingRows.length > 0;
+  const staleSlotIds = delivery.staleSlotIds ?? [];
+  const hasStaleFromDelivery = staleSlotIds.length > 0;
+
   const ifNoneMatch = c.req.header('if-none-match');
-  const cached = await matchCachedPublication(c.env, delivery.cacheIdentity);
-  if (cached) {
-    const cachedEtag = cached.headers.get('etag');
-    if (cachedEtag && matchesIfNoneMatch(ifNoneMatch, cachedEtag)) {
-      return notModifiedResponse(cachedEtag);
+  if (!hasStaleFromDelivery) {
+    const cached = await matchCachedPublication(c.env, delivery.cacheIdentity);
+    if (cached) {
+      const cachedEtag = cached.headers.get('etag');
+      if (cachedEtag && matchesIfNoneMatch(ifNoneMatch, cachedEtag)) {
+        return notModifiedResponse(cachedEtag);
+      }
+      const headers = new Headers(cached.headers);
+      return new Response(cached.body, { status: cached.status, headers });
     }
-    const headers = new Headers(cached.headers);
-    return new Response(cached.body, { status: cached.status, headers });
   }
 
   const compiled = await compilePublicationDelivery(c.env, delivery, baseUrl);
+  const reportHasStale = compiled.report.items.some((item) => item.code === 'STALE_NODE_SNAPSHOT');
+  const isStale = hasStaleFromDelivery || reportHasStale;
+
   const etag = await computeSubscriptionEtag(compiled.content, compiled.contentType);
+  const headers: Record<string, string> = {
+    'content-type': compiled.contentType,
+    'cache-control': isStale ? 'no-cache' : SUBSCRIPTION_CACHE_CONTROL,
+    etag,
+    'x-robots-tag': 'noindex, nofollow',
+  };
+
+  if (isStale) {
+    headers['x-node-snapshot-status'] = 'stale';
+    headers['x-node-snapshot-stale'] = 'true';
+    if (staleSlotIds.length > 0) {
+      headers['x-node-snapshot-stale-slots'] = staleSlotIds.join(',');
+    }
+    headers.warning = '110 - "Node snapshot is stale"';
+  } else if (isBClassWithBindings) {
+    headers['x-node-snapshot-status'] = 'fresh';
+  }
+
   const response = new Response(compiled.content, {
     status: 200,
-    headers: {
-      'content-type': compiled.contentType,
-      'cache-control': SUBSCRIPTION_CACHE_CONTROL,
-      etag,
-      'x-robots-tag': 'noindex, nofollow',
-    },
+    headers,
   });
 
-  await storeCachedPublication(c.env, delivery.cacheIdentity, response);
+  if (!isStale) {
+    await storeCachedPublication(c.env, delivery.cacheIdentity, response);
+  }
 
-  if (matchesIfNoneMatch(ifNoneMatch, etag)) {
+  if (!isStale && matchesIfNoneMatch(ifNoneMatch, etag)) {
     return notModifiedResponse(etag);
   }
   return response;

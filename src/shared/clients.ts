@@ -43,7 +43,7 @@ export type TemplateClientId = keyof typeof TEMPLATE_CLIENTS;
 export const TEMPLATE_CLIENT_IDS = Object.keys(TEMPLATE_CLIENTS) as TemplateClientId[];
 
 /** Clients with an active compiler implementation in the current release. */
-export const SUPPORTED_TEMPLATE_CLIENTS: readonly TemplateClientId[] = ['mihomo', 'stash', 'surge'];
+export const SUPPORTED_TEMPLATE_CLIENTS: readonly TemplateClientId[] = ['mihomo', 'stash', 'surge', 'sing-box'];
 
 const SUPPORTED_TEMPLATE_CLIENT_SET = new Set<TemplateClientId>(SUPPORTED_TEMPLATE_CLIENTS);
 

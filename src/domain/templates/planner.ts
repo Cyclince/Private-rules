@@ -124,6 +124,9 @@ function buildSelfHostedRulesetUrl(
   if (client === 'surge') {
     return `${trimmed}/rules/${encodeURIComponent(ruleSetId)}_${behavior}-surge.list`;
   }
+  if (client === 'sing-box') {
+    return `${trimmed}/rules/${encodeURIComponent(ruleSetId)}-sing-box.json`;
+  }
   const formatSegment =
     behavior === 'domain' ? 'clash-domain' : behavior === 'ipcidr' ? 'clash-ipcidr' : 'clash-classical';
   return `${trimmed}/sub/${encodeURIComponent(ruleSetId)}/${formatSegment}`;
@@ -338,6 +341,30 @@ export function planRulesetReferences(input: RulesetPlannerInput): RulesetPlan {
         }
 
         case 'ruleset': {
+          if (input.client === 'sing-box') {
+            const url = buildSelfHostedRulesetUrl(input.baseUrl, matcher.ruleSetId, 'classical', input.client);
+            const dedupeKey = `ruleset:${matcher.ruleSetId}|sing-box`;
+            const provider = registerProvider({
+              dedupeKey,
+              preferredId: `ruleset-${matcher.ruleSetId}`,
+              source: { kind: 'ruleset', ruleSetId: matcher.ruleSetId, url },
+              behavior: 'classical',
+              format: 'text',
+              updateIntervalSec: matcher.updateIntervalSec,
+              inlineForPriority: false,
+              cardId: card.cardId,
+            });
+            bindings.push({
+              cardId: card.cardId,
+              matcherIndex,
+              matcher,
+              strategy: 'provider',
+              providerIds: [provider.id],
+              inlinedForPriority: false,
+            });
+            return;
+          }
+
           const breakdown = input.rulesetBehaviors?.get(matcher.ruleSetId);
           const behaviors: RemoteRuleBehavior[] = breakdown
             ? BEHAVIOR_SPLIT_ORDER.filter((b) => (breakdown[b] ?? 0) > 0)

@@ -644,7 +644,7 @@ export const zhTW: Messages = {
   'publications.previewTitle': '即時編譯預覽',
   'publications.previewDesc': '呼叫伺服器端編譯器生成只讀設定預覽（不含真實節點明文）',
   'publications.previewClientUnsupported':
-    '該客戶端編譯器即將支援，目前可切換至 mihomo / Stash / Surge 檢視即時編譯預覽。',
+    '該客戶端編譯器即將支援，目前可切換至 mihomo / Stash / Surge / sing-box 檢視即時編譯預覽。',
   'publications.previewStatsGroups': '策略組',
   'publications.previewStatsRuleProviders': '規則集源',
   'publications.previewStatsRules': '規則數',

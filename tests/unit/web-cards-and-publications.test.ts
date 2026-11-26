@@ -90,13 +90,14 @@ describe('M4.4a card helpers, client support flags, and query invalidation', () 
     ).toContain('DOMAIN,chat.openai.com');
   });
 
-  it('marks mihomo, stash, and surge as supported and all other template clients as coming soon', () => {
-    expect(SUPPORTED_TEMPLATE_CLIENTS).toEqual(['mihomo', 'stash', 'surge']);
+  it('marks mihomo, stash, surge, and sing-box as supported and all other template clients as coming soon', () => {
+    expect(SUPPORTED_TEMPLATE_CLIENTS).toEqual(['mihomo', 'stash', 'surge', 'sing-box']);
     expect(isTemplateClientSupported('mihomo')).toBe(true);
     expect(isTemplateClientSupported('stash')).toBe(true);
     expect(isTemplateClientSupported('surge')).toBe(true);
+    expect(isTemplateClientSupported('sing-box')).toBe(true);
     for (const client of TEMPLATE_CLIENT_IDS) {
-      if (client === 'mihomo' || client === 'stash' || client === 'surge') continue;
+      if (client === 'mihomo' || client === 'stash' || client === 'surge' || client === 'sing-box') continue;
       expect(isTemplateClientSupported(client), `Expected ${client} to be coming soon`).toBe(false);
     }
   });

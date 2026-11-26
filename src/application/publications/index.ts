@@ -36,7 +36,12 @@ import {
   loadTemplateRulesetContext,
   SUPPORTED_COMPILER_CLIENTS,
 } from '../templates';
-import { bindingAad } from './nodes';
+import {
+  bindingAad,
+  resolvePublicationSlotNodes,
+  type ResolveSlotNodesOptions,
+  type ResolvedSlotNodesResult,
+} from './nodes';
 
 export {
   NODE_SNAPSHOT_TTL_MS,
@@ -126,6 +131,8 @@ export type PublicationCacheIdentity = {
   output: OutputProfile;
   bindingsVersion: string;
   depsVersion: string;
+  /** Snapshot fingerprint for B-class deliveries (changes when snapshot refreshes or becomes stale). */
+  snapshotsVersion?: string;
 };
 
 export type ResolvedPublicationDelivery =
@@ -141,6 +148,10 @@ export type ResolvedPublicationDelivery =
       client: TemplateClientId;
       bindingRows: NodeBindingRow[];
       cacheIdentity: PublicationCacheIdentity;
+      /** Pre-resolved encrypted node snapshots for B-class deliveries. */
+      resolvedSnapshots?: Map<string, ResolvedSlotNodesResult>;
+      /** Slot IDs whose resolved snapshot fell back to stale cached data. */
+      staleSlotIds?: string[];
     };
 
 function decodeOffsetCursor(raw?: string): number {
@@ -554,6 +565,7 @@ export async function resolvePublicationDelivery(
     access: 'public' | 'token';
     token?: string;
     baseUrl: string;
+    nodeResolveOptions?: ResolveSlotNodesOptions;
   },
 ): Promise<ResolvedPublicationDelivery> {
   const client = parsePublicationFile(params.file);
@@ -630,6 +642,25 @@ export async function resolvePublicationDelivery(
   const depsVersion = await sha256Short(depsMaterial);
   const tokenHash = params.access === 'token' && params.token ? await sha256Short(params.token) : 'public';
 
+  let resolvedSnapshots: Map<string, ResolvedSlotNodesResult> | undefined;
+  let staleSlotIds: string[] | undefined;
+  let snapshotsVersion: string | undefined;
+
+  if (TEMPLATE_CLIENTS[client].nodeAccess === 'B' && bindingRows.length > 0) {
+    resolvedSnapshots = await resolvePublicationSlotNodes(env, publication.id, params.nodeResolveOptions);
+    const staleIds: string[] = [];
+    const snapMaterial: string[] = [];
+    for (const row of bindingRows) {
+      const snap = resolvedSnapshots.get(row.slotId);
+      if (snap) {
+        if (snap.stale) staleIds.push(row.slotId);
+        snapMaterial.push(`${row.slotId}\0${snap.fetchedAt}\0${snap.stale ? 'stale' : 'fresh'}\0${snap.nodes.length}`);
+      }
+    }
+    staleSlotIds = staleIds;
+    snapshotsVersion = await sha256Short(snapMaterial.join('\n') || 'no-snapshots');
+  }
+
   return {
     status: 'ready',
     publication,
@@ -639,6 +670,8 @@ export async function resolvePublicationDelivery(
     output,
     client,
     bindingRows,
+    ...(resolvedSnapshots ? { resolvedSnapshots } : {}),
+    ...(staleSlotIds ? { staleSlotIds } : {}),
     cacheIdentity: {
       publicationId: publication.id,
       slug: publication.slug,
@@ -650,34 +683,57 @@ export async function resolvePublicationDelivery(
       output,
       bindingsVersion,
       depsVersion,
+      ...(snapshotsVersion ? { snapshotsVersion } : {}),
     },
   };
 }
 
 /**
- * Compiles a ready publication delivery on cache miss, decrypting A-class node
- * slot bindings in-memory only for compilation (never logged).
+ * Compiles a ready publication delivery on cache miss:
+ * - A-class clients: decrypts bound subscription URLs in-memory only (never logged).
+ * - B-class clients (e.g. sing-box): uses encrypted parsed node snapshots from `nodes.ts`
+ *   and passes stale/parse metadata into the compiler compatibility report.
  */
 export async function compilePublicationDelivery(
   env: Env,
   delivery: Extract<ResolvedPublicationDelivery, { status: 'ready' }>,
   baseUrl: string,
+  nodeResolveOptions?: ResolveSlotNodesOptions,
 ): Promise<CompiledConfigResult> {
   const slotBindings = new Map<string, CompiledNodeSlotBinding>();
 
   if (delivery.bindingRows.length > 0) {
-    const explicitSecret = requireExplicitSessionSecret(resolveExplicitSessionSecret(env));
-    for (const row of delivery.bindingRows) {
-      const decryptedUrl = await decryptNodeSecret(
-        row.subscriptionUrlEnc,
-        explicitSecret,
-        bindingAad(row.publicationId, row.slotId),
-      );
-      slotBindings.set(row.slotId, {
-        kind: 'http',
-        url: decryptedUrl,
-        ...(row.userAgent ? { userAgent: row.userAgent } : {}),
-      });
+    if (TEMPLATE_CLIENTS[delivery.client].nodeAccess === 'B') {
+      const snapshots =
+        delivery.resolvedSnapshots ??
+        (await resolvePublicationSlotNodes(env, delivery.publication.id, nodeResolveOptions));
+      for (const row of delivery.bindingRows) {
+        const snap = snapshots.get(row.slotId);
+        if (!snap) continue;
+        slotBindings.set(row.slotId, {
+          kind: 'snapshot',
+          nodes: snap.nodes,
+          report: snap.report,
+          stale: snap.stale,
+          staleReason: snap.staleReason,
+          fetchedAt: snap.fetchedAt,
+          expiresAt: snap.expiresAt,
+        });
+      }
+    } else {
+      const explicitSecret = requireExplicitSessionSecret(resolveExplicitSessionSecret(env));
+      for (const row of delivery.bindingRows) {
+        const decryptedUrl = await decryptNodeSecret(
+          row.subscriptionUrlEnc,
+          explicitSecret,
+          bindingAad(row.publicationId, row.slotId),
+        );
+        slotBindings.set(row.slotId, {
+          kind: 'http',
+          url: decryptedUrl,
+          ...(row.userAgent ? { userAgent: row.userAgent } : {}),
+        });
+      }
     }
   }
 

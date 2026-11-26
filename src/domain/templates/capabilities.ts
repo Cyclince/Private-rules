@@ -69,6 +69,28 @@ export type EmptyFallbackMechanism = 'compatible-builtin' | 'explicit-fallback-p
  *   `REJECT-TINYGIF`, `REJECT-DROP`, `REJECT-NO-DROP`.
  * - `[General]` DNS: `dns-server`, `encrypted-dns-server`, `always-real-ip`; VIF always uses
  *   Fake-IP (NO `redir-host` mode, NO `respect-rules`).
+ *
+ * Official `sing-box` (https://sing-box.sagernet.org — minimum target version: **1.12**, tentative) audit notes:
+ * - Outbounds (class B — no remote proxy-provider; nodes inlined from server-parsed snapshots):
+ *   - `shadowsocks` (`method`, `password`, `plugin`: `obfs-local` | `v2ray-plugin`, `plugin_opts`),
+ *   - `vmess` (`uuid`, `security`, `alter_id`, `packet_encoding`, `tls`, `transport`),
+ *   - `vless` (`uuid`, `flow`, `packet_encoding`, `tls` incl. `utls` + `reality`, `transport`),
+ *   - `trojan` (`password`, `tls`, `transport`),
+ *   - `hysteria2` (`password`, `up_mbps`, `down_mbps`, `obfs` (`salamander` only in 1.12), `server_ports` mutually exclusive with `server_port`, `tls`),
+ *   - `tuic` (`uuid`, `password`, `congestion_control`, `udp_relay_mode`, `zero_rtt_handshake`, `tls` incl. `disable_sni`),
+ *   - Groups: `selector` (`outbounds`, `default`) and `urltest` (`outbounds`, `url`, `interval`, `tolerance`) ONLY
+ *     (no native `fallback` or `load-balance`; compiler downgrades `fallback` -> `urltest` / `load-balance` -> `urltest` with compatibility report).
+ *   - Legacy `block` & `dns` special outbounds are deprecated (since 1.11.0); use route rule actions `reject` (`method: "drop"` for `REJECT-DROP`), `sniff`, and `hijack-dns`.
+ * - `route` & `route.rule_set`:
+ *   - Legacy `route.geoip`, `route.geosite`, and rule `geoip` / `geosite` fields were REMOVED in 1.12.0; use `route.rule_set` (`remote` with `format: "binary"` `.srs` or `format: "source"` `.json`, and `inline` with headless `rules`).
+ *   - `geoip: private` compiles natively to `{ "ip_is_private": true }` in `route.rules`.
+ *   - 11 of 14 canonical rule types supported (`USER-AGENT`, `URL-REGEX`, `IP-ASN` unsupported); IPv4 & IPv6 both use `ip_cidr`; `DST-PORT` -> `port` / `port_range` (`start:end`); `SRC-PORT` -> `source_port` / `source_port_range`; `SRC-IP-CIDR` -> `source_ip_cidr`; logical rules use `{ "type": "logical", "mode": "and" | "or", "rules": [...] }` and `invert: true` for `NOT`.
+ *   - `route.default_domain_resolver` (1.12.0+) replaces legacy `dns.rules[].outbound`.
+ * - `dns` (1.12.0 new typed server format; legacy `address`/`address_resolver` removed in 1.14):
+ *   - Typed servers (`https`, `tls`, `udp`, `tcp`, `quic`, `h3`, `local`, `dhcp`, `fakeip`) with `server`, `server_port`, `path`, `headers`, `tls`, `detour`, `domain_resolver`.
+ *   - New DNS servers dial directly by default (do NOT set `detour` to an empty `direct` outbound); domain-based server addresses MUST set `domain_resolver` to an IP-based bootstrap server tag.
+ *   - FakeIP uses `{ "type": "fakeip", "tag": "...", "inet4_range": "...", "inet6_range"?: "..." }` (replaces legacy `dns.fakeip`).
+ *   - Supports rule-routed DNS (`dns.rules` + proxy `detour` for `dns-leak-guard`) and both standard (non-FakeIP) & FakeIP modes.
  */
 export type ClientCapabilities = {
   client: TemplateClientId;
@@ -279,7 +301,19 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     supportedRuleTypes: new Set<RuleType>(
       ALL_RULE_TYPES.filter((t) => t !== 'USER-AGENT' && t !== 'URL-REGEX' && t !== 'IP-ASN'),
     ),
-    ruleTypeAliases: {},
+    ruleTypeAliases: {
+      DOMAIN: 'domain',
+      'DOMAIN-SUFFIX': 'domain_suffix',
+      'DOMAIN-KEYWORD': 'domain_keyword',
+      'DOMAIN-REGEX': 'domain_regex',
+      'IP-CIDR': 'ip_cidr',
+      'SRC-IP-CIDR': 'source_ip_cidr',
+      'DST-PORT': 'port',
+      'SRC-PORT': 'source_port',
+      'PROCESS-NAME': 'process_name',
+      GEOSITE: 'rule_set',
+      GEOIP: 'rule_set',
+    },
     supportedGroupTypes: new Set<GroupType>(['select', 'url-test']),
     supportedRemoteFormats: new Set<RemoteRuleFormat>(['text']),
     remoteRulesetField: 'route.rule_set',
@@ -292,9 +326,9 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     noResolveRuleTypes: new Set<RuleType>(),
     builtinPolicies: new Set(['direct', 'block']),
     mrsSupportedBehaviors: EMPTY_BEHAVIORS,
-    supportsRespectRules: false,
+    supportsRespectRules: true,
     requiresProxyServerNameserverWithRespectRules: false,
-    supportsDnsRedirHost: false,
+    supportsDnsRedirHost: true,
     proxyProviderHeadersField: null,
     supportsProxyProviderExcludeFilter: false,
     supportsProxyProviderOverrideUdp: false,

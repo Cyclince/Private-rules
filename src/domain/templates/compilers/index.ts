@@ -1,5 +1,6 @@
 import type { TemplateClientId } from '../../../shared/clients';
 import { compileMihomo } from './mihomo';
+import { compileSingbox } from './singbox';
 import { compileStash } from './stash';
 import { compileSurge } from './surge';
 import type { CompiledConfigResult, CompileTemplateInput } from './types';
@@ -12,6 +13,15 @@ export {
   sanitizeMihomoRuleValue,
   sanitizeMihomoScalar,
 } from './mihomo';
+export {
+  SINGBOX_MIN_VERSION,
+  compileSingbox,
+  formatSingboxDuration,
+  mapParsedNodeToSingboxOutbound,
+  sanitizeSingboxRuleSetTag,
+  sanitizeSingboxScalar,
+  sanitizeSingboxTag,
+} from './singbox';
 export {
   compileStash,
   sanitizeStashGroupName,
@@ -53,6 +63,8 @@ export function compileTemplate(client: TemplateClientId, input: CompileTemplate
       return compileStash(input);
     case 'surge':
       return compileSurge(input);
+    case 'sing-box':
+      return compileSingbox(input);
     default:
       throw new Error(`Unsupported compiler target client: ${client}`);
   }

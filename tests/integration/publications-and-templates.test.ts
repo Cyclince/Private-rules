@@ -4,6 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parse as parseYaml } from 'yaml';
+import {
+  clearInFlightNodeFetches,
+  compilePublicationDelivery,
+  resolvePublicationDelivery,
+} from '../../src/application/publications';
 import { createRepositories } from '../../src/data/repositories';
 import { encryptNodeSecret } from '../../src/infrastructure/crypto/node-secrets';
 import { SqliteDatabaseAdapter } from '../../src/infrastructure/database/sqlite/adapter';
@@ -296,10 +301,27 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
 
     const previewSingboxRes = await adminRequest(`/api/templates/${templateId}/preview?client=sing-box`, {
       method: 'POST',
+      body: JSON.stringify({ output: 'full' }),
+    });
+    expect(previewSingboxRes.status).toBe(200);
+    const previewSingboxJson = (await previewSingboxRes.json()) as {
+      preview: { client: string; content: string; contentType: string };
+    };
+    expect(previewSingboxJson.preview.client).toBe('sing-box');
+    expect(previewSingboxJson.preview.contentType).toContain('application/json');
+    const parsedSingboxPreview = JSON.parse(previewSingboxJson.preview.content) as {
+      outbounds: unknown[];
+      route: { rules: unknown[]; final: string };
+    };
+    expect(parsedSingboxPreview.outbounds.length).toBeGreaterThan(0);
+    expect(parsedSingboxPreview.route.final).toBeTruthy();
+
+    const previewLoonRes = await adminRequest(`/api/templates/${templateId}/preview?client=loon`, {
+      method: 'POST',
       body: JSON.stringify({}),
     });
-    expect(previewSingboxRes.status).toBe(404);
-    expect((await previewSingboxRes.json()) as { error: string }).toMatchObject({
+    expect(previewLoonRes.status).toBe(404);
+    expect((await previewLoonRes.json()) as { error: string }).toMatchObject({
       error: expect.stringContaining('尚未支持'),
     });
 
@@ -617,7 +639,7 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     expect(wrongMode.status).toBe(404);
 
     // Unsupported clients return 404 with "尚未支持" hint
-    for (const file of ['singbox.json', 'loon.conf', 'qx.conf', 'shadowrocket.conf']) {
+    for (const file of ['loon.conf', 'qx.conf', 'shadowrocket.conf']) {
       const unsupported = await app.request(`/t/pub-secret-token/my-mihomo/${file}`, {}, env);
       expect(unsupported.status).toBe(404);
       expect(await unsupported.text()).toContain('尚未支持');
@@ -1008,13 +1030,13 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
       resolvedBody: { slots: Array<{ id: string }> };
     };
 
-    // 1. Token access with mihomo + stash + surge (supported) + sing-box (unsupported)
+    // 1. Token access with mihomo + stash + surge + sing-box (supported) + loon (unsupported)
     const createRes = await adminRequest('/api/publications', {
       method: 'POST',
       body: JSON.stringify({
         slug: 'links-pub',
         templateId: template.id,
-        clients: ['mihomo', 'stash', 'surge', 'sing-box'],
+        clients: ['mihomo', 'stash', 'surge', 'sing-box', 'loon'],
         access: 'token',
       }),
     });
@@ -1045,6 +1067,11 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
       }),
       expect.objectContaining({
         client: 'sing-box',
+        supported: true,
+        url: 'https://rules.example.com/t/pub-secret-token/links-pub/singbox.json',
+      }),
+      expect.objectContaining({
+        client: 'loon',
         supported: false,
         url: null,
       }),
@@ -1062,7 +1089,8 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     expect(publicBody.publication.links[0].url).toBe('https://rules.example.com/p/links-pub/mihomo.yaml');
     expect(publicBody.publication.links[1].url).toBe('https://rules.example.com/p/links-pub/stash.yaml');
     expect(publicBody.publication.links[2].url).toBe('https://rules.example.com/p/links-pub/surge.conf');
-    expect(publicBody.publication.links[3].url).toBeNull();
+    expect(publicBody.publication.links[3].url).toBe('https://rules.example.com/p/links-pub/singbox.json');
+    expect(publicBody.publication.links[4].url).toBeNull();
 
     // 3. Disabled access -> no active links
     const disabledRes = await adminRequest(`/api/publications/${created.publication.id}`, {
@@ -1103,5 +1131,162 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     const listed = listBody.publications.find((item) => item.id === created.publication.id)!;
     expect(listed.links[0].url).toBe('https://rules.example.com/t/pub-secret-token/links-pub/mihomo.yaml');
     expect(listed.bindings[0].maskedUrl).not.toContain('RAW_TOKEN_123');
+  });
+
+  it('delivers singbox.json on /p (unbound) and /t (bound B-class snapshots) with stale fallback headers & report', async () => {
+    clearInFlightNodeFetches();
+    const tplRes = await adminRequest('/api/templates', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Singbox Delivery Tpl', starterTier: 'minimal', output: 'full' }),
+    });
+    expect(tplRes.status).toBe(201);
+    const { template, resolvedBody } = (await tplRes.json()) as {
+      template: { id: string };
+      resolvedBody: { slots: Array<{ id: string }> };
+    };
+    const slotId = resolvedBody.slots[0]!.id;
+
+    // 1. Public unbound singbox.json works on /p/:slug/singbox.json
+    const pubPublicRes = await adminRequest('/api/publications', {
+      method: 'POST',
+      body: JSON.stringify({
+        slug: 'sb-public',
+        templateId: template.id,
+        clients: ['sing-box'],
+        access: 'public',
+      }),
+    });
+    expect(pubPublicRes.status).toBe(201);
+
+    const publicDelivery = await app.request('/p/sb-public/singbox.json', {}, env);
+    expect(publicDelivery.status).toBe(200);
+    expect(publicDelivery.headers.get('content-type')).toContain('application/json');
+    const publicDoc = JSON.parse(await publicDelivery.text()) as {
+      outbounds: Array<{ type: string; tag: string }>;
+      route: { final: string };
+    };
+    expect(publicDoc.outbounds.some((o) => o.tag === 'direct')).toBe(true);
+    expect(publicDoc.route.final).toBeTruthy();
+
+    // 2. Token-only singbox.json with bound slot resolves encrypted snapshot via nodes.ts
+    const pubTokenRes = await adminRequest('/api/publications', {
+      method: 'POST',
+      body: JSON.stringify({
+        slug: 'sb-token',
+        templateId: template.id,
+        clients: ['sing-box'],
+        access: 'token',
+      }),
+    });
+    expect(pubTokenRes.status).toBe(201);
+    const { publication: tokenPub } = (await pubTokenRes.json()) as { publication: { id: string } };
+
+    const secretSubUrl = 'https://93.184.216.34/sub?token=SB_SECRET_999';
+    const bindRes = await adminRequest(`/api/publications/${tokenPub.id}/slots/${slotId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ subscriptionUrl: secretSubUrl, userAgent: 'sing-box/1.12' }),
+    });
+    expect(bindRes.status).toBe(200);
+
+    // Public route must reject bound publication even if requested
+    expect((await app.request('/p/sb-token/singbox.json', {}, env)).status).toBe(404);
+
+    const sampleSubYaml = [
+      'proxies:',
+      '  - name: "🇭🇰 香港 SS-01"',
+      '    type: ss',
+      '    server: 198.51.100.10',
+      '    port: 8388',
+      '    cipher: aes-256-gcm',
+      '    password: hk-password-1',
+      '  - name: "🇺🇸 美国 VLESS-01"',
+      '    type: vless',
+      '    server: 198.51.100.20',
+      '    port: 443',
+      '    uuid: 11111111-2222-3333-4444-555555555555',
+      '    tls: true',
+      '    servername: www.microsoft.com',
+      '    reality-opts:',
+      '      public-key: cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2',
+      '      short-id: abcd1234',
+      '  - name: "Legacy SSR"',
+      '    type: ssr',
+      '    server: 198.51.100.30',
+      '    port: 443',
+      '    password: ignored',
+    ].join('\n');
+
+    let upstreamShouldFail = false;
+    let fetchCount = 0;
+    const fetchMock = vi.fn(async () => {
+      fetchCount += 1;
+      if (upstreamShouldFail) {
+        return new Response('upstream unavailable', { status: 503 });
+      }
+      return new Response(sampleSubYaml, {
+        status: 200,
+        headers: { 'content-type': 'text/yaml; charset=utf-8' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      // Fresh delivery via /t/:token/:slug/singbox.json
+      const freshRes = await app.request('/t/pub-secret-token/sb-token/singbox.json', {}, env);
+      expect(freshRes.status).toBe(200);
+      expect(freshRes.headers.get('content-type')).toContain('application/json');
+      expect(freshRes.headers.get('x-node-snapshot-status')).toBe('fresh');
+      expect(freshRes.headers.get('x-node-snapshot-stale')).toBeNull();
+      expect(fetchCount).toBe(1);
+
+      const freshBodyText = await freshRes.text();
+      expect(freshBodyText).not.toContain('SB_SECRET_999');
+      expect(freshBodyText).not.toContain('93.184.216.34');
+      const freshDoc = JSON.parse(freshBodyText) as {
+        outbounds: Array<{ type: string; tag: string; outbounds?: string[] }>;
+      };
+      expect(freshDoc.outbounds.some((o) => o.type === 'shadowsocks' && o.tag === '🇭🇰 香港 SS-01')).toBe(true);
+      expect(freshDoc.outbounds.some((o) => o.type === 'vless' && o.tag === '🇺🇸 美国 VLESS-01')).toBe(true);
+
+      // Expire cached snapshot in DB and simulate upstream failure -> stale fallback
+      await database
+        .prepare(`UPDATE node_snapshots SET expires_at = ? WHERE publication_id = ? AND slot_id = ?`)
+        .bind('2020-01-01T00:00:00.000Z', tokenPub.id, slotId)
+        .run();
+      upstreamShouldFail = true;
+
+      const staleRes = await app.request('/t/pub-secret-token/sb-token/singbox.json', {}, env);
+      expect(staleRes.status).toBe(200);
+      expect(staleRes.headers.get('x-node-snapshot-status')).toBe('stale');
+      expect(staleRes.headers.get('x-node-snapshot-stale')).toBe('true');
+      expect(staleRes.headers.get('x-node-snapshot-stale-slots')).toBe(slotId);
+      expect(staleRes.headers.get('warning')).toContain('110');
+      expect(staleRes.headers.get('cache-control')).toBe('no-cache');
+
+      const staleDoc = JSON.parse(await staleRes.text()) as {
+        outbounds: Array<{ type: string; tag: string }>;
+      };
+      expect(staleDoc.outbounds.some((o) => o.type === 'shadowsocks' && o.tag === '🇭🇰 香港 SS-01')).toBe(true);
+
+      // Verify compatibility report also records STALE_NODE_SNAPSHOT & SKIPPED_UNSUPPORTED_NODES
+      const delivery = await resolvePublicationDelivery(env, {
+        slug: 'sb-token',
+        file: 'singbox.json',
+        access: 'token',
+        token: 'pub-secret-token',
+        baseUrl: 'https://rules.example.com',
+      });
+      expect(delivery.status).toBe('ready');
+      if (delivery.status === 'ready') {
+        expect(delivery.staleSlotIds).toEqual([slotId]);
+        const compiled = await compilePublicationDelivery(env, delivery, 'https://rules.example.com');
+        const codes = compiled.report.items.map((item) => item.code);
+        expect(codes).toContain('STALE_NODE_SNAPSHOT');
+        expect(codes).toContain('SKIPPED_UNSUPPORTED_NODES');
+      }
+    } finally {
+      vi.unstubAllGlobals();
+      clearInFlightNodeFetches();
+    }
   });
 });

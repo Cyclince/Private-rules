@@ -60,6 +60,9 @@ export function publicationCacheKeyUrl(identity: PublicationCacheIdentity): stri
     encodeURIComponent(identity.bindingsVersion),
     encodeURIComponent(identity.depsVersion),
   ];
+  if (identity.snapshotsVersion) {
+    parts.push(encodeURIComponent(identity.snapshotsVersion));
+  }
   return parts.join('/');
 }
 

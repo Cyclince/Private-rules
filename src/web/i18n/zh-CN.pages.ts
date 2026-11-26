@@ -641,7 +641,7 @@ export const zhCNPages = {
   'publications.previewTitle': '实时编译预览',
   'publications.previewDesc': '调用服务端编译器生成只读配置预览（不含真实节点明文）',
   'publications.previewClientUnsupported':
-    '该客户端编译器即将支持，目前可切换至 mihomo / Stash / Surge 查看实时编译预览。',
+    '该客户端编译器即将支持，目前可切换至 mihomo / Stash / Surge / sing-box 查看实时编译预览。',
   'publications.previewStatsGroups': '策略组',
   'publications.previewStatsRuleProviders': '规则集源',
   'publications.previewStatsRules': '规则数',

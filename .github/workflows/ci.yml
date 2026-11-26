@@ -36,6 +36,20 @@ jobs:
           chmod +x /tmp/mihomo
           /tmp/mihomo -v
           MIHOMO_BIN=/tmp/mihomo REQUIRE_MIHOMO_KERNEL=1 pnpm exec vitest run tests/domain/compilers/mihomo-kernel.test.ts
+      - name: Install pinned sing-box and validate compiled configs
+        env:
+          # Bump SINGBOX_SHA256 together whenever SINGBOX_VERSION is upgraded.
+          SINGBOX_VERSION: v1.12.25
+          SINGBOX_SHA256: a1ec76e2b6b139eb747a1b1ebee7d14b8d4be5a833596cad8070a31ef960301f
+        run: |
+          SINGBOX_VER_NO_V="${SINGBOX_VERSION#v}"
+          ARCHIVE="sing-box-${SINGBOX_VER_NO_V}-linux-amd64.tar.gz"
+          curl -fsSL "https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/${ARCHIVE}" -o "/tmp/${ARCHIVE}"
+          echo "${SINGBOX_SHA256}  /tmp/${ARCHIVE}" | sha256sum -c -
+          tar -xzf "/tmp/${ARCHIVE}" -C /tmp
+          chmod +x "/tmp/sing-box-${SINGBOX_VER_NO_V}-linux-amd64/sing-box"
+          "/tmp/sing-box-${SINGBOX_VER_NO_V}-linux-amd64/sing-box" version
+          SINGBOX_BIN="/tmp/sing-box-${SINGBOX_VER_NO_V}-linux-amd64/sing-box" REQUIRE_SINGBOX_KERNEL=1 pnpm exec vitest run tests/domain/compilers/singbox-kernel.test.ts
       - run: pnpm build
       - run: pnpm wrangler deploy --dry-run --keep-vars
       - run: pnpm exec playwright install --with-deps chromium

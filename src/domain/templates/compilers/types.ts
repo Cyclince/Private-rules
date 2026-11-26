@@ -1,6 +1,7 @@
 import type { OutputProfile, TemplateClientId } from '../../../shared/clients';
 import type { CatalogEntry, RemoteRuleBehavior } from '../../../shared/schemas/card';
 import type { TemplateBody } from '../../../shared/schemas/template';
+import type { NodeParseReport, ParsedNode } from '../../nodes/parse';
 import type { IconPackEntry } from '../icons';
 import type { CardLookup } from '../model';
 import type { EnhancementModule } from '../modules';
@@ -22,6 +23,8 @@ export type CompatibilityItemCode =
   | 'MODULE_NOTE'
   | 'MINIMAL_OMITTED_SECTIONS'
   | 'UNBOUND_NODE_SLOT'
+  | 'STALE_NODE_SNAPSHOT'
+  | 'SKIPPED_UNSUPPORTED_NODES'
   | 'MISSING_RULESET_URL'
   | 'CATALOG_ENTRY_MISSING'
   | 'MISSING_CARD_REFERENCE'
@@ -87,6 +90,15 @@ export type CompiledNodeSlotBinding =
   | {
       kind: 'inline';
       proxies: readonly InlineProxyNode[];
+    }
+  | {
+      kind: 'snapshot';
+      nodes: readonly ParsedNode[];
+      report?: NodeParseReport;
+      stale?: boolean;
+      staleReason?: string;
+      fetchedAt?: string;
+      expiresAt?: string;
     };
 
 export type CompileTemplateInput = {

@@ -535,7 +535,7 @@ function buildSurgeSlot(
     };
   }
 
-  if (!binding) {
+  if (!binding || binding.kind === 'snapshot') {
     items.push({
       code: 'UNBOUND_NODE_SLOT',
       severity: 'warning',
