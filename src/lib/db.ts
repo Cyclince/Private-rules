@@ -1,11 +1,18 @@
-import type { BackupRuleSource, DomainRule, ManualRuleOptimizationPreview, RuleCategory, RuleConflict, RuleOptimizationMode, RuleSettings, RuleSource, RulesBackupData, RulesData } from '../types/domain-rules';
+import type { BackupRuleSource, DomainRule, DomainRuleType, ManualRuleOptimizationPreview, RuleCategory, RuleConflict, RuleOptimizationMode, RuleSettings, RuleSource, RulesBackupData, RulesData } from '../types/domain-rules';
 import { UPSTREAM_RULE_PREVIEW_LIMIT } from '../types/domain-rules';
 import type { Env } from '../types';
 import { normalizeGithubMirrorUrl, sourceNameFromSubscriptionUrl } from './github-mirror';
 import { parseRuleInput } from './parser';
+import { RULE_TYPES } from './rule-types';
 import { id, slugify, validateCategoryName } from './slug';
 import { backupSchema, describeIssues } from '../shared/schemas/backup';
 import { AppError } from '../shared/errors';
+
+const LEGACY_RULE_TYPES: ReadonlySet<string> = new Set<DomainRuleType>(RULE_TYPES);
+
+function isLegacyRuleType(type: string): type is DomainRuleType {
+  return LEGACY_RULE_TYPES.has(type);
+}
 
 type CategoryRow = {
   id: string;
@@ -944,6 +951,22 @@ export async function importRulesData(env: Env, input: unknown) {
   const parsed = backupSchema.safeParse(input);
   if (!parsed.success) throw new BackupValidationError(describeIssues(parsed.error));
   const data = parsed.data;
+  const unsupportedProblems: string[] = [];
+  data.categories.forEach((category, categoryIndex) => {
+    category.rules.forEach((rule, ruleIndex) => {
+      if (!isLegacyRuleType(rule.type)) {
+        unsupportedProblems.push(
+          `categories.${categoryIndex}.rules.${ruleIndex}.type: 当前运行时暂不支持规则类型 ${rule.type}（${rule.value}）`,
+        );
+      }
+      if (rule.options !== undefined) {
+        unsupportedProblems.push(
+          `categories.${categoryIndex}.rules.${ruleIndex}.options: 当前运行时暂不支持规则选项（${rule.value}）`,
+        );
+      }
+    });
+  });
+  if (unsupportedProblems.length) throw new BackupValidationError(unsupportedProblems);
   const timestamp = now();
   const settings = resolveSettings(await getSettings(env), data.settings);
   const statements = [
@@ -992,8 +1015,10 @@ export async function importRulesData(env: Env, input: unknown) {
       ));
     }
     for (const [ruleIndex, rule] of category.rules.entries()) {
+      if (!isLegacyRuleType(rule.type)) continue;
       statements.push(insertRuleStatement(env, categoryId, {
         ...rule,
+        type: rule.type,
         id: rule.id || id('rule'),
         createdAt: rule.createdAt ?? timestamp,
         updatedAt: rule.updatedAt ?? timestamp,

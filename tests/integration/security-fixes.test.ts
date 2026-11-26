@@ -63,6 +63,33 @@ describe('1.0.7 security and data-safety fixes', () => {
       expect((await getBackupData(env)).categories.map((category) => category.name)).toEqual(['keep-me']);
     });
 
+    it('rejects 1.1.0-only rule types and options on 1.0.x runtime import without touching existing data', async () => {
+      await signIn();
+      const response = await request('/api/data', {
+        method: 'PUT', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          settings: {},
+          categories: [{
+            name: 'next-rules',
+            rules: [
+              { value: '^ad\\..*\\.example$', type: 'DOMAIN-REGEX' },
+              { value: '10.0.0.0/8', type: 'IP-CIDR', options: { noResolve: true } },
+            ],
+          }],
+        }),
+      });
+      expect(response.status).toBe(400);
+      const body = await response.json() as { ok: boolean; code: string; details?: { problems?: string[] } };
+      expect(body.ok).toBe(false);
+      expect(body.code).toBe('BACKUP_INVALID');
+      expect(body.details?.problems?.join('\n')).toContain('categories.0.rules.0.type');
+      expect(body.details?.problems?.join('\n')).toContain('DOMAIN-REGEX');
+      expect(body.details?.problems?.join('\n')).toContain('categories.0.rules.1.options');
+      const after = await getBackupData(env);
+      expect(after.categories.map((category) => category.name)).toEqual(['keep-me']);
+      expect(after.categories[0].rules.map((rule) => rule.value)).toEqual(['keep.example']);
+    });
+
     it('still restores a valid backup', async () => {
       await signIn();
       const backup = await getBackupData(env);

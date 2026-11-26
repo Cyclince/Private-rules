@@ -1,16 +1,21 @@
 /**
  * Error codes shared by server and web. The web maps each code to a localized
  * message; the server never relies on matching message text.
+ *
+ * Canonical 1.1.0 error payload uses the flat `{ ok: false, error, code, details? }`
+ * shape to stay compatible with 1.0.x clients (design §12.1).
  */
 export const ERROR_CODES = {
   VALIDATION_FAILED: 400,
   BACKUP_INVALID: 400,
   UNAUTHENTICATED: 401,
   FORBIDDEN: 403,
+  CSRF_REJECTED: 403,
   NOT_FOUND: 404,
   RULESET_NOT_FOUND: 404,
   SOURCE_NOT_FOUND: 404,
   RULE_NOT_FOUND: 404,
+  CARD_NOT_FOUND: 404,
   TEMPLATE_NOT_FOUND: 404,
   PUBLICATION_NOT_FOUND: 404,
   CONFLICT: 409,
@@ -20,6 +25,7 @@ export const ERROR_CODES = {
   LOGIN_LOCKED: 429,
   UPSTREAM_FAILED: 502,
   NOT_CONFIGURED: 503,
+  SESSION_SECRET_REQUIRED: 503,
   INTERNAL: 500,
 } as const;
 

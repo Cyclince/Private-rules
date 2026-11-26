@@ -2,7 +2,7 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 文档版本 | 草案 r2（补充 Custom_OpenClash_Rules 的规则方案分析，见 9.3.1、9.5、10.10–10.13 与附录 21.2） |
+| 文档版本 | r3（落实 1.1.0 评审决策：错误格式、规则类型与 IPv6 归一、迁移策略、节点加密前提、备份版本 2、输出档位与发布路径、CSRF/CORS 边界、前端并存与待定项标记） |
 | 目标版本 | 1.1.0（基于 1.0.6 的完整重构） |
 | 日期 | 2026-11-26 |
 | 状态 | 待评审 |
@@ -167,7 +167,7 @@ Private Rules 1.0.x 是一个自托管的规则管理与订阅发布控制台，
 | **命中测试** | 输入域名或 IP，显示命中的规则与策略组 | 新增 |
 | **发布** | 绑定节点槽位、选择客户端、访问控制、生成订阅地址、实时预览输出 | 新增 |
 | 设置 | 基础地址、GitHub 镜像、图标包、规则精简、API Key、Telegram 通知 | 是 |
-| 备份 | 导出与导入（先校验、再一次性写入），包含模板与组件，**不含节点订阅地址** | 是（修复） |
+| 备份 | 导出与导入（先校验、再一次性写入）；格式版本为 `2`（向后兼容导入 `1`），包含规则集、设置、应用组件（`cards`）、模板当前版本（`templates`，不含历史）、发布（`publications`，**不含节点订阅地址与快照**）；导入 1.0.x 备份时仅覆盖规则集与设置，保留已有模板与自定义组件（**已定**） | 是（修复） |
 | 通知 | Telegram Bot 同步失败与摘要通知 | 是 |
 | PWA | 安装引导、离线外壳 | 是 |
 | 多语言 | 简体中文、繁体中文、English | 是（重写机制） |
@@ -322,7 +322,7 @@ src/
   data/
     schema.ts                 # Drizzle 表结构（唯一来源）
     repositories/
-    migrations/               # drizzle-kit 生成；0000 为 1.0.x 基线
+    migrations/               # drizzle-kit 生成；0000 为幂等 1.0.x 基线；wrangler.toml 配置 migrations_dir（已定）
   server/
     app.ts                    # 组合
     routes/
@@ -366,8 +366,8 @@ tests/
 
 ### 8.1 原则
 
-- 表结构只在 `data/schema.ts` 定义，迁移由 drizzle-kit 生成。
-- 第一条迁移是 **1.0.x 基线**：与 1.0.6 实际表结构完全一致，已有数据库直接标记为已执行。
+- 表结构只在 `data/schema.ts` 定义，迁移由 drizzle-kit 生成并存放于 `src/data/migrations/`，`wrangler.toml` 配置 `migrations_dir = "src/data/migrations"`（**已定**）。
+- 第一条迁移是 **1.0.x 幂等基线**：与 1.0.6/1.0.7 实际表结构一致，兼容已有 `d1_migrations` 或仅经 `ensureDatabase` 建表的历史数据库，检测通过后直接标记为已执行（**已定**）。
 - 时间字段统一为 ISO 8601 字符串（与 1.0.x 一致）。
 - 写多张表的操作必须在一次 `batch` 中提交（D1 不支持交互式事务，见 20 节）。
 - 1.0.x 的表名（如 `categories`）在 1.1.0 中保持不变，只在代码层改称"规则集"，避免迁移风险。
@@ -377,7 +377,7 @@ tests/
 | 表 | 用途 | 1.1.0 变化 |
 | --- | --- | --- |
 | `categories` | 规则集 | 无结构变化 |
-| `rules` | 规则（手工规则 `source_id` 为空） | 增加索引 `(category_id, source_id)`、`(type, value)` |
+| `rules` | 规则（手工规则 `source_id` 为空） | 新增 `options` 列（`TEXT(JSON)`，存 `noResolve` 等选项，**已定**）；增加索引 `(category_id, source_id)`、`(type, value)` |
 | `category_sources` | 规则来源 | 无结构变化 |
 | `source_rule_staging` | 同步暂存 | 无 |
 | `sync_leases` | 同步租约 | 无 |
@@ -456,6 +456,7 @@ tests/
 | `pinned_version` | INTEGER | 可空；为空时跟随模板最新版本 |
 | `clients` | TEXT(JSON) | 启用的客户端列表 |
 | `access` | TEXT | `token` / `public` / `disabled` |
+| `output` | TEXT | 可空；`full` / `minimal`，为空时继承模板默认 `output`（**已定**） |
 | `created_at` / `updated_at` | TEXT | |
 
 **`node_bindings`**：发布的节点槽位绑定（敏感）
@@ -479,9 +480,10 @@ tests/
 
 ### 8.4 加密
 
-- 订阅地址与节点快照使用 AES-GCM 加密，密钥由 `SESSION_SECRET` 通过 HKDF 派生（`info = "private-rules/node-bindings"`）。
+- 订阅地址与节点快照使用 AES-GCM 加密，密钥由**环境变量显式配置的 `SESSION_SECRET`** 通过 HKDF 派生（`info = "private-rules/node-bindings"`）。
+- **强制前提（已定）**：节点槽位绑定强制要求显式配置 `SESSION_SECRET` 环境变量，**绝不回退到数据库 `settings` 表内的自动生成密钥**；未配置时服务端拒绝绑定（返回 `SESSION_SECRET_REQUIRED`，503），前端禁用该功能并给出配置提示。
 - 更换 `SESSION_SECRET` 会导致已绑定的订阅失效，界面需要提示重新填写。
-- 备份不包含 `node_bindings` 与 `node_snapshots`。
+- 备份格式版本为 `2`，包含 `cards`、`templates`（仅当前版本，不含历史）、`publications`，但**不包含 `node_bindings` 与 `node_snapshots`**（**已定**）。
 
 ---
 
@@ -492,13 +494,19 @@ tests/
 ### 9.1 规则表示
 
 ```ts
+// 入库规范类型（14 种，已定）：保留 SRC-PORT，新增 DOMAIN-REGEX / PROCESS-NAME / USER-AGENT / URL-REGEX
 type RuleType =
   | 'DOMAIN' | 'DOMAIN-SUFFIX' | 'DOMAIN-KEYWORD' | 'DOMAIN-REGEX'
-  | 'IP-CIDR' | 'IP-CIDR6' | 'IP-ASN' | 'GEOIP' | 'GEOSITE'
-  | 'PROCESS-NAME' | 'DST-PORT' | 'SRC-IP-CIDR' | 'USER-AGENT' | 'URL-REGEX';
+  | 'IP-CIDR' | 'SRC-IP-CIDR' | 'IP-ASN' | 'GEOIP' | 'GEOSITE'
+  | 'PROCESS-NAME' | 'DST-PORT' | 'SRC-PORT' | 'USER-AGENT' | 'URL-REGEX';
+
+// 导入/输入可额外识别 IP-CIDR6，入库时统一归一为 IP-CIDR
+type RuleInputType = RuleType | 'IP-CIDR6';
 
 type Rule = { id: string; type: RuleType; value: string; options?: { noResolve?: boolean }; note?: string; enabled: boolean };
 ```
+
+> **规则类型与 IPv6 存储约定（已定）**：保留 1.0.x 的 `SRC-PORT`；`rules` 表新增 `options` JSON 列存储 `noResolve` 等选项；IPv6 网段继续以 `IP-CIDR` 入库以保证 1.0.x 升级前后订阅输出字节一致，仅在输出各客户端格式时按地址形态区分，`IP-CIDR6` 仅作为导入/输入时可识别的别名类型并归一为 `IP-CIDR`。
 
 ### 9.2 同步
 
@@ -614,7 +622,7 @@ type Template = {
   cards: { cardId: string; enabled: boolean; overrides?: Partial<AppCard> }[]; // 顺序即规则优先级
   groupMode: 'select' | 'fallback';                 // 业务组默认类型（10.4）
   final: PolicyRef;                                 // 兜底（MATCH / FINAL）
-  output: 'full' | 'minimal';                       // 输出档位（10.13）
+  output: 'full' | 'minimal';                       // 默认输出档位，可在发布层覆盖（10.13，已定）
   dns: DnsProfile;                                  // fake-ip / redir-host / 自定义；minimal 档位不输出
   general?: GeneralSettings;                        // 测速地址、跳过代理的主机、IPv6 等
   modules: { id: string; enabled: boolean; params?: Record<string, unknown> }[]; // 增强模块（10.12）
@@ -802,7 +810,7 @@ type EnhancementModule = {
 
 ### 10.13 输出档位与导出
 
-**输出档位**：参考项目的 YAML 只包含节点来源、策略组、规则集和规则，端口、DNS、TUN、嗅探等运行参数全部交给 OpenClash 界面管理。1.1.0 的每个发布可选：
+**输出档位（已定）**：参考项目的 YAML 只包含节点来源、策略组、规则集和规则，端口、DNS、TUN、嗅探等运行参数全部交给 OpenClash 界面管理。1.1.0 将 `output` 作为**模板默认值**，并允许**每个发布单独覆盖**，使同一套模板可同时服务直接导入客户端与 OpenClash 等场景：
 
 | 档位 | 内容 | 适用 |
 | --- | --- | --- |
@@ -873,10 +881,11 @@ url-latency-benchmark=🇭🇰 香港, server-tag-regex=(?i)港|hk|hong ?kong, c
 - 在发布页可以手动"拉取节点名"，用于预览地区分组和检查空组。
 - 只保存节点名列表（加密），不保存节点参数；A / C 类客户端的输出不使用这份数据。
 
-### 11.5 待验证
+### 11.5 待验证（不阻塞 M1–M4）
 
 - 在 QX、Loon 中导入完整配置，是否会覆盖客户端中已添加的订阅。如果会覆盖，这两个客户端额外提供"仅规则资源"输出：QX 使用 `filter_remote` 规则列表，Loon 使用远程规则或插件，只更新规则部分。
 - sing-box 最新官方版本是否已提供远程节点引用能力；如果已提供，sing-box 改为 A 类。
+- **待定项（不阻塞 M1–M4）**：`sing-box` 最低目标官方版本号及 M4/M5 真机实测客户端清单暂未定，进入 M5 前再最终确认。
 
 ---
 
@@ -885,7 +894,7 @@ url-latency-benchmark=🇭🇰 香港, server-tag-regex=(?i)港|hk|hong ?kong, c
 ### 12.1 约定
 
 - 前缀 `/api`，JSON 请求与响应；输入用 zod 校验，校验失败返回 400 与字段级错误。
-- 统一错误结构：`{ "error": { "code": "RULESET_NOT_FOUND", "message": "...", "details": {} } }`；前端按 `code` 显示本地化文案。
+- 统一错误结构（**已定**，沿用 1.0.x 兼容扁平格式）：`{ "ok": false, "error": "...", "code": "RULESET_NOT_FOUND", "details": {} }`；前端按 `code` 显示本地化文案，保留字符串 `error` 兼容 1.0.x 客户端。
 - 鉴权方式：会话 Cookie、`Authorization: Bearer prk_...`（API Key）、Telegram Mini App 会话。
 - 写操作的接口在 Telegram 会话下记录审计日志（沿用 1.0.x）。
 - 列表接口支持 `?q=`、`?cursor=`、`?limit=`（上限 200）。
@@ -925,7 +934,7 @@ url-latency-benchmark=🇭🇰 香港, server-tag-regex=(?i)港|hk|hong ?kong, c
 | `/p/:slug/:file` | 模板发布的公开订阅（新增） |
 | `/t/:token/:slug/:file` | 模板发布的 Token 订阅（新增） |
 
-`:file` 的后缀决定客户端，例如 `my.yaml`（mihomo）、`my-stash.yaml`、`my-surge.conf`、`my-singbox.json`、`my-loon.conf`、`my-qx.conf`、`my-shadowrocket.conf`。
+`:file` 仅由文件名本身决定客户端（不再重复包含 `:slug`，**已定**），固定映射如下：`mihomo.yaml`（mihomo）、`stash.yaml`（Stash）、`surge.conf`（Surge）、`singbox.json`（sing-box）、`loon.conf`（Loon）、`qx.conf`（Quantumult X）、`shadowrocket.conf`（Shadowrocket），例如 `/p/home/mihomo.yaml`、`/t/<token>/home/surge.conf`。
 
 ---
 
@@ -991,7 +1000,7 @@ url-latency-benchmark=🇭🇰 香港, server-tag-regex=(?i)港|hk|hong ?kong, c
 
 **视觉素材**：
 
-- 登录页背景、空状态插画、关于页使用 Miku 风格素材；头像与背景压缩为 WebP，单张 ≤ 150KB。
+- 登录页背景、空状态插画、关于页使用 Miku 风格素材；头像与背景压缩为 WebP，单张 ≤ 150KB。**开发期（已定）**先使用与 `assets/banner.webp` 同风格的占位图推进，正式发布前替换定稿。
 - 初音未来形象受 Crypton Future Media 的 Piapro 角色许可约束；个人非商业的自托管项目可以使用，素材来源与许可写入 `THIRD-PARTY-NOTICES.md`。
 
 **动效原则**：
@@ -1038,10 +1047,11 @@ url-latency-benchmark=🇭🇰 香港, server-tag-regex=(?i)港|hk|hong ?kong, c
 | --- | --- |
 | 管理员密码 | 常量时间比较；登录限流（同一身份 15 分钟 10 次，超出锁定 15 分钟）；失败事件写日志并可通过 Telegram 告警 |
 | 会话 | HMAC 签名 Cookie（`HttpOnly`、`SameSite=Lax`、HTTPS 下 `Secure`），签名常量时间比较；过期会话定时清理 |
-| CSRF | 写操作要求 `Content-Type: application/json`；校验 `Origin` 与 `BASE_URL` 或请求 host 一致 |
+| CSRF（已定） | Cookie 会话的写操作强制校验 `Content-Type: application/json` 且 `Origin` 与 `BASE_URL` 或请求 host 同源（不通过返回 `CSRF_REJECTED`，403）；`Authorization: Bearer prk_...` 的 API Key 请求豁免 `Origin` 检查 |
+| CORS（已定） | `/api/*` 取消 `Access-Control-Allow-Origin: *`（仅同源访问）；仅公开订阅路由（`/rules/*`、`/sub/*`、`/p/*`、`/t/*`）保留 `Access-Control-Allow-Origin: *` |
 | API Key | 只保存 SHA-256 哈希；预留 `scopes`；API Key 调用方不返回 `RULE_TOKEN` |
 | 订阅 Token | 常量时间比较；`RULE_TOKEN` 只在会话鉴权的响应中返回 |
-| 节点订阅地址 | AES-GCM 加密存储；只写不读，界面显示脱敏值；不进日志、不进备份、不放进 URL 参数 |
+| 节点订阅地址（已定） | AES-GCM 加密存储，强制要求环境变量显式配置 `SESSION_SECRET`（不回退库内密钥，未配置时禁用节点绑定）；只写不读，界面显示脱敏值；不进日志、不进备份、不放进 URL 参数 |
 | 客户端 IP | 只有 `TRUST_PROXY=true` 时才信任 `x-forwarded-for`；Cloudflare 形态使用 `cf-connecting-ip` |
 | 远程拉取 | 统一 SSRF 防护：禁止内网与保留地址、禁止重定向、超时 15s、大小上限 20MB |
 | 配置注入 | 编译输出前转义策略组名、节点名、备注 |
@@ -1089,19 +1099,20 @@ url-latency-benchmark=🇭🇰 香港, server-tag-regex=(?i)港|hk|hong ?kong, c
 - 规则集订阅地址：`/rules/:file`、`/sub/:token/:file` 及全部文件名格式。
 - 环境变量：`ADMIN_PASSWORD`、`SESSION_SECRET`、`RULE_TOKEN`、`BASE_URL`、`DATABASE_PATH`、`HOST`、`PORT`、`TRUST_PROXY`、`SCHEDULER_ENABLED`、`SCHEDULER_INTERVAL_SECONDS`、`LOG_LEVEL`、`TELEGRAM_*`。
 - Docker 镜像名与数据卷路径；`wrangler.toml` 中的 D1 绑定名。
-- 1.0.x 的备份 JSON 可以导入 1.1.0。
+- 1.0.x 的备份 JSON（格式版本 `1`）可以无损导入 1.1.0；导入 1.0.x 备份时**只覆盖规则集与设置，保留当前已有的模板与自定义组件**（**已定**）。
 
-### 17.2 数据库升级
+### 17.2 数据库升级（已定）
 
-1. 首次启动 1.1.0 时检测迁移记录表；不存在时判断为 1.0.x 数据库。
-2. 校验现有表结构与基线一致（容忍 1.0.x 运行时 ALTER 产生的列顺序差异）。
-3. 自动备份数据库文件（Docker 形态复制为 `private-rules.db.bak-1.0.x`；D1 形态在文档中提示先执行 `wrangler d1 export`）。
-4. 标记基线迁移为已执行，再执行 1.1.0 的新增迁移。
-5. 删除 `ensureDatabase` 中的运行时建表与 ALTER 逻辑。
+1. 迁移文件统一存放于 `src/data/migrations/`，`wrangler.toml` 配置 `migrations_dir = "src/data/migrations"`。
+2. D1 形态继续由 Worker 首次请求自动执行检测与升级（基线迁移保持幂等，同时兼容已存在 `d1_migrations` 与仅靠 `ensureDatabase` 建表的两种 1.0.x 历史状态）；`wrangler d1 migrations apply` 作为可选手动方式保留。
+3. 首次启动 1.1.0 时检测迁移记录表；未记录 1.1.0 基线时校验现有表结构与基线一致（容忍 1.0.x 运行时 ALTER 产生的列顺序差异）。
+4. 自动备份数据库文件（Docker 形态复制为 `private-rules.db.bak-1.0.x`；D1 形态在文档中提示升级前先执行 `wrangler d1 export`）。
+5. 标记基线迁移为已执行，再执行 1.1.0 的新增迁移。
+6. 删除 `ensureDatabase` 中的运行时建表与 ALTER 逻辑。
 
-### 17.3 前端切换
+### 17.3 前端切换（已定）
 
-1.1.0 发布时直接替换为新前端，不提供旧界面切换入口。开发期间新旧前端并存于不同入口，便于对照。
+1.1.0 发布时直接替换为新前端，不提供旧界面切换入口。开发期间新前端挂独立入口与旧前端并存便于对照，至 M3.3 对齐验收完成后统一切换。
 
 ---
 
@@ -1146,7 +1157,7 @@ url-latency-benchmark=🇭🇰 香港, server-tag-regex=(?i)港|hk|hong ?kong, c
 | 1.0.x 数据库的实际表结构有差异 | 升级失败 | 收集多个真实数据库样本做升级测试；校验时容忍列顺序差异；升级前自动备份 |
 | 客户端语法差异大、文档不全 | 输出配置无法加载或分流不符 | 每个编译器以快照测试固定，并在真机客户端实测；能力矩阵以实测结果为准 |
 | QX / Loon 导入完整配置覆盖客户端订阅 | 用户节点丢失 | M5 开始前实测；必要时只提供"仅规则资源"输出 |
-| sing-box 节点协议多、字段变动快 | 部分节点无法使用 | 只覆盖六种常见协议；不支持的跳过并提示；跟随 sing-box 版本更新 |
+| sing-box 节点协议多、字段变动快 | 部分节点无法使用 | 只覆盖六种常见协议；不支持的跳过并提示；跟随 sing-box 版本更新；**待定（不阻塞 M1–M4）**：最低支持官方版本号与真机实测客户端清单在进入 M5 前确认 |
 | Workers CPU 时间限制 | 大模板编译超时 | 编译结果缓存；规则集优先远程引用而不是内联；超大规模给出提示 |
 | 第三方规则与素材许可 | 合规风险 | 社区规则只按 URL 引用，不打包；Miku 素材注明来源与许可；参考项目代码只借鉴思路，MIT 许可的 Tower 逻辑移植时注明出处；Custom_OpenClash_Rules 为 CC BY-SA 4.0，其规则文件、模板、地区正则不复制进项目，只按 URL 引用或由用户在运行时自行导入 |
 | 正则方言差异 | 地区组在部分客户端匹配不到节点 | 词典按客户端生成正则；检查器报告不兼容语法；客户端实测 |

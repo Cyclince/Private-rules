@@ -7,49 +7,49 @@
  */
 export type NodeAccessClass = 'A' | 'B' | 'C';
 
+export const OUTPUT_PROFILES = ['full', 'minimal'] as const;
+export type OutputProfile = (typeof OUTPUT_PROFILES)[number];
+
 export const TEMPLATE_CLIENTS = {
-  mihomo: { label: 'mihomo', nodeAccess: 'A', fileSuffix: '.yaml', contentType: 'text/yaml; charset=utf-8' },
-  stash: { label: 'Stash', nodeAccess: 'A', fileSuffix: '-stash.yaml', contentType: 'text/yaml; charset=utf-8' },
-  surge: { label: 'Surge', nodeAccess: 'A', fileSuffix: '-surge.conf', contentType: 'text/plain; charset=utf-8' },
+  mihomo: { label: 'mihomo', nodeAccess: 'A', fileName: 'mihomo.yaml', contentType: 'text/yaml; charset=utf-8' },
+  stash: { label: 'Stash', nodeAccess: 'A', fileName: 'stash.yaml', contentType: 'text/yaml; charset=utf-8' },
+  surge: { label: 'Surge', nodeAccess: 'A', fileName: 'surge.conf', contentType: 'text/plain; charset=utf-8' },
   'sing-box': {
     label: 'sing-box',
     nodeAccess: 'B',
-    fileSuffix: '-singbox.json',
+    fileName: 'singbox.json',
     contentType: 'application/json; charset=utf-8',
   },
-  loon: { label: 'Loon', nodeAccess: 'C', fileSuffix: '-loon.conf', contentType: 'text/plain; charset=utf-8' },
+  loon: { label: 'Loon', nodeAccess: 'C', fileName: 'loon.conf', contentType: 'text/plain; charset=utf-8' },
   'quantumult-x': {
     label: 'Quantumult X',
     nodeAccess: 'C',
-    fileSuffix: '-qx.conf',
+    fileName: 'qx.conf',
     contentType: 'text/plain; charset=utf-8',
   },
   shadowrocket: {
     label: 'Shadowrocket',
     nodeAccess: 'C',
-    fileSuffix: '-shadowrocket.conf',
+    fileName: 'shadowrocket.conf',
     contentType: 'text/plain; charset=utf-8',
   },
 } as const satisfies Record<
   string,
-  { label: string; nodeAccess: NodeAccessClass; fileSuffix: string; contentType: string }
+  { label: string; nodeAccess: NodeAccessClass; fileName: string; contentType: string }
 >;
 
 export type TemplateClientId = keyof typeof TEMPLATE_CLIENTS;
 
 export const TEMPLATE_CLIENT_IDS = Object.keys(TEMPLATE_CLIENTS) as TemplateClientId[];
 
+const CLIENT_BY_FILE_NAME = new Map<string, TemplateClientId>(
+  TEMPLATE_CLIENT_IDS.map((client) => [TEMPLATE_CLIENTS[client].fileName, client]),
+);
+
 /**
- * Resolves a publication file name such as `home-surge.conf` to its slug and
- * client. Longer suffixes are tried first so `-stash.yaml` wins over `.yaml`.
+ * Resolves the `:file` segment of `/p/:slug/:file` or `/t/:token/:slug/:file`
+ * (e.g. `mihomo.yaml`, `surge.conf`) to its target client (design §12.3).
  */
-export function parsePublicationFile(file: string): { slug: string; client: TemplateClientId } | null {
-  const candidates = [...TEMPLATE_CLIENT_IDS].sort(
-    (a, b) => TEMPLATE_CLIENTS[b].fileSuffix.length - TEMPLATE_CLIENTS[a].fileSuffix.length,
-  );
-  for (const client of candidates) {
-    const suffix = TEMPLATE_CLIENTS[client].fileSuffix;
-    if (file.endsWith(suffix) && file.length > suffix.length) return { slug: file.slice(0, -suffix.length), client };
-  }
-  return null;
+export function parsePublicationFile(file: string): TemplateClientId | null {
+  return CLIENT_BY_FILE_NAME.get(file.toLowerCase()) ?? null;
 }
