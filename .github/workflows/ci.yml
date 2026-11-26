@@ -19,6 +19,7 @@ jobs:
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm test:shared
+      - run: pnpm test:domain
       - run: pnpm test:unit
       - run: pnpm test:contract
       - run: pnpm test:api

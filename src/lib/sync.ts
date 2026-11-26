@@ -1,12 +1,12 @@
 import type { Env } from '../types';
-import type { DomainRule } from '../types/domain-rules';
 import { parseBulkImport } from './parser';
 import { id } from './slug';
 import { getSettings, now } from './db';
 import { loadGeositeRules } from './geosite';
 import { compactRules } from './rule-compactor';
 import { rewriteGithubUrl } from './github-mirror';
-import { validateRemoteSourceUrl } from './remote-source-security';
+import { safeFetchText } from '../infrastructure/http/fetch';
+import { redactString } from '../infrastructure/logging/logger';
 
 type SourceRecord = { id: string; category_id: string; name: string; url: string; last_synced_at: string | null; sync_interval_minutes: number | null; user_agent: string | null; source_type: 'url' | 'geosite' | 'geoip' | null; geosite_name: string | null; geoip_name: string | null; rule_optimization: 'none' | 'conservative' | 'aggressive' | 'balanced' | null };
 export type SyncResult = { sourceId: string; categoryId: string; name: string; ok: boolean; count: number; originalCount?: number; optimized?: boolean; error?: string; syncedAt: string };
@@ -43,10 +43,7 @@ function staleSourceResult(source: SourceRecord, syncedAt: string): SyncResult {
 
 function safeSyncError(cause: unknown) {
   const message = cause instanceof Error ? cause.message : '同步失败';
-  return message
-    .replace(/([?&](?:token|key|auth|signature)=)[^&\s]+/gi, '$1[redacted]')
-    .replace(/(authorization|cookie):\s*[^\s]+/gi, '$1: [redacted]')
-    .slice(0, 500);
+  return redactString(message).slice(0, 500);
 }
 
 type PreviewSource = {
@@ -63,20 +60,22 @@ async function fetchSourceRules(source: PreviewSource, githubMirrorUrl: string) 
   if (source.sourceType === 'geosite' && source.geositeName) text = await loadGeositeRules(source.geositeName, githubMirrorUrl);
   else if (source.sourceType === 'geoip' && source.geoipName) {
     const textUrl = `https://raw.githubusercontent.com/Loyalsoldier/geoip/release/text/${encodeURIComponent(source.geoipName)}.txt`;
-    const response = await fetch(rewriteGithubUrl(textUrl, githubMirrorUrl), { headers: { accept: 'text/plain' }, redirect: 'error' });
+    const response = await safeFetchText(rewriteGithubUrl(textUrl, githubMirrorUrl), {
+      headers: { accept: 'text/plain' },
+    });
     if (!response.ok) throw new Error(`GeoIP ${source.geoipName} 返回 HTTP ${response.status}`);
-    const networks = (await response.text()).split(/\s+/).map((value) => value.trim()).filter(Boolean);
+    const networks = response.text.split(/\s+/).map((value) => value.trim()).filter(Boolean);
     text = networks.map((network) => `IP-CIDR,${network}`).join('\n');
   } else {
-    const requestUrl = validateRemoteSourceUrl(rewriteGithubUrl(source.url, githubMirrorUrl));
-    const response = await fetch(requestUrl, { headers: {
-      accept: 'text/plain, application/yaml, application/json;q=0.8',
-      'user-agent': source.userAgent || 'clash-verge/v2.5.1',
-    }, redirect: 'error' });
+    const response = await safeFetchText(rewriteGithubUrl(source.url, githubMirrorUrl), {
+      headers: {
+        accept: 'text/plain, application/yaml, application/json;q=0.8',
+        'user-agent': source.userAgent || 'clash-verge/v2.5.1',
+      },
+    });
     if (!response.ok) throw new Error(`上游返回 HTTP ${response.status}`);
-    text = await response.text();
+    text = response.text;
   }
-  if (text.length > 5_000_000) throw new Error('上游文件超过 5MB 限制');
   const preview = parseBulkImport(source.sourceType === 'geosite' || source.sourceType === 'geoip' ? text : normalizeUpstreamText(text), []);
   if (!preview.rules.length) throw new Error('未从上游识别出有效规则');
   const optimization = source.ruleOptimization;

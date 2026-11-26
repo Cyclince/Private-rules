@@ -4,6 +4,7 @@ import type { Env } from '../types';
 import { normalizeGithubMirrorUrl, sourceNameFromSubscriptionUrl } from './github-mirror';
 import { parseRuleInput } from './parser';
 import { RULE_TYPES } from './rule-types';
+import { RuleConflictIndex } from '../domain/rules/conflicts';
 import { id, slugify, validateCategoryName } from './slug';
 import { backupSchema, describeIssues } from '../shared/schemas/backup';
 import { AppError } from '../shared/errors';
@@ -500,79 +501,6 @@ export async function deleteCategory(env: Env, categoryId: string) {
   return getRulesOverview(env);
 }
 
-type ComparableRule = Pick<DomainRule, 'type' | 'value'>;
-
-function domainRulesOverlap(left: ComparableRule, right: ComparableRule) {
-  const domainTypes = new Set<DomainRule['type']>(['DOMAIN', 'DOMAIN-SUFFIX']);
-  if (!domainTypes.has(left.type) || !domainTypes.has(right.type)) return false;
-  if (left.value === right.value) return true;
-  if (left.type === 'DOMAIN-SUFFIX' && right.value.endsWith(`.${left.value}`)) return true;
-  if (right.type === 'DOMAIN-SUFFIX' && left.value.endsWith(`.${right.value}`)) return true;
-  return false;
-}
-
-function keywordRulesOverlap(left: ComparableRule, right: ComparableRule) {
-  const searchableTypes = new Set<DomainRule['type']>(['DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD']);
-  if (!searchableTypes.has(left.type) || !searchableTypes.has(right.type)) return false;
-  if (left.type === 'DOMAIN-KEYWORD' && right.value.includes(left.value)) return true;
-  if (right.type === 'DOMAIN-KEYWORD' && left.value.includes(right.value)) return true;
-  return false;
-}
-
-function ipv4Value(value: string) {
-  const parts = value.split('.');
-  if (parts.length !== 4 || parts.some((part) => !/^\d+$/.test(part) || Number(part) > 255)) return null;
-  return parts.reduce((result, part) => (result << 8n) | BigInt(part), 0n);
-}
-
-function ipv6Value(value: string) {
-  if (!value.includes(':') || (value.match(/::/g)?.length ?? 0) > 1) return null;
-  const [left = '', right = ''] = value.split('::');
-  const leftParts = left ? left.split(':') : [];
-  const rightParts = right ? right.split(':') : [];
-  const missing = 8 - leftParts.length - rightParts.length;
-  if (missing < (value.includes('::') ? 1 : 0)) return null;
-  const parts = value.includes('::') ? [...leftParts, ...Array(missing).fill('0'), ...rightParts] : leftParts;
-  if (parts.length !== 8 || parts.some((part) => !/^[0-9a-f]{1,4}$/i.test(part))) return null;
-  return parts.reduce((result, part) => (result << 16n) | BigInt(`0x${part}`), 0n);
-}
-
-function cidrRange(value: string) {
-  const [address, prefixText] = value.split('/');
-  const ipv6 = address.includes(':');
-  const bits = ipv6 ? 128 : 32;
-  const prefix = Number(prefixText);
-  const numeric = ipv6 ? ipv6Value(address) : ipv4Value(address);
-  if (numeric === null || !Number.isInteger(prefix) || prefix < 0 || prefix > bits) return null;
-  const hostBits = BigInt(bits - prefix);
-  const start = hostBits === BigInt(bits) ? 0n : (numeric >> hostBits) << hostBits;
-  const end = start + (1n << hostBits) - 1n;
-  return { ipv6, start, end };
-}
-
-function networkRulesOverlap(left: ComparableRule, right: ComparableRule) {
-  if (left.type !== right.type || !['IP-CIDR', 'SRC-IP-CIDR'].includes(left.type)) return false;
-  const leftRange = cidrRange(left.value);
-  const rightRange = cidrRange(right.value);
-  return Boolean(leftRange && rightRange && leftRange.ipv6 === rightRange.ipv6 && leftRange.start <= rightRange.end && rightRange.start <= leftRange.end);
-}
-
-function portRulesOverlap(left: ComparableRule, right: ComparableRule) {
-  if (left.type !== right.type || !['DST-PORT', 'SRC-PORT'].includes(left.type)) return false;
-  const range = (value: string) => { const [start, end = start] = value.split('-').map(Number); return { start, end }; };
-  const leftRange = range(left.value);
-  const rightRange = range(right.value);
-  return leftRange.start <= rightRange.end && rightRange.start <= leftRange.end;
-}
-
-function overlapReason(left: ComparableRule, right: ComparableRule) {
-  if (keywordRulesOverlap(left, right)) return '关键词规则会覆盖另一条规则的匹配范围';
-  if (domainRulesOverlap(left, right)) return '域名或后缀的匹配范围互相包含';
-  if (networkRulesOverlap(left, right)) return 'IP 网段的匹配范围互相包含或重叠';
-  if (portRulesOverlap(left, right)) return `${left.type === 'SRC-PORT' ? '来源' : '目标'}端口的匹配范围互相包含或重叠`;
-  return null;
-}
-
 const MANUAL_DOMAIN_RULE_TYPES = new Set<DomainRule['type']>(['DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD']);
 
 function normalizedDomainValue(value: string) {
@@ -666,26 +594,24 @@ export async function optimizeManualRules(env: Env) {
   return { preview, data: await getRulesOverview(env) };
 }
 
-export async function findRuleConflicts(env: Env, candidate: Pick<DomainRule, 'type' | 'value'>, excludeRuleId?: string): Promise<RuleConflict[]> {
+export async function createManualRuleConflictIndex(env: Env): Promise<RuleConflictIndex> {
   const rows = await env.DB.prepare(`SELECT r.id, r.category_id, r.value, r.type, c.name AS category_name
     FROM rules r JOIN categories c ON c.id = r.category_id
     WHERE r.source_id IS NULL`).all<RuleRow>();
-  return (rows.results ?? []).filter((row) => row.id !== excludeRuleId).flatMap((row) => {
-    const existing = { type: row.type, value: row.value.toLowerCase() };
-    const next = { type: candidate.type, value: candidate.value.toLowerCase() };
-    const duplicate = existing.type === next.type && existing.value === next.value;
-    const reason = duplicate ? '规则类型和值完全相同' : overlapReason(existing, next);
-    if (!reason) return [];
-    return [{
+  return new RuleConflictIndex(
+    (rows.results ?? []).map((row) => ({
       id: row.id,
       categoryId: row.category_id,
       categoryName: row.category_name ?? '未知分类',
       value: row.value,
       type: row.type,
-      kind: duplicate ? 'duplicate' as const : 'conflict' as const,
-      reason,
-    }];
-  });
+    })),
+  );
+}
+
+export async function findRuleConflicts(env: Env, candidate: Pick<DomainRule, 'type' | 'value'>, excludeRuleId?: string): Promise<RuleConflict[]> {
+  const index = await createManualRuleConflictIndex(env);
+  return index.findConflicts(candidate, excludeRuleId);
 }
 
 export async function addRule(env: Env, categoryId: string, input: { value: string; type?: DomainRule['type']; note?: string; replaceConflicts?: boolean }) {

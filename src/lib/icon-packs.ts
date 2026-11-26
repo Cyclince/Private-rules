@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { getSettings, saveSettings } from './db';
-import { validateRemoteSourceUrl } from './remote-source-security';
+import { safeFetchText } from '../infrastructure/http/fetch';
+import { redactString } from '../infrastructure/logging/logger';
 
 export const PRESET_ICON_PACK_URLS = ['https://raw.githubusercontent.com/Koolson/Qure/master/Other/QureColor-All.json'];
 
@@ -24,21 +25,18 @@ function readPackIcons(payload: unknown): CachedPackIcon[] {
 }
 
 function safeError(cause: unknown) {
-  return (cause instanceof Error ? cause.message : '图标包更新失败')
-    .replace(/([?&](?:token|key|auth|signature)=)[^&\s]+/gi, '$1[redacted]').slice(0, 300);
+  return redactString(cause instanceof Error ? cause.message : '图标包更新失败').slice(0, 300);
 }
 
 async function refreshOne(env: Env, rawUrl: string): Promise<IconPackRefreshResult> {
   const updatedAt = new Date().toISOString();
   try {
-    const url = validateRemoteSourceUrl(rawUrl);
-    const response = await fetch(url, { headers: { accept: 'application/json' }, redirect: 'error' });
+    const response = await safeFetchText(rawUrl, {
+      headers: { accept: 'application/json' },
+      maxBytes: 5_000_000,
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const contentLength = Number(response.headers.get('content-length') ?? 0);
-    if (contentLength > 5_000_000) throw new Error('图标包超过 5 MB 限制');
-    const text = await response.text();
-    if (text.length > 5_000_000) throw new Error('图标包超过 5 MB 限制');
-    const icons = readPackIcons(JSON.parse(text));
+    const icons = readPackIcons(JSON.parse(response.text));
     if (!icons.length) throw new Error('没有找到有效图标');
     const payload = JSON.stringify(icons);
     await env.DB.prepare(`INSERT INTO icon_pack_cache (url, payload, icon_count, last_status, last_error, updated_at)

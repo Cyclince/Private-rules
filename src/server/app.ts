@@ -9,10 +9,10 @@ import {
   addRule,
   batchUpdateRules,
   createCategory,
+  createManualRuleConflictIndex,
   deleteCategory,
   deleteRule,
   getBackupData,
-  findRuleConflicts,
   getRulesOverview,
   getRulesData,
   importRulesData,
@@ -383,7 +383,10 @@ app.post('/api/categories/:id/rules/bulk-import', requireAuth, async (c) => {
   const category = data.categories.find((item) => item.id === categoryId);
   if (!category) return error('分类不存在。', 404);
   const preview = parseBulkImport(body.text ?? '', []);
-  preview.conflicts = (await Promise.all(preview.rules.map(async (rule) => ({ rule, matches: await findRuleConflicts(c.env, rule) })))).filter((item) => item.matches.length);
+  const conflictIndex = await createManualRuleConflictIndex(c.env);
+  preview.conflicts = preview.rules
+    .map((rule) => ({ rule, matches: conflictIndex.findConflicts(rule) }))
+    .filter((item) => item.matches.length);
   if (!body.confirm) return json({ preview });
   if (preview.conflicts.length && !body.replaceConflicts) return c.json({ error: '批量规则与现有规则重复或冲突。', preview }, 409);
   const conflictIds = [...new Set(preview.conflicts.flatMap((item) => item.matches.map((match) => match.id)))];

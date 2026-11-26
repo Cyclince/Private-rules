@@ -27,9 +27,10 @@
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:migrate:node": "tsx scripts/migrate-node.ts",
-    "format": "prettier --write --ignore-unknown \"src/shared\" \"src/data\" \"src/server/middleware\" \"tests/shared\" \"tests/integration/migration.test.ts\" drizzle.config.ts eslint.config.js",
-    "format:check": "prettier --check --ignore-unknown \"src/shared\" \"src/data\" \"src/server/middleware\" \"tests/shared\" \"tests/integration/migration.test.ts\" drizzle.config.ts eslint.config.js",
-    "test:shared": "vitest run tests/shared"
+    "format": "prettier --write --ignore-unknown \"src/shared\" \"src/domain\" \"src/data\" \"src/infrastructure/http\" \"src/infrastructure/logging\" \"src/infrastructure/crypto\" \"src/server/middleware\" \"tests/shared\" \"tests/domain\" \"tests/unit/http-fetch.test.ts\" \"tests/unit/logger.test.ts\" \"tests/unit/node-secrets.test.ts\" \"tests/integration/migration.test.ts\" drizzle.config.ts eslint.config.js",
+    "format:check": "prettier --check --ignore-unknown \"src/shared\" \"src/domain\" \"src/data\" \"src/infrastructure/http\" \"src/infrastructure/logging\" \"src/infrastructure/crypto\" \"src/server/middleware\" \"tests/shared\" \"tests/domain\" \"tests/unit/http-fetch.test.ts\" \"tests/unit/logger.test.ts\" \"tests/unit/node-secrets.test.ts\" \"tests/integration/migration.test.ts\" drizzle.config.ts eslint.config.js",
+    "test:shared": "vitest run tests/shared",
+    "test:domain": "vitest run tests/domain"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.9",

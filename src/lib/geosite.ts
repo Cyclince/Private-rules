@@ -1,5 +1,6 @@
 import type { GeoSourceSuggestion } from '../types/domain-rules';
 import { rewriteGithubUrl } from './github-mirror';
+import { safeFetchJson, safeFetchText } from '../infrastructure/http/fetch';
 
 const REPOSITORY = 'https://raw.githubusercontent.com/v2fly/domain-list-community/master/data';
 const TREE_API = 'https://api.github.com/repos/v2fly/domain-list-community/git/trees/master?recursive=1';
@@ -9,9 +10,11 @@ let cachedGeoipNames: { at: number; names: string[] } | undefined;
 
 async function geositeNames() {
   if (cachedNames && Date.now() - cachedNames.at < 10 * 60_000) return cachedNames.names;
-  const response = await fetch(TREE_API, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'Private-rules-worker' } });
+  const response = await safeFetchJson<{ tree?: Array<{ path?: string; type?: string }> }>(TREE_API, {
+    headers: { accept: 'application/vnd.github+json', 'user-agent': 'Private-rules-worker' },
+  });
   if (!response.ok) throw new Error(`GeoSite 索引返回 HTTP ${response.status}`);
-  const payload = await response.json<{ tree?: Array<{ path?: string; type?: string }> }>();
+  const payload = response.data;
   const names = (payload.tree ?? [])
     .filter((item) => item.type === 'blob' && item.path?.startsWith('data/') && !item.path.slice(5).includes('/'))
     .map((item) => item.path!.slice(5));
@@ -21,9 +24,11 @@ async function geositeNames() {
 
 async function geoipNames() {
   if (cachedGeoipNames && Date.now() - cachedGeoipNames.at < 10 * 60_000) return cachedGeoipNames.names;
-  const response = await fetch(GEOIP_TREE_API, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'Private-rules-worker' } });
+  const response = await safeFetchJson<{ tree?: Array<{ path?: string; type?: string }> }>(GEOIP_TREE_API, {
+    headers: { accept: 'application/vnd.github+json', 'user-agent': 'Private-rules-worker' },
+  });
   if (!response.ok) throw new Error(`GeoIP 索引返回 HTTP ${response.status}`);
-  const payload = await response.json<{ tree?: Array<{ path?: string; type?: string }> }>();
+  const payload = response.data;
   const names = (payload.tree ?? []).filter((item) => item.type === 'blob' && /^dat\/[^/]+\.dat$/i.test(item.path ?? '')).map((item) => item.path!.slice(4, -4));
   cachedGeoipNames = { at: Date.now(), names };
   return names;
@@ -82,9 +87,11 @@ async function resolveGeosite(name: string, visited: Set<string>, depth: number,
   const visitKey = `${name}|${requiredAttrs.join(',')}|${excludedAttrs.join(',')}`;
   if (visited.has(visitKey) || depth > 10) return [];
   visited.add(visitKey);
-  const response = await fetch(rewriteGithubUrl(`${REPOSITORY}/${encodeURIComponent(name)}`, mirrorUrl), { headers: { accept: 'text/plain' } });
+  const response = await safeFetchText(rewriteGithubUrl(`${REPOSITORY}/${encodeURIComponent(name)}`, mirrorUrl), {
+    headers: { accept: 'text/plain' },
+  });
   if (!response.ok) throw new Error(`GeoSite ${name} 返回 HTTP ${response.status}`);
-  const text = await response.text();
+  const text = response.text;
   const lines = text.split(/\r?\n/);
   const includes = lines.map((line) => line.replace(/\s+#.*$/, '').trim()).filter((line) => line.startsWith('include:')).map((line) => {
     const parts = line.split(/\s+/);

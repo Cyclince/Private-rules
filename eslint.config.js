@@ -13,11 +13,17 @@ export const LINTED = [
   'src/domain/**/*.ts',
   'src/data/**/*.ts',
   'src/builtin/**/*.ts',
+  'src/infrastructure/http/**/*.ts',
+  'src/infrastructure/logging/**/*.ts',
+  'src/infrastructure/crypto/**/*.ts',
   'src/web/**/*.{ts,tsx}',
   'src/server/middleware/**/*.ts',
   'src/server/routes/**/*.ts',
   'tests/shared/**/*.ts',
   'tests/domain/**/*.ts',
+  'tests/unit/http-fetch.test.ts',
+  'tests/unit/logger.test.ts',
+  'tests/unit/node-secrets.test.ts',
   'tests/integration/migration.test.ts',
 ];
 
