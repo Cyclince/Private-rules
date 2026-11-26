@@ -176,6 +176,27 @@ export class RulesRepository {
     return rows.map(mapRuleRow);
   }
 
+  /**
+   * Lists active rules in the same ruleset excluding `excludeSourceId` (manual
+   * rules plus rules from other enabled sources), used as the covering pool
+   * when syncing a source with coverage deduplication enabled.
+   */
+  async listEnabledByCategoryExcludingSource(categoryId: string, excludeSourceId: string): Promise<DomainRule[]> {
+    const rows = await this.rawDb
+      .prepare(
+        `SELECT r.id, r.category_id, r.value, r.type, r.display_type, r.options, r.note, r.enabled, r.sort_order, r.created_at, r.updated_at, r.source_id
+         FROM rules r
+         LEFT JOIN category_sources s ON s.id = r.source_id
+         WHERE r.category_id = ?
+           AND r.enabled <> 0
+           AND (r.source_id IS NULL OR (r.source_id <> ? AND COALESCE(s.enabled, 1) <> 0))
+         ORDER BY r.sort_order ASC, r.created_at ASC`,
+      )
+      .bind(categoryId, excludeSourceId)
+      .all<RawJoinedRuleRow>();
+    return (rows.results ?? []).map(mapRawJoinedRule);
+  }
+
   async listManual(): Promise<DomainRule[]> {
     const rows = await this.db
       .select()

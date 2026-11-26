@@ -78,6 +78,7 @@ export const categorySources = sqliteTable(
     geositeName: text('geosite_name'),
     geoipName: text('geoip_name'),
     ruleOptimization: text('rule_optimization').default('none'),
+    coverageDedup: integer('coverage_dedup').notNull().default(0),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },

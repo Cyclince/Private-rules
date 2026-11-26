@@ -28,6 +28,10 @@ export const backupSourceSchema = z
       .nullish()
       .transform((value) => value ?? undefined),
     ruleOptimization: ruleOptimizationSchema.nullish().transform((value) => value ?? undefined),
+    coverageDedup: z
+      .boolean()
+      .nullish()
+      .transform((value) => value ?? undefined),
     lastSyncedAt: optionalText,
     lastStatus: z
       .enum(['success', 'error', 'pending'])

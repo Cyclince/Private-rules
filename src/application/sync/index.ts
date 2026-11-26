@@ -1,5 +1,6 @@
 import { createRepositories, type SourceRow } from '../../data/repositories';
 import { compactRules } from '../../domain/rules/compactor';
+import { deduplicateCoveredRules, type CoverageRemovalSample } from '../../domain/rules/coverage-dedup';
 import { parseBulkImport } from '../../domain/rules/parser';
 import { id } from '../../domain/rules/slug';
 import { safeFetchText } from '../../infrastructure/http/fetch';
@@ -8,6 +9,7 @@ import { loadGeositeRules } from '../../lib/geosite';
 import { rewriteGithubUrl } from '../../lib/github-mirror';
 import { AppError } from '../../shared/errors';
 import type { Env } from '../../types';
+import type { DomainRule } from '../../types/domain-rules';
 import { now } from '../rulesets';
 import { getSettings } from '../settings';
 
@@ -19,6 +21,8 @@ export type SyncResult = {
   count: number;
   originalCount?: number;
   optimized?: boolean;
+  coverageDedup?: boolean;
+  coveredRemovedCount?: number;
   error?: string;
   syncedAt: string;
 };
@@ -100,9 +104,14 @@ export type PreviewSourceInput = {
   geoipName: string | null;
   userAgent: string;
   ruleOptimization: 'none' | 'conservative' | 'aggressive';
+  coverageDedup?: boolean;
 };
 
-async function fetchSourceRules(source: PreviewSourceInput, githubMirrorUrl: string) {
+async function fetchSourceRules(
+  source: PreviewSourceInput,
+  githubMirrorUrl: string,
+  existingCoveringRules?: readonly DomainRule[],
+) {
   let text: string;
   if (source.sourceType === 'geosite' && source.geositeName) {
     text = await loadGeositeRules(source.geositeName, githubMirrorUrl);
@@ -135,10 +144,21 @@ async function fetchSourceRules(source: PreviewSourceInput, githubMirrorUrl: str
   if (!preview.rules.length) throw new AppError('VALIDATION_FAILED', '未从上游识别出有效规则');
   const optimization = source.ruleOptimization;
   const optimized = source.sourceType === 'url' && (optimization === 'conservative' || optimization === 'aggressive');
+  const compactedRules = optimized ? compactRules(preview.rules, optimization).rules : preview.rules;
+  const coverageEnabled = source.coverageDedup !== false;
+  const deduped = deduplicateCoveredRules(compactedRules, {
+    enabled: coverageEnabled,
+    sampleLimit: 20,
+    existingCoveringRules,
+  });
   return {
-    rules: optimized ? compactRules(preview.rules, optimization).rules : preview.rules,
+    rules: deduped.rules,
     originalCount: preview.rules.length,
     optimized,
+    coverageDedup: coverageEnabled,
+    coveredRemovedCount: deduped.coveredRemovedCount,
+    duplicateRemovedCount: deduped.duplicateRemovedCount,
+    coverageSamples: deduped.samples as CoverageRemovalSample[],
     invalidCount: preview.invalidValues.length,
   };
 }
@@ -150,6 +170,9 @@ export async function previewSourceRules(env: Env, source: PreviewSourceInput) {
     count: preview.rules.length,
     originalCount: preview.originalCount,
     optimized: preview.optimized,
+    coverageDedup: preview.coverageDedup,
+    coveredRemovedCount: preview.coveredRemovedCount,
+    coverageSamples: preview.coverageSamples,
     invalidCount: preview.invalidCount,
     rules: preview.rules.slice(0, 20).map((rule) => ({ type: rule.type, value: rule.value })),
   };
@@ -206,7 +229,7 @@ export async function runHostScheduled<TItem, TResult>(
 async function syncSource(env: Env, source: SourceRow, githubMirrorUrl: string): Promise<SyncResult> {
   const syncedAt = now();
   const ownerId = id('sync');
-  const { sources } = createRepositories(env.DB);
+  const { sources, rules } = createRepositories(env.DB);
   const expiresAt = new Date(Date.now() + LEASE_TTL_MS).toISOString();
   const claimed = await sources.claimLease(source.id, ownerId, syncedAt, expiresAt);
   if (!claimed) {
@@ -224,6 +247,10 @@ async function syncSource(env: Env, source: SourceRow, githubMirrorUrl: string):
   const stageId = id('stage');
   try {
     const rawOpt = source.ruleOptimization as 'none' | 'conservative' | 'aggressive' | 'balanced' | null;
+    const coverageDedup = source.coverageDedup !== 0;
+    const siblingRules = coverageDedup
+      ? await rules.listEnabledByCategoryExcludingSource(source.categoryId, source.id)
+      : undefined;
     const preview = await fetchSourceRules(
       {
         sourceType: (source.sourceType ?? 'url') as 'url' | 'geosite' | 'geoip',
@@ -232,8 +259,10 @@ async function syncSource(env: Env, source: SourceRow, githubMirrorUrl: string):
         geoipName: source.geoipName,
         userAgent: source.userAgent ?? 'clash-verge/v2.5.1',
         ruleOptimization: rawOpt === 'balanced' ? 'aggressive' : (rawOpt ?? 'none'),
+        coverageDedup,
       },
       githubMirrorUrl,
+      siblingRules,
     );
     const syncedRules = preview.rules;
     if (!(await sources.existsEnabled(source.id, source.categoryId))) {
@@ -269,6 +298,8 @@ async function syncSource(env: Env, source: SourceRow, githubMirrorUrl: string):
       count: syncedRules.length,
       originalCount: preview.originalCount,
       optimized: preview.optimized,
+      coverageDedup: preview.coverageDedup,
+      coveredRemovedCount: preview.coveredRemovedCount,
       syncedAt,
     };
   } catch (cause) {

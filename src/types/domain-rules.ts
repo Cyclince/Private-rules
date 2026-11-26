@@ -65,6 +65,7 @@ export type RuleSource = {
   geositeName?: string;
   geoipName?: string;
   ruleOptimization?: RuleOptimizationMode;
+  coverageDedup?: boolean;
 };
 
 export type GeoSourceSuggestion = {

@@ -364,6 +364,7 @@ export type CategoryInput = Partial<RuleCategory> & {
   syncIntervalMinutes?: number;
   userAgent?: string;
   ruleOptimization?: RuleOptimizationMode;
+  coverageDedup?: boolean;
 };
 
 export async function replaceCategorySources(
@@ -375,10 +376,12 @@ export async function replaceCategorySources(
   geoipNames: string[] = [],
   userAgent?: string | null,
   ruleOptimization: RuleOptimizationMode = 'none',
+  coverageDedup = true,
 ): Promise<void> {
   const normalizedUserAgent = normalizeUserAgent(userAgent);
   const normalizedRuleOptimization: RuleOptimizationMode =
     ruleOptimization === 'conservative' || ruleOptimization === 'aggressive' ? ruleOptimization : 'none';
+  const coverageDedupFlag = coverageDedup ? 1 : 0;
   const urls = [...new Set(sourceUrls.map((url) => url.trim()).filter((url) => /^https?:\/\//i.test(url)))];
   const geosites = [
     ...new Set(geositeNames.map((name) => name.trim().toLowerCase()).filter((name) => /^[a-z0-9_!@.-]+$/i.test(name))),
@@ -405,7 +408,7 @@ export async function replaceCategorySources(
       .filter((url) => !existingByUrl.has(url))
       .map((url, index) =>
         env.DB.prepare(
-          "INSERT INTO category_sources (id, category_id, name, url, enabled, last_status, sync_interval_minutes, user_agent, source_type, rule_optimization, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?, 'url', ?, ?, ?)",
+          "INSERT INTO category_sources (id, category_id, name, url, enabled, last_status, sync_interval_minutes, user_agent, source_type, rule_optimization, coverage_dedup, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?, 'url', ?, ?, ?, ?)",
         ).bind(
           id('src'),
           categoryId,
@@ -415,6 +418,7 @@ export async function replaceCategorySources(
           syncIntervalMinutes,
           normalizedUserAgent,
           normalizedRuleOptimization,
+          coverageDedupFlag,
           timestamp,
           timestamp,
         ),
@@ -428,7 +432,7 @@ export async function replaceCategorySources(
       )
       .map((name) =>
         env.DB.prepare(
-          "INSERT INTO category_sources (id, category_id, name, url, enabled, last_status, sync_interval_minutes, source_type, geosite_name, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, 'geosite', ?, ?, ?)",
+          "INSERT INTO category_sources (id, category_id, name, url, enabled, last_status, sync_interval_minutes, source_type, geosite_name, coverage_dedup, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, 'geosite', ?, ?, ?, ?)",
         ).bind(
           id('src'),
           categoryId,
@@ -437,6 +441,7 @@ export async function replaceCategorySources(
           'pending',
           syncIntervalMinutes,
           name,
+          coverageDedupFlag,
           timestamp,
           timestamp,
         ),
@@ -450,7 +455,7 @@ export async function replaceCategorySources(
       )
       .map((name) =>
         env.DB.prepare(
-          "INSERT INTO category_sources (id, category_id, name, url, enabled, last_status, sync_interval_minutes, source_type, geoip_name, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, 'geoip', ?, ?, ?)",
+          "INSERT INTO category_sources (id, category_id, name, url, enabled, last_status, sync_interval_minutes, source_type, geoip_name, coverage_dedup, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, 'geoip', ?, ?, ?, ?)",
         ).bind(
           id('src'),
           categoryId,
@@ -459,6 +464,7 @@ export async function replaceCategorySources(
           'pending',
           syncIntervalMinutes,
           name,
+          coverageDedupFlag,
           timestamp,
           timestamp,
         ),
@@ -516,6 +522,7 @@ export async function createCategory(env: Env, input: CategoryInput): Promise<Ru
       input.geoipNames ?? [],
       input.userAgent,
       input.ruleOptimization,
+      input.coverageDedup ?? true,
     );
   }
   return getRulesOverview(env);

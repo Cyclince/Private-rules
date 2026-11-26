@@ -31,6 +31,7 @@ export function mapSourceRow(row: SourceRow): RuleSource {
     geositeName: row.geositeName ?? undefined,
     geoipName: row.geoipName ?? undefined,
     ruleOptimization: rawOpt === 'balanced' ? 'aggressive' : (rawOpt ?? 'none'),
+    coverageDedup: row.coverageDedup !== 0,
   };
 }
 

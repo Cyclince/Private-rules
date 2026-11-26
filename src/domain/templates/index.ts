@@ -83,11 +83,31 @@ export {
 export {
   CLIENT_CAPABILITIES,
   getClientCapabilities,
+  isGroupTypeSupported,
+  isRemoteFormatSupported,
+  isRuleTypeSupported,
   type ClientCapabilities,
+  type EmptyFallbackMechanism,
   type GeoipSupport,
   type GeositeSupport,
   type RemoteNodeSupport,
 } from './capabilities';
+export {
+  compileMihomo,
+  sanitizeMihomoGroupName,
+  sanitizeMihomoNodeName,
+  sanitizeMihomoProviderKey,
+  sanitizeMihomoRuleValue,
+  sanitizeMihomoScalar,
+  type CompatibilityItem,
+  type CompatibilityItemCode,
+  type CompatibilityReport,
+  type CompatibilitySeverity,
+  type CompileTemplateInput,
+  type CompiledConfigResult,
+  type CompiledNodeSlotBinding,
+  type InlineProxyNode,
+} from './compilers';
 export {
   parseProbeTarget,
   probeTemplate,

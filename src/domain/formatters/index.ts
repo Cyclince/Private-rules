@@ -1,6 +1,19 @@
 import type { ClientId, DomainRule, RuleCategory, RulesData } from '../../types/domain-rules';
 import { slugify } from '../rules/slug';
 
+export {
+  BEHAVIOR_SPLIT_ORDER,
+  classifyRuleBehavior,
+  splitRulesetByBehavior,
+  summarizeRulesetBehaviors,
+  type BehaviorSplitCategoryInput,
+  type BehaviorSplitFile,
+  type BehaviorSplitOptions,
+  type BehaviorSplitResult,
+  type BehaviorSplitRule,
+  type RulesetBehavior,
+} from './behavior-split';
+
 export type FormatterId =
   | ClientId
   | 'yaml'

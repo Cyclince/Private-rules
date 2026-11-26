@@ -85,6 +85,7 @@ export async function handleUpdateSourceInterval(
     geoipName: existing.geoipName,
     userAgent: existing.userAgent,
     ruleOptimization: existing.ruleOptimization,
+    coverageDedup: existing.coverageDedup,
     enabled: existing.enabled,
     syncIntervalMinutes,
   });

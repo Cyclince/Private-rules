@@ -7,7 +7,12 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { Miniflare } from 'miniflare';
 import { describe, expect, it } from 'vitest';
 import { ensureDatabaseMigrated, migrateDatabase } from '../../src/data/migrate';
-import { BASELINE_MIGRATION_NAME, INITIAL_1_1_0_MIGRATION_NAME, MIGRATIONS } from '../../src/data/migrations/index';
+import {
+  BASELINE_MIGRATION_NAME,
+  INITIAL_1_1_0_MIGRATION_NAME,
+  MIGRATIONS,
+  SOURCE_COVERAGE_DEDUP_MIGRATION_NAME,
+} from '../../src/data/migrations/index';
 import { schema } from '../../src/data/schema';
 import { D1DatabaseAdapter } from '../../src/infrastructure/database/d1/adapter';
 import { SqliteDatabaseAdapter } from '../../src/infrastructure/database/sqlite/adapter';
@@ -176,6 +181,9 @@ async function assertUpgradedSchemaAndData(db: Env['DB'], hasTelegramSeed: boole
   expect(await db.prepare('SELECT COUNT(*) AS c FROM categories').first<{ c: number }>()).toEqual({ c: 3 });
   expect(await db.prepare('SELECT COUNT(*) AS c FROM rules').first<{ c: number }>()).toEqual({ c: 16 });
   expect(await db.prepare('SELECT COUNT(*) AS c FROM category_sources').first<{ c: number }>()).toEqual({ c: 3 });
+  expect(
+    await db.prepare('SELECT COUNT(*) AS c FROM category_sources WHERE coverage_dedup = 0').first<{ c: number }>(),
+  ).toEqual({ c: 3 });
   expect(await db.prepare('SELECT COUNT(*) AS c FROM sessions').first<{ c: number }>()).toEqual({ c: 1 });
   expect(await db.prepare('SELECT id, scopes FROM api_keys').all()).toMatchObject({
     results: [{ id: 'key_legacy_1', scopes: 'full' }],
@@ -215,7 +223,11 @@ describe('1.1.0 schema and migrations', () => {
     try {
       const result = await migrateSqliteDatabase(db);
       expect(result.upgradedFromLegacy).toBe(false);
-      expect(result.applied).toEqual([BASELINE_MIGRATION_NAME, INITIAL_1_1_0_MIGRATION_NAME]);
+      expect(result.applied).toEqual([
+        BASELINE_MIGRATION_NAME,
+        INITIAL_1_1_0_MIGRATION_NAME,
+        SOURCE_COVERAGE_DEDUP_MIGRATION_NAME,
+      ]);
 
       const orm = drizzle(db.native, { schema });
       expect(await orm.select().from(schema.categories)).toEqual([]);
@@ -266,7 +278,11 @@ describe('1.1.0 schema and migrations', () => {
 
         const firstRun = await migrateSqliteDatabase(database);
         expect(firstRun.upgradedFromLegacy).toBe(true);
-        expect(firstRun.applied).toEqual([BASELINE_MIGRATION_NAME, INITIAL_1_1_0_MIGRATION_NAME]);
+        expect(firstRun.applied).toEqual([
+          BASELINE_MIGRATION_NAME,
+          INITIAL_1_1_0_MIGRATION_NAME,
+          SOURCE_COVERAGE_DEDUP_MIGRATION_NAME,
+        ]);
         expect(firstRun.backupPath).toBe(`${dbPath}.bak-1.0.x`);
 
         // Verify `.bak-1.0.x` exists and holds untouched original pre-upgrade schema & data
@@ -344,6 +360,7 @@ describe('1.1.0 schema and migrations', () => {
           const d1Names = new Set((d1Rows.results ?? []).map((row) => row.name));
           expect(d1Names.has(BASELINE_MIGRATION_NAME)).toBe(true);
           expect(d1Names.has(INITIAL_1_1_0_MIGRATION_NAME)).toBe(true);
+          expect(d1Names.has(SOURCE_COVERAGE_DEDUP_MIGRATION_NAME)).toBe(true);
         }
 
         const afterSubscriptions = await captureSubscriptions(env, expectedPaths);
@@ -443,6 +460,83 @@ describe('1.1.0 schema and migrations', () => {
       expect(db.native.prepare('SELECT source_id, options FROM rules WHERE id = ?').get('r_1')).toEqual({
         source_id: null,
         options: null,
+      });
+    } finally {
+      db.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('applies 0002_source_coverage_dedup to an existing DB that already ran 0001 and stays reentrant', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'private-rules-0001-to-0002-'));
+    const db = new SqliteDatabaseAdapter(join(dir, 'pre-0002.db'));
+    try {
+      // Simulate an existing 1.1.0-alpha database that has already run 0000 and 0001
+      // without `category_sources.coverage_dedup`.
+      db.native.exec(`
+        CREATE TABLE _schema_migrations (
+          name TEXT PRIMARY KEY,
+          applied_at TEXT NOT NULL
+        );
+      `);
+      for (const migration of MIGRATIONS.filter(
+        (entry) => entry.name === BASELINE_MIGRATION_NAME || entry.name === INITIAL_1_1_0_MIGRATION_NAME,
+      )) {
+        db.native.exec(migration.sql);
+        db.native
+          .prepare('INSERT INTO _schema_migrations (name, applied_at) VALUES (?, ?)')
+          .run(migration.name, '2026-01-01T00:00:00.000Z');
+      }
+
+      db.native
+        .prepare(
+          `INSERT INTO categories (id, name, slug, created_at, updated_at)
+           VALUES ('cat_pre0002', 'Pre 0002', 'pre-0002', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`,
+        )
+        .run();
+      db.native
+        .prepare(
+          `INSERT INTO category_sources (id, category_id, name, url, created_at, updated_at)
+           VALUES ('src_pre0002', 'cat_pre0002', 'Existing Source', 'https://example.com/rules.list', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`,
+        )
+        .run();
+
+      const colsBefore = new Set(
+        (db.native.prepare('PRAGMA table_info(category_sources)').all() as Array<{ name: string }>).map(
+          (col) => col.name,
+        ),
+      );
+      expect(colsBefore.has('coverage_dedup')).toBe(false);
+
+      // Startup auto-applies only 0002 without touching 0000/0001 or treating as 1.0.x legacy
+      const firstRun = await migrateSqliteDatabase(db);
+      expect(firstRun).toEqual({
+        upgradedFromLegacy: false,
+        applied: [SOURCE_COVERAGE_DEDUP_MIGRATION_NAME],
+      });
+
+      const colsAfter = new Set(
+        (db.native.prepare('PRAGMA table_info(category_sources)').all() as Array<{ name: string }>).map(
+          (col) => col.name,
+        ),
+      );
+      expect(colsAfter.has('coverage_dedup')).toBe(true);
+      expect(db.native.prepare('SELECT coverage_dedup FROM category_sources WHERE id = ?').get('src_pre0002')).toEqual({
+        coverage_dedup: 0,
+      });
+
+      // Subsequent startup is a no-op
+      expect(await migrateSqliteDatabase(db)).toEqual({ upgradedFromLegacy: false, applied: [] });
+
+      // Reentrancy: if 0002 is re-executed when the column already exists, shouldSkipReentrantStatement skips ALTER cleanly
+      db.native.prepare('DELETE FROM _schema_migrations WHERE name = ?').run(SOURCE_COVERAGE_DEDUP_MIGRATION_NAME);
+      const reentrantRun = await migrateSqliteDatabase(db);
+      expect(reentrantRun).toEqual({
+        upgradedFromLegacy: false,
+        applied: [SOURCE_COVERAGE_DEDUP_MIGRATION_NAME],
+      });
+      expect(db.native.prepare('SELECT coverage_dedup FROM category_sources WHERE id = ?').get('src_pre0002')).toEqual({
+        coverage_dedup: 0,
       });
     } finally {
       db.close();

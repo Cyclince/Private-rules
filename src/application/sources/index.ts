@@ -17,6 +17,7 @@ export type SourceInput = {
   syncIntervalMinutes?: number;
   enabled?: boolean;
   ruleOptimization?: RuleOptimizationMode;
+  coverageDedup?: boolean;
 };
 
 const GEO_NAME = /^[a-z0-9_!@.-]{1,120}$/i;
@@ -30,15 +31,17 @@ type NormalizedSourceInput = {
   name: string;
   userAgent: string;
   ruleOptimization: RuleOptimizationMode;
+  coverageDedup: boolean;
   syncIntervalMinutes: number;
   enabled: boolean;
 };
 
-function normalizeInput(input: SourceInput): NormalizedSourceInput {
+function normalizeInput(input: SourceInput, defaultCoverageDedup = true): NormalizedSourceInput {
   const sourceType = input.sourceType;
   const syncIntervalMinutes = input.syncIntervalMinutes ?? 60;
   if (!SYNC_INTERVALS.has(syncIntervalMinutes)) throw new AppError('VALIDATION_FAILED', '同步周期无效。');
   const enabled = input.enabled !== false;
+  const coverageDedup = input.coverageDedup ?? defaultCoverageDedup;
   if (sourceType === 'url') {
     const url = validateRemoteSourceUrl(input.url ?? '');
     return {
@@ -52,6 +55,7 @@ function normalizeInput(input: SourceInput): NormalizedSourceInput {
         input.ruleOptimization === 'conservative' || input.ruleOptimization === 'aggressive'
           ? input.ruleOptimization
           : 'none',
+      coverageDedup,
       syncIntervalMinutes,
       enabled,
     };
@@ -72,6 +76,7 @@ function normalizeInput(input: SourceInput): NormalizedSourceInput {
     name: input.name?.trim().slice(0, 120) || `${sourceType === 'geosite' ? 'GeoSite' : 'GeoIP'} · ${geoName}`,
     userAgent: normalizeUserAgent(input.userAgent),
     ruleOptimization: 'none',
+    coverageDedup,
     syncIntervalMinutes,
     enabled,
   };
@@ -93,7 +98,7 @@ export async function createSource(env: Env, categoryId: string, input: SourceIn
   const repos = createRepositories(env.DB);
   const category = await repos.rulesets.findById(categoryId);
   if (!category) throw new AppError('RULESET_NOT_FOUND', '分类不存在。');
-  const source = normalizeInput(input);
+  const source = normalizeInput(input, true);
   if (await repos.sources.hasDuplicateUrl(categoryId, source.url)) {
     throw new AppError('CONFLICT', '该来源已存在。');
   }
@@ -112,6 +117,7 @@ export async function createSource(env: Env, categoryId: string, input: SourceIn
     geositeName: source.geositeName,
     geoipName: source.geoipName,
     ruleOptimization: source.ruleOptimization,
+    coverageDedup: source.coverageDedup ? 1 : 0,
     createdAt: timestamp,
     updatedAt: timestamp,
   });
@@ -122,7 +128,7 @@ export async function updateSource(env: Env, sourceId: string, input: SourceInpu
   const repos = createRepositories(env.DB);
   const current = await repos.sources.findById(sourceId);
   if (!current) throw new AppError('SOURCE_NOT_FOUND', '来源不存在。');
-  const source = normalizeInput(input);
+  const source = normalizeInput(input, current.coverageDedup ?? false);
   if (await repos.sources.hasDuplicateUrl(current.categoryId, source.url, sourceId)) {
     throw new AppError('CONFLICT', '该来源已存在。');
   }
@@ -136,6 +142,7 @@ export async function updateSource(env: Env, sourceId: string, input: SourceInpu
     geositeName: source.geositeName,
     geoipName: source.geoipName,
     ruleOptimization: source.ruleOptimization,
+    coverageDedup: source.coverageDedup ? 1 : 0,
     updatedAt: now(),
   });
   return repos.sources.findById(sourceId);

@@ -22,6 +22,7 @@ export const createRulesetBodySchema = z.object({
   syncIntervalMinutes: z.number().finite().optional(),
   userAgent: z.string().max(256).optional(),
   ruleOptimization: ruleOptimizationSchema.optional(),
+  coverageDedup: z.boolean().optional(),
   publicLinksEnabled: z.boolean().optional(),
   tokenLinksEnabled: z.boolean().optional(),
 });
@@ -42,6 +43,7 @@ export const updateRulesetBodySchema = z
     syncIntervalMinutes: z.number().finite().optional(),
     userAgent: z.string().max(256).optional(),
     ruleOptimization: ruleOptimizationSchema.optional(),
+    coverageDedup: z.boolean().optional(),
   })
   .strict();
 
@@ -86,6 +88,7 @@ export const sourceInputBodySchema = z.object({
   syncIntervalMinutes: z.number().finite().optional(),
   userAgent: z.string().max(256).optional(),
   ruleOptimization: ruleOptimizationSchema.optional(),
+  coverageDedup: z.boolean().optional(),
 });
 
 export const sourceToggleBodySchema = z.object({

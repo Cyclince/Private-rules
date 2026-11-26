@@ -24,6 +24,18 @@ jobs:
       - run: pnpm test:contract
       - run: pnpm test:api
       - run: pnpm test:telegram
+      - name: Install pinned mihomo and validate compiled configs
+        env:
+          # Bump MIHOMO_SHA256 together whenever MIHOMO_VERSION is upgraded.
+          MIHOMO_VERSION: v1.19.2
+          MIHOMO_SHA256: a0b2b347b30387c452e6a4cf531f55df8175f7998e91451a3083459948aa3cae
+        run: |
+          curl -fsSL "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-compatible-${MIHOMO_VERSION}.gz" -o /tmp/mihomo.gz
+          echo "${MIHOMO_SHA256}  /tmp/mihomo.gz" | sha256sum -c -
+          gunzip -f /tmp/mihomo.gz
+          chmod +x /tmp/mihomo
+          /tmp/mihomo -v
+          MIHOMO_BIN=/tmp/mihomo REQUIRE_MIHOMO_KERNEL=1 pnpm exec vitest run tests/domain/compilers/mihomo-kernel.test.ts
       - run: pnpm build
       - run: pnpm wrangler deploy --dry-run --keep-vars
       - run: pnpm exec playwright install --with-deps chromium

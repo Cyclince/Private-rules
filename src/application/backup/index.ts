@@ -97,6 +97,7 @@ export async function getBackupData(env: Env): Promise<ExportedBackup> {
           sourceType: source.sourceType ?? 'url',
           enabled: source.enabled,
           syncIntervalMinutes: source.syncIntervalMinutes,
+          ...(source.coverageDedup === false ? { coverageDedup: false } : {}),
         };
         if (common.sourceType === 'geosite') return { ...common, geositeName: source.geositeName };
         if (common.sourceType === 'geoip') return { ...common, geoipName: source.geoipName };
@@ -259,9 +260,12 @@ export async function importRulesData(env: Env, input: unknown): Promise<RulesDa
           : sourceType === 'geoip' && source.geoipName
             ? `GeoIP · ${source.geoipName}`
             : sourceNameFromUrl(sourceUrl, `来源 ${sourceIndex + 1}`));
+      const isLegacyBackup = (data.version ?? 1) < 2;
+      const coverageDedupFlag =
+        source.coverageDedup !== undefined ? (source.coverageDedup ? 1 : 0) : isLegacyBackup ? 0 : 1;
       statements.push(
         env.DB.prepare(
-          'INSERT INTO category_sources (id, category_id, name, url, enabled, last_synced_at, last_status, last_count, last_original_count, last_error, sync_interval_minutes, user_agent, source_type, geosite_name, geoip_name, rule_optimization, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO category_sources (id, category_id, name, url, enabled, last_synced_at, last_status, last_count, last_original_count, last_error, sync_interval_minutes, user_agent, source_type, geosite_name, geoip_name, rule_optimization, coverage_dedup, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         ).bind(
           source.id || id('src'),
           categoryId,
@@ -279,6 +283,7 @@ export async function importRulesData(env: Env, input: unknown): Promise<RulesDa
           source.geositeName ?? null,
           source.geoipName ?? null,
           sourceType === 'url' ? (source.ruleOptimization ?? 'none') : 'none',
+          coverageDedupFlag,
           category.createdAt ?? timestamp,
           category.updatedAt ?? timestamp,
         ),

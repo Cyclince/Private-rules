@@ -5,6 +5,7 @@ export type MigrationEntry = {
 
 export const BASELINE_MIGRATION_NAME = '0000_baseline.sql';
 export const INITIAL_1_1_0_MIGRATION_NAME = '0001_1_1_0_schema.sql';
+export const SOURCE_COVERAGE_DEDUP_MIGRATION_NAME = '0002_source_coverage_dedup.sql';
 
 /**
  * Core tables present since 1.0.0 (`0001_init.sql`). A 1.0.x database missing
@@ -760,6 +761,13 @@ CREATE TABLE IF NOT EXISTS node_snapshots (
 );
 `;
 
+const SOURCE_COVERAGE_DEDUP_SQL = `-- Per-source coverage deduplication toggle (design §9.3.1).
+-- Defaults to 0 so existing 1.0.x / pre-M4.3a sources keep byte-identical output;
+-- newly created 1.1.0 sources explicitly store 1 (opt-out with 0).
+
+ALTER TABLE category_sources ADD COLUMN coverage_dedup INTEGER NOT NULL DEFAULT 0;
+`;
+
 /**
  * Bundled SQL migrations kept in sync with `src/data/migrations/*.sql` (verified
  * byte-for-byte by `tests/integration/migration.test.ts`). Bundling avoids any
@@ -769,4 +777,5 @@ CREATE TABLE IF NOT EXISTS node_snapshots (
 export const MIGRATIONS: readonly MigrationEntry[] = [
   { name: BASELINE_MIGRATION_NAME, sql: BASELINE_SQL },
   { name: INITIAL_1_1_0_MIGRATION_NAME, sql: SCHEMA_1_1_0_SQL },
+  { name: SOURCE_COVERAGE_DEDUP_MIGRATION_NAME, sql: SOURCE_COVERAGE_DEDUP_SQL },
 ];
