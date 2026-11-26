@@ -1,3 +1,5 @@
+import { AppError } from '../shared/errors';
+
 export const GITHUB_MIRROR_PRESETS = [
   'https://cdn.jsdelivr.net',
   'https://fastly.jsdelivr.net',
@@ -51,9 +53,16 @@ function isJsDelivrBase(value: string) {
 export function normalizeGithubMirrorUrl(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return '';
-  const url = new URL(trimmed);
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('GitHub 地址必须使用 HTTP 或 HTTPS');
-  if (trimmed.length > 1000) throw new Error('GitHub 地址过长');
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    throw new AppError('VALIDATION_FAILED', 'GitHub 地址格式不正确');
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new AppError('VALIDATION_FAILED', 'GitHub 地址必须使用 HTTP 或 HTTPS');
+  }
+  if (trimmed.length > 1000) throw new AppError('VALIDATION_FAILED', 'GitHub 地址过长');
   return trimmed.replace(/\/+$/, '');
 }
 

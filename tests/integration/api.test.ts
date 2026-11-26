@@ -32,7 +32,18 @@ describe('HTTP API behavior', () => {
     }
   });
   afterAll(async () => { database.close(); await rm(directory, { recursive: true, force: true }); });
-  const request = (path: string, init: RequestInit = {}) => app.request(path, { ...init, headers: { ...(cookie ? { cookie } : {}), ...(init.headers ?? {}) } }, env);
+  const request = (path: string, init: RequestInit = {}) => {
+    const method = (init.method ?? 'GET').toUpperCase();
+    const csrfHeaders =
+      cookie && !['GET', 'HEAD', 'OPTIONS'].includes(method)
+        ? { origin: 'http://localhost', 'content-type': 'application/json' }
+        : {};
+    return app.request(
+      path,
+      { ...init, headers: { ...csrfHeaders, ...(cookie ? { cookie } : {}), ...(init.headers ?? {}) } },
+      env,
+    );
+  };
 
   it('handles failed login, session login, authenticated API, and logout', async () => {
     expect((await request('/api/categories')).status).toBe(401);

@@ -175,7 +175,11 @@ export function useDomainAdmin() {
     updateSettings: (input: Record<string, unknown>) =>
       mutate('/api/settings', { method: 'PATCH', body: JSON.stringify(input) }),
     refreshIconPacks: async () => {
-      const response = await fetch('/api/icon-packs/refresh', { method: 'POST' });
+      const response = await fetch('/api/icon-packs/refresh', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      });
       const payload = await response.json().catch(() => ({})) as { error?: string; updatedAt?: string; results?: Array<{ url: string; ok: boolean; count: number; error?: string }> };
       if (!response.ok || !payload.updatedAt) throw new Error(payload.error ?? '图标包更新失败');
       return { updatedAt: payload.updatedAt, results: payload.results ?? [] };

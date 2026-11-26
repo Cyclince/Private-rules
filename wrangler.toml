@@ -1,5 +1,5 @@
 name = "private-rules"
-main = "src/worker.ts"
+main = "src/runtimes/worker.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 # 升级部署时保留在 Cloudflare Dashboard 中维护的变量。

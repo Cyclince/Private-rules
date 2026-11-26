@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import { TelegramRepository } from '../../application/telegram/repository';
+import { AppError } from '../../shared/errors';
 import type { AppVariables, Env } from '../../types';
 import type { TelegramConfig } from './config';
 
@@ -38,19 +39,19 @@ export async function signTelegramInitData(params: URLSearchParams, botToken: st
 }
 
 export async function validateTelegramInitData(raw: string, config: TelegramConfig, nowSeconds = Math.floor(Date.now() / 1000)) {
-  if (!raw || raw.length > 16_384) throw new Error('initData 格式错误。');
+  if (!raw || raw.length > 16_384) throw new AppError('UNAUTHENTICATED', 'initData 格式错误。');
   const params = new URLSearchParams(raw);
   const receivedHash = params.get('hash') ?? '';
-  if (!/^[a-f0-9]{64}$/i.test(receivedHash)) throw new Error('initData 签名无效。');
+  if (!/^[a-f0-9]{64}$/i.test(receivedHash)) throw new AppError('UNAUTHENTICATED', 'initData 签名无效。');
   const expectedHash = await signTelegramInitData(params, config.botToken);
-  if (!timingSafeEqual(receivedHash.toLowerCase(), expectedHash.toLowerCase())) throw new Error('initData 签名无效。');
+  if (!timingSafeEqual(receivedHash.toLowerCase(), expectedHash.toLowerCase())) throw new AppError('UNAUTHENTICATED', 'initData 签名无效。');
   const authDate = Number(params.get('auth_date'));
-  if (!Number.isSafeInteger(authDate) || authDate > nowSeconds + 30 || nowSeconds - authDate > config.updateMaxAgeSeconds) throw new Error('initData 已过期。');
+  if (!Number.isSafeInteger(authDate) || authDate > nowSeconds + 30 || nowSeconds - authDate > config.updateMaxAgeSeconds) throw new AppError('UNAUTHENTICATED', 'initData 已过期。');
   const userText = params.get('user');
-  if (!userText) throw new Error('initData 缺少用户。');
+  if (!userText) throw new AppError('UNAUTHENTICATED', 'initData 缺少用户。');
   let user: { id?: number; username?: string; first_name?: string; last_name?: string };
-  try { user = JSON.parse(userText) as typeof user; } catch { throw new Error('initData 用户格式错误。'); }
-  if (!Number.isSafeInteger(user.id)) throw new Error('initData 用户格式错误。');
+  try { user = JSON.parse(userText) as typeof user; } catch { throw new AppError('UNAUTHENTICATED', 'initData 用户格式错误。'); }
+  if (!Number.isSafeInteger(user.id)) throw new AppError('UNAUTHENTICATED', 'initData 用户格式错误。');
   return { params, authDate, user: user as typeof user & { id: number }, replayHash: await sha256(raw) };
 }
 
@@ -67,7 +68,7 @@ function secureRequest(c: Context<{ Bindings: Env; Variables: AppVariables }>) {
 
 export async function createTelegramSession(c: Context<{ Bindings: Env; Variables: AppVariables }>, rawInitData: string) {
   const config = c.env.TELEGRAM;
-  if (!config?.enabled) throw new Error('Telegram 未启用。');
+  if (!config?.enabled) throw new AppError('UNAUTHENTICATED', 'Telegram 未启用。');
   const validated = await validateTelegramInitData(rawInitData, config);
   const repository = new TelegramRepository(c.env.DB);
   const chatText = validated.params.get('chat');
@@ -84,9 +85,9 @@ export async function createTelegramSession(c: Context<{ Bindings: Env; Variable
     username: validated.user.username,
     displayName: [validated.user.first_name, validated.user.last_name].filter(Boolean).join(' '),
   });
-  if (!user) throw new Error('Telegram 用户没有权限。');
+  if (!user) throw new AppError('UNAUTHENTICATED', 'Telegram 用户没有权限。');
   const replayExpiresAt = new Date((validated.authDate + config.updateMaxAgeSeconds) * 1000).toISOString();
-  if (!await repository.claimInitData(validated.replayHash, user.telegramUserId, replayExpiresAt)) throw new Error('initData 已被使用。');
+  if (!await repository.claimInitData(validated.replayHash, user.telegramUserId, replayExpiresAt)) throw new AppError('UNAUTHENTICATED', 'initData 已被使用。');
   const token = randomToken();
   await repository.createSession(user.telegramUserId, await sha256(token), config.sessionTtlSeconds);
   setCookie(c, TELEGRAM_SESSION_COOKIE, token, {

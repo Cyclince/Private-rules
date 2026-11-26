@@ -20,10 +20,12 @@ describe('error handling', () => {
     expect(ERROR_CODES.SESSION_SECRET_REQUIRED).toBe(503);
   });
 
-  it('keeps legacy user-facing errors as 400', async () => {
+  it('treats plain non-AppError exceptions as 500 INTERNAL without Chinese message-regex matching', async () => {
     const response = handleError(new Error('分类不存在。'));
-    expect(response.status).toBe(400);
-    expect((await response.json()).code).toBe('VALIDATION_FAILED');
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.code).toBe('INTERNAL');
+    expect(body.error).not.toContain('分类不存在');
   });
 
   it('hides internal error details behind a correlation id', async () => {

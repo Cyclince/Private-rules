@@ -6,6 +6,11 @@ import {
   type RuleSetRow,
   type RuleSourceFilter,
 } from '../../data/repositories';
+import {
+  formatCategoryFile,
+  subscriptionFileCandidates,
+  type FormattedSubscriptionFile,
+} from '../../domain/formatters';
 import { RuleConflictIndex } from '../../domain/rules/conflicts';
 import { parseBulkImport, parseRuleInput } from '../../domain/rules/parser';
 import { id, slugify, validateCategoryName } from '../../domain/rules/slug';
@@ -104,6 +109,79 @@ function attachSourcesToRules(ruleList: DomainRule[], sourceById: Map<string, Ru
     byCategory.set(categoryId, list);
   }
   return byCategory;
+}
+
+export async function findRulesetSlug(env: Env, categoryId: string): Promise<string | null> {
+  const row = await createRepositories(env.DB).rulesets.findById(categoryId);
+  return row ? row.slug : null;
+}
+
+export async function listRulesetSlugs(env: Env): Promise<string[]> {
+  const rows = await createRepositories(env.DB).rulesets.listAll();
+  return rows.map((row) => row.slug);
+}
+
+export async function getRulesetById(env: Env, categoryId: string): Promise<RuleCategory> {
+  const repos = createRepositories(env.DB);
+  const row = await repos.rulesets.findById(categoryId);
+  if (!row) throw new AppError('RULESET_NOT_FOUND', '分类不存在。');
+  const [categoryRules, categorySources] = await Promise.all([
+    repos.rules.listByCategory(row.id),
+    repos.sources.listByCategory(row.id),
+  ]);
+  const sourceById = new Map(categorySources.map((source) => [source.id, source]));
+  const rulesByCategory = attachSourcesToRules(categoryRules, sourceById);
+  return buildCategory(row, rulesByCategory.get(row.id) ?? [], categorySources);
+}
+
+/**
+ * Resolves and formats a single subscription file by querying only the matched
+ * category's rules and sources (avoiding a full-table scan across all rulesets).
+ */
+export async function getSubscriptionFile(
+  env: Env,
+  fileName: string,
+  access: 'public' | 'token',
+): Promise<FormattedSubscriptionFile | null> {
+  const candidates = subscriptionFileCandidates(fileName);
+  if (candidates.length === 0) return null;
+
+  const repos = createRepositories(env.DB);
+  let matchedRow: RuleSetRow | null = null;
+  let matchedFormatter = candidates[0].formatter;
+
+  for (const candidate of candidates) {
+    const row = await repos.rulesets.findBySlug(candidate.slug);
+    if (row) {
+      matchedRow = row;
+      matchedFormatter = candidate.formatter;
+      break;
+    }
+  }
+  if (!matchedRow || matchedRow.enabled === 0) return null;
+
+  const publicLinksEnabled = matchedRow.publicLinksEnabled !== 0;
+  const tokenLinksEnabled = matchedRow.tokenLinksEnabled !== 0;
+  if (access === 'public' && (tokenLinksEnabled || !publicLinksEnabled)) return null;
+  if (access === 'token' && !tokenLinksEnabled) return null;
+
+  const [categoryRules, categorySources, settings] = await Promise.all([
+    repos.rules.listByCategory(matchedRow.id),
+    repos.sources.listByCategory(matchedRow.id),
+    repos.settings.getAll(),
+  ]);
+
+  const sourceById = new Map(categorySources.map((source) => [source.id, source]));
+  const rulesByCategory = attachSourcesToRules(categoryRules, sourceById);
+  const category = buildCategory(matchedRow, rulesByCategory.get(matchedRow.id) ?? [], categorySources);
+  const data: RulesData = {
+    version: 1,
+    updatedAt: category.updatedAt,
+    settings,
+    categories: [category],
+  };
+
+  return formatCategoryFile(category, matchedFormatter, data);
 }
 
 export async function getRulesData(env: Env): Promise<RulesData> {

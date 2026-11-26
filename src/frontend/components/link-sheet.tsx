@@ -29,7 +29,11 @@ export function LinkSheet({
   }
 
   async function showPreview(link: ClientLink) {
-    const response = await fetch(preferHttpsLink(link.publicUrl));
+    if (!link.recommendedUrl) {
+      onToast('当前没有可用订阅链接，请检查访问策略和 RULE_TOKEN');
+      return;
+    }
+    const response = await fetch(preferHttpsLink(link.recommendedUrl));
     setPreview({
       title: `${link.name} 预览`,
       content: await response.text(),

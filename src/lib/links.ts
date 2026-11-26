@@ -39,17 +39,13 @@ function siteBase(requestUrl: string, data: RulesData) {
 
 export function linksForCategory(category: RuleCategory, data: RulesData, requestUrl: string, ruleToken?: string): ClientLink[] {
   const base = siteBase(requestUrl, data);
+  const tokenEnabled = category.tokenLinksEnabled !== false;
+  const publicEnabled = !tokenEnabled && category.publicLinksEnabled !== false;
   return clients.map((client) => {
     const fileName = fileNameForClient(category, client.id as ClientId);
-    const publicUrl = `${base}/rules/${fileName}`;
-    const tokenUrl = ruleToken ? `${base}/sub/${encodeURIComponent(ruleToken)}/${fileName}` : '';
-    const tokenEnabled = category.tokenLinksEnabled !== false;
-    const publicEnabled = !tokenEnabled && category.publicLinksEnabled !== false;
-    const recommendedUrl = tokenEnabled && tokenUrl
-      ? tokenUrl
-      : publicEnabled
-        ? publicUrl
-        : '';
+    const publicUrl = publicEnabled ? `${base}/rules/${fileName}` : '';
+    const tokenUrl = tokenEnabled && ruleToken ? `${base}/sub/${encodeURIComponent(ruleToken)}/${fileName}` : '';
+    const recommendedUrl = tokenUrl || publicUrl;
     return {
       ...client,
       fileName,

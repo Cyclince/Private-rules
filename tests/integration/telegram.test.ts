@@ -295,7 +295,7 @@ describe('private Telegram webhook, commands, and Mini App sessions', () => {
     }, env);
     const cookie = login.headers.get('set-cookie')?.split(';')[0] ?? '';
     const saved = await app.request('/api/telegram/notifications', {
-      method: 'PUT', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'digest', muted: true, digestTime: '09:00' }),
+      method: 'PUT', headers: { cookie, origin: 'https://rules.example.com', 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'digest', muted: true, digestTime: '09:00' }),
     }, env);
     expect(await saved.json()).toMatchObject({ preferences: { mode: 'digest', muted: true } });
     await new TelegramRepository(database).saveNotificationPreferences('1001', { mode: 'immediate', muted: true });
@@ -338,8 +338,8 @@ describe('private Telegram webhook, commands, and Mini App sessions', () => {
     expect(cookie).toContain('private_rules_telegram_session=');
     const me = await app.request('/api/telegram/session/me', { headers: { cookie } }, env);
     expect(await me.json()).toMatchObject({ telegramUserId: '1001' });
-    expect((await app.request('/api/sync', { method: 'POST', headers: { cookie } }, env)).status).toBe(200);
-    expect((await app.request('/api/telegram/session/logout', { method: 'POST', headers: { cookie } }, env)).status).toBe(200);
+    expect((await app.request('/api/sync', { method: 'POST', headers: { cookie, origin: 'https://rules.example.com', 'content-type': 'application/json' } }, env)).status).toBe(200);
+    expect((await app.request('/api/telegram/session/logout', { method: 'POST', headers: { cookie, origin: 'https://rules.example.com', 'content-type': 'application/json' } }, env)).status).toBe(200);
     expect((await app.request('/api/telegram/session/me', { headers: { cookie } }, env)).status).toBe(401);
     expect((await app.request('/api/telegram/session', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ initData: valid }),

@@ -1,6 +1,7 @@
 import { createRepositories } from '../../data/repositories';
 import { safeFetchText } from '../../infrastructure/http/fetch';
 import { redactString } from '../../infrastructure/logging/logger';
+import { AppError } from '../../shared/errors';
 import type { Env } from '../../types';
 import type { RuleSettings } from '../../types/domain-rules';
 
@@ -82,14 +83,14 @@ export async function refreshIconPacks(env: Env, force = false, currentTime = Da
 export async function getCachedIconPack(env: Env, rawUrl: string) {
   const settings = await getSettings(env);
   const allowed = new Set([...PRESET_ICON_PACK_URLS, ...settings.customIconPackUrls]);
-  if (!allowed.has(rawUrl)) throw new Error('图标包未配置。');
+  if (!allowed.has(rawUrl)) throw new AppError('VALIDATION_FAILED', '图标包未配置。');
   const { iconPacks } = createRepositories(env.DB);
   let row = await iconPacks.findByUrl(rawUrl);
   if (!row?.payload) {
     await refreshOne(env, rawUrl);
     row = await iconPacks.findByUrl(rawUrl);
   }
-  if (!row?.payload) throw new Error(row?.lastError || '图标包尚未成功更新。');
+  if (!row?.payload) throw new AppError('UPSTREAM_FAILED', row?.lastError || '图标包尚未成功更新。');
   return {
     icons: JSON.parse(row.payload) as CachedPackIcon[],
     count: row.iconCount,

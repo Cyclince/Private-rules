@@ -332,7 +332,79 @@ export function fileNameForClient(category: RuleCategory, client: ClientId) {
   return `${baseName(category)}${formatter.extension}`;
 }
 
-export function resolveFile(data: RulesData, fileName: string) {
+export const SUBSCRIPTION_FILE_SUFFIXES: ReadonlyArray<readonly [string, Formatter]> = [
+  ['_classical.yaml', formatters['yaml-classical']],
+  ['_domain.yaml', formatters['yaml-domain']],
+  // Compatibility for the common "Domian" typo used by older copied links.
+  ['_domian.yaml', formatters['yaml-domain']],
+  ['_ipcidr.yaml', formatters['yaml-ipcidr']],
+  ['-shadowrocket.list', formatters.shadowrocket],
+  ['-surfboard.list', formatters.surfboard],
+  ['-sing-box.json', formatters['sing-box']],
+  ['-surge.list', formatters.surge],
+  ['-egern.list', formatters.egern],
+  ['-v2ray.list', formatters.v2ray],
+  ['-loon.list', formatters.loon],
+  ['-qx.list', formatters['quantumult-x']],
+  ['.yaml', formatters.yaml],
+  ['.yml', formatters.yaml],
+  ['.list', formatters.general],
+  ['.conf', formatters.general],
+  ['.txt', formatters.url],
+  ['.json', formatters.json],
+];
+
+export type FormattedSubscriptionFile = {
+  category: RuleCategory;
+  formatter: Formatter;
+  body: string;
+  skipped: FormatterSkippedRule[];
+  contentType: string;
+};
+
+/**
+ * Splits a subscription filename into candidate `{ slug, formatter }` pairs
+ * ordered so specific client suffixes (`-loon.list`, `_ipcidr.yaml`, ...) take
+ * precedence over generic ones (`.list`, `.yaml`), while still allowing a
+ * category whose slug ends with `-loon` to fall back to `.list`.
+ */
+export function subscriptionFileCandidates(fileName: string): Array<{ slug: string; formatter: Formatter }> {
+  const lower = fileName.toLowerCase();
+  const candidates: Array<{ slug: string; formatter: Formatter }> = [];
+  for (const [suffix, formatter] of SUBSCRIPTION_FILE_SUFFIXES) {
+    if (lower.endsWith(suffix) && lower.length > suffix.length) {
+      candidates.push({ slug: lower.slice(0, -suffix.length), formatter });
+    }
+  }
+  return candidates;
+}
+
+export function subscriptionFileNamesForSlug(slug: string): string[] {
+  const base = slugify(slug).toLowerCase();
+  return SUBSCRIPTION_FILE_SUFFIXES.map(([suffix]) => `${base}${suffix}`);
+}
+
+export function formatCategoryFile(
+  category: RuleCategory,
+  formatter: Formatter,
+  data: RulesData,
+): FormattedSubscriptionFile {
+  const formatted = formatter.formatWithReport
+    ? formatter.formatWithReport(category, data)
+    : { body: formatter.format(category, data), skipped: [] };
+  return {
+    category,
+    formatter,
+    body: formatted.body,
+    skipped: formatted.skipped,
+    contentType:
+      formatter.id === 'json' || formatter.id === 'sing-box'
+        ? 'application/json; charset=utf-8'
+        : 'text/plain; charset=utf-8',
+  };
+}
+
+export function resolveFile(data: RulesData, fileName: string): FormattedSubscriptionFile | null {
   const lower = fileName.toLowerCase();
   for (const category of data.categories) {
     if (category.enabled === false) continue;
@@ -360,20 +432,7 @@ export function resolveFile(data: RulesData, fileName: string) {
     ];
     const match = candidates.find(([candidate]) => candidate === lower);
     if (match) {
-      const formatter = match[1];
-      const formatted = formatter.formatWithReport
-        ? formatter.formatWithReport(category, data)
-        : { body: formatter.format(category, data), skipped: [] };
-      return {
-        category,
-        formatter,
-        body: formatted.body,
-        skipped: formatted.skipped,
-        contentType:
-          formatter.id === 'json' || formatter.id === 'sing-box'
-            ? 'application/json; charset=utf-8'
-            : 'text/plain; charset=utf-8',
-      };
+      return formatCategoryFile(category, match[1], data);
     }
   }
   return null;

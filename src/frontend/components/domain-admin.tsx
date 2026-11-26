@@ -77,7 +77,11 @@ export function DomainAdmin() {
 
   async function logout() {
     setActionDialog(null);
-    await fetch(api.meta.authType === 'telegram' ? '/api/telegram/session/logout' : '/api/auth/logout', { method: 'POST' });
+    await fetch(api.meta.authType === 'telegram' ? '/api/telegram/session/logout' : '/api/auth/logout', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    });
     document.documentElement.classList.add('session-leaving');
     window.setTimeout(() => { window.location.href = '/admin/login'; }, 520);
   }

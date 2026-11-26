@@ -1,4 +1,5 @@
 import type { DomainRule, DomainRuleType, ImportPreview } from '../../types/domain-rules';
+import { AppError } from '../../shared/errors';
 import { FRIENDLY_RULE_TYPE, RULE_TYPES } from './rule-types';
 import { id } from './slug';
 
@@ -73,8 +74,8 @@ export function parseRuleInput(
   forcedOptions?: { noResolve?: boolean },
 ): DomainRule {
   const raw = input.trim();
-  if (!raw) throw new Error('请输入域名、关键词或 IP');
-  if (raw.startsWith('#')) throw new Error('注释行不能单独保存为规则');
+  if (!raw) throw new AppError('VALIDATION_FAILED', '请输入域名、关键词或 IP');
+  if (raw.startsWith('#')) throw new AppError('VALIDATION_FAILED', '注释行不能单独保存为规则');
 
   const fromProfessional = professional(raw);
   const effectiveType = forcedType || fromProfessional?.type;
@@ -99,7 +100,7 @@ export function parseRuleInput(
     }
   }
 
-  if (!type) throw new Error('没有识别出有效规则，请检查输入内容');
+  if (!type) throw new AppError('VALIDATION_FAILED', '没有识别出有效规则，请检查输入内容');
 
   let value = normalized;
   if ((type === 'IP-CIDR' || type === 'SRC-IP-CIDR') && IP_PATTERN.test(value)) value = `${value}/32`;
@@ -109,16 +110,19 @@ export function parseRuleInput(
   const validNetwork =
     (CIDR_PATTERN.test(value) && validIp(value)) || (IPV6_CIDR_PATTERN.test(value) && validIpv6(value));
   if ((type === 'IP-CIDR' || type === 'SRC-IP-CIDR') && !validNetwork) {
-    throw new Error('IP 或 IP 段格式不正确');
+    throw new AppError('VALIDATION_FAILED', 'IP 或 IP 段格式不正确');
   }
   if ((type === 'DOMAIN' || type === 'DOMAIN-SUFFIX') && !DOMAIN_PATTERN.test(value)) {
-    throw new Error('域名格式不正确');
+    throw new AppError('VALIDATION_FAILED', '域名格式不正确');
   }
   if (type === 'DOMAIN-KEYWORD' && !KEYWORD_PATTERN.test(value)) {
-    throw new Error('关键词只能包含字母、数字、短横线或下划线');
+    throw new AppError('VALIDATION_FAILED', '关键词只能包含字母、数字、短横线或下划线');
   }
   if ((type === 'DST-PORT' || type === 'SRC-PORT') && !validDestinationPort(value)) {
-    throw new Error(`${type === 'DST-PORT' ? '目标' : '来源'}端口格式不正确，请输入 1-65535 范围内的端口或端口区间`);
+    throw new AppError(
+      'VALIDATION_FAILED',
+      `${type === 'DST-PORT' ? '目标' : '来源'}端口格式不正确，请输入 1-65535 范围内的端口或端口区间`,
+    );
   }
 
   let displayType: string;

@@ -111,7 +111,7 @@ async function fetchSourceRules(source: PreviewSourceInput, githubMirrorUrl: str
     const response = await safeFetchText(rewriteGithubUrl(textUrl, githubMirrorUrl), {
       headers: { accept: 'text/plain' },
     });
-    if (!response.ok) throw new Error(`GeoIP ${source.geoipName} 返回 HTTP ${response.status}`);
+    if (!response.ok) throw new AppError('UPSTREAM_FAILED', `GeoIP ${source.geoipName} 返回 HTTP ${response.status}`);
     const networks = response.text
       .split(/\s+/)
       .map((value) => value.trim())
@@ -124,7 +124,7 @@ async function fetchSourceRules(source: PreviewSourceInput, githubMirrorUrl: str
         'user-agent': source.userAgent || 'clash-verge/v2.5.1',
       },
     });
-    if (!response.ok) throw new Error(`上游返回 HTTP ${response.status}`);
+    if (!response.ok) throw new AppError('UPSTREAM_FAILED', `上游返回 HTTP ${response.status}`);
     text = response.text;
   }
 
@@ -132,7 +132,7 @@ async function fetchSourceRules(source: PreviewSourceInput, githubMirrorUrl: str
     source.sourceType === 'geosite' || source.sourceType === 'geoip' ? text : normalizeUpstreamText(text),
     [],
   );
-  if (!preview.rules.length) throw new Error('未从上游识别出有效规则');
+  if (!preview.rules.length) throw new AppError('VALIDATION_FAILED', '未从上游识别出有效规则');
   const optimization = source.ruleOptimization;
   const optimized = source.sourceType === 'url' && (optimization === 'conservative' || optimization === 'aggressive');
   return {

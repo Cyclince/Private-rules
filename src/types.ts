@@ -5,6 +5,12 @@ import type { BackgroundTaskPort } from './application/ports/background-task';
 import type { TelegramClient } from './application/ports/telegram-client';
 import type { TelegramConfig } from './integrations/telegram/config';
 
+export type SubscriptionCacheStore = {
+  match(request: Request | string): Promise<Response | undefined>;
+  put(request: Request | string, response: Response): Promise<void>;
+  delete(request: Request | string): Promise<boolean>;
+};
+
 export type Env = {
   DB: DatabasePort;
   ASSETS: AssetsPort;
@@ -18,6 +24,8 @@ export type Env = {
   /** Socket address of the direct peer (Node runtime only). */
   CLIENT_ADDRESS?: string;
   BACKGROUND_TASKS?: BackgroundTaskPort;
+  /** Optional Workers Cache API override (defaults to `caches.default` on Cloudflare). */
+  SUBSCRIPTION_CACHE?: SubscriptionCacheStore;
   TELEGRAM?: TelegramConfig;
   TELEGRAM_CLIENT?: TelegramClient;
 };

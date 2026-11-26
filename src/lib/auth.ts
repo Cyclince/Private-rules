@@ -1,7 +1,7 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import type { AppVariables, Env } from '../types';
-import { error } from './response';
+import { AppError } from '../shared/errors';
 import { slugify } from './slug';
 import {
   authenticateApiKeyToken,
@@ -113,13 +113,20 @@ export async function isAuthenticated(c: Context<{ Bindings: Env; Variables: App
 
 export const requireSessionAuth: MiddlewareHandler<{ Bindings: Env; Variables: AppVariables }> = async (c, next) => {
   const sessionId = await currentSessionId(c);
-  if (!sessionId) return error('请先登录。', 401);
+  if (!sessionId) throw new AppError('UNAUTHENTICATED', '请先登录。');
   c.set('sessionId', sessionId);
   c.set('authType', 'session');
   await next();
 };
 
 export const requireAuth: MiddlewareHandler<{ Bindings: Env; Variables: AppVariables }> = async (c, next) => {
+  const authorization = c.req.header('authorization') ?? '';
+  if (/^Bearer\s+/i.test(authorization)) {
+    if (!(await validApiKey(c))) throw new AppError('UNAUTHENTICATED', 'API Key 无效。');
+    c.set('authType', 'apiKey');
+    await next();
+    return;
+  }
   const sessionId = await currentSessionId(c);
   if (sessionId) {
     c.set('sessionId', sessionId);
@@ -134,9 +141,7 @@ export const requireAuth: MiddlewareHandler<{ Bindings: Env; Variables: AppVaria
     await next();
     return;
   }
-  if (!(await validApiKey(c))) return error('登录会话或 API Key 无效。', 401);
-  c.set('authType', 'apiKey');
-  await next();
+  throw new AppError('UNAUTHENTICATED', '登录会话或 API Key 无效。');
 };
 
 export async function checkPassword(env: Env, password: string) {

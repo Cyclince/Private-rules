@@ -30,8 +30,18 @@ describe('1.0.7 security and data-safety fixes', () => {
   });
   afterEach(async () => { database.close(); await rm(directory, { recursive: true, force: true }); });
 
-  const request = (path: string, init: RequestInit = {}) =>
-    app.request(path, { ...init, headers: { ...(cookie ? { cookie } : {}), ...(init.headers ?? {}) } }, env);
+  const request = (path: string, init: RequestInit = {}) => {
+    const method = (init.method ?? 'GET').toUpperCase();
+    const csrfHeaders =
+      cookie && !['GET', 'HEAD', 'OPTIONS'].includes(method)
+        ? { origin: 'http://localhost', 'content-type': 'application/json' }
+        : {};
+    return app.request(
+      path,
+      { ...init, headers: { ...csrfHeaders, ...(cookie ? { cookie } : {}), ...(init.headers ?? {}) } },
+      env,
+    );
+  };
   const login = async (password = PASSWORD, headers: Record<string, string> = {}) =>
     request('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ password }) });
   const signIn = async () => {

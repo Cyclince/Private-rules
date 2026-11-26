@@ -1,4 +1,5 @@
 import type { GeoSourceSuggestion } from '../types/domain-rules';
+import { AppError } from '../shared/errors';
 import { rewriteGithubUrl } from './github-mirror';
 import { safeFetchJson, safeFetchText } from '../infrastructure/http/fetch';
 
@@ -13,7 +14,7 @@ async function geositeNames() {
   const response = await safeFetchJson<{ tree?: Array<{ path?: string; type?: string }> }>(TREE_API, {
     headers: { accept: 'application/vnd.github+json', 'user-agent': 'Private-rules-worker' },
   });
-  if (!response.ok) throw new Error(`GeoSite 索引返回 HTTP ${response.status}`);
+  if (!response.ok) throw new AppError('UPSTREAM_FAILED', `GeoSite 索引返回 HTTP ${response.status}`);
   const payload = response.data;
   const names = (payload.tree ?? [])
     .filter((item) => item.type === 'blob' && item.path?.startsWith('data/') && !item.path.slice(5).includes('/'))
@@ -27,7 +28,7 @@ async function geoipNames() {
   const response = await safeFetchJson<{ tree?: Array<{ path?: string; type?: string }> }>(GEOIP_TREE_API, {
     headers: { accept: 'application/vnd.github+json', 'user-agent': 'Private-rules-worker' },
   });
-  if (!response.ok) throw new Error(`GeoIP 索引返回 HTTP ${response.status}`);
+  if (!response.ok) throw new AppError('UPSTREAM_FAILED', `GeoIP 索引返回 HTTP ${response.status}`);
   const payload = response.data;
   const names = (payload.tree ?? []).filter((item) => item.type === 'blob' && /^dat\/[^/]+\.dat$/i.test(item.path ?? '')).map((item) => item.path!.slice(4, -4));
   cachedGeoipNames = { at: Date.now(), names };
@@ -90,7 +91,7 @@ async function resolveGeosite(name: string, visited: Set<string>, depth: number,
   const response = await safeFetchText(rewriteGithubUrl(`${REPOSITORY}/${encodeURIComponent(name)}`, mirrorUrl), {
     headers: { accept: 'text/plain' },
   });
-  if (!response.ok) throw new Error(`GeoSite ${name} 返回 HTTP ${response.status}`);
+  if (!response.ok) throw new AppError('UPSTREAM_FAILED', `GeoSite ${name} 返回 HTTP ${response.status}`);
   const text = response.text;
   const lines = text.split(/\r?\n/);
   const includes = lines.map((line) => line.replace(/\s+#.*$/, '').trim()).filter((line) => line.startsWith('include:')).map((line) => {

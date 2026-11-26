@@ -23,8 +23,8 @@ export const LINTED = [
   'src/infrastructure/logging/**/*.ts',
   'src/infrastructure/crypto/**/*.ts',
   'src/web/**/*.{ts,tsx}',
-  'src/server/middleware/**/*.ts',
-  'src/server/routes/**/*.ts',
+  'src/runtimes/worker.ts',
+  'src/server/**/*.ts',
   'tests/shared/**/*.ts',
   'tests/domain/**/*.ts',
   'tests/unit/http-fetch.test.ts',
@@ -32,6 +32,8 @@ export const LINTED = [
   'tests/unit/node-secrets.test.ts',
   'tests/unit/sync-scheduler.test.ts',
   'tests/integration/migration.test.ts',
+  'tests/integration/security-hardening.test.ts',
+  'tests/integration/subscriptions-cache.test.ts',
 ];
 
 export default tseslint.config(
