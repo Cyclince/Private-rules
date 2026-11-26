@@ -4,7 +4,7 @@ import { listRulesetSlugs } from '../../application/rulesets';
 import { requireAuth } from '../../lib/auth';
 import { json } from '../../lib/response';
 import { AppError } from '../../shared/errors';
-import { purgeSubscriptionCacheForSlugs } from '../cache/subscription-cache';
+import { purgeAllPublicationCaches, purgeSubscriptionCacheForSlugs } from '../cache/subscription-cache';
 import { withLinks, type AppBindings, type AppContext } from '../helpers';
 
 function assertBackupAccessAllowed(c: AppContext) {
@@ -31,6 +31,7 @@ export async function handleBackupImport(c: AppContext) {
   const data = await importRulesData(c.env, payload);
   const newSlugs = data.categories.map((category) => category.slug);
   await purgeSubscriptionCacheForSlugs(c.env, [...oldSlugs, ...newSlugs]);
+  await purgeAllPublicationCaches(c.env);
   return json(withLinks(c, data));
 }
 

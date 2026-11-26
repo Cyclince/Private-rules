@@ -29,6 +29,7 @@ const env: Env = {
   ASSETS: new NodeAssetsAdapter(resolve(process.cwd(), 'dist/client')),
   ADMIN_PASSWORD: config.adminPassword,
   SESSION_SECRET: config.sessionSecret,
+  EXPLICIT_SESSION_SECRET: config.sessionSecret,
   RULE_TOKEN: config.ruleToken,
   BASE_URL: config.baseUrl,
   TRUST_PROXY: config.trustProxy,

@@ -8,15 +8,19 @@ import { handleError } from './middleware/errors';
 import { apiKeyRoutes } from './routes/api-keys';
 import { authRoutes } from './routes/auth';
 import { backupRoutes } from './routes/backup';
+import { cardRoutes } from './routes/cards';
+import { catalogRoutes } from './routes/catalog';
 import { healthRoutes } from './routes/health';
 import { legacyAliasRoutes } from './routes/legacy-aliases';
 import { linksRoutes } from './routes/links';
+import { publicationRoutes } from './routes/publications';
 import { rulesetRoutes } from './routes/rulesets';
 import { settingsRoutes } from './routes/settings';
 import { sourceRoutes } from './routes/sources';
 import { subscriptionRoutes } from './routes/subscriptions';
 import { syncRoutes } from './routes/sync';
 import { telegramRoutes } from './routes/telegram';
+import { templateRoutes } from './routes/templates';
 
 export function createApp() {
   const app = new Hono<AppBindings>();
@@ -40,6 +44,10 @@ export function createApp() {
     .route('/', rulesetRoutes)
     .route('/', sourceRoutes)
     .route('/', syncRoutes)
+    .route('/', catalogRoutes)
+    .route('/', cardRoutes)
+    .route('/', templateRoutes)
+    .route('/', publicationRoutes)
     .route('/', linksRoutes)
     .route('/', settingsRoutes)
     .route('/', backupRoutes)
@@ -66,6 +74,8 @@ export function createApp() {
     .all('/api/*', (c) => c.notFound())
     .all('/rules/*', (c) => c.notFound())
     .all('/sub/*', (c) => c.notFound())
+    .all('/p/*', (c) => c.notFound())
+    .all('/t/*', (c) => c.notFound())
     .get('*', async (c) => c.env.ASSETS.fetch(c.req.raw));
 
   return routes;

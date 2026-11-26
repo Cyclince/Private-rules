@@ -1,10 +1,22 @@
-import type { Context } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 import type { getRulesData } from '../application/rulesets';
 import { linksByCategory } from '../lib/links';
+import { AppError } from '../shared/errors';
 import type { AppVariables, Env } from '../types';
 
 export type AppBindings = { Bindings: Env; Variables: AppVariables };
 export type AppContext = Context<AppBindings>;
+
+/**
+ * Rejects write operations initiated from a Telegram Mini App session with 403
+ * while keeping read endpoints accessible (design §12.1, §13.7).
+ */
+export const rejectTelegramWrite: MiddlewareHandler<AppBindings> = async (c, next) => {
+  if (c.get('authType') === 'telegram') {
+    throw new AppError('FORBIDDEN', 'Telegram 会话不允许修改应用组件、模板或发布配置。');
+  }
+  await next();
+};
 
 export function externalRequestUrl(c: AppContext): string {
   if (c.env.BASE_URL) return `${c.env.BASE_URL}${new URL(c.req.url).pathname}`;
@@ -13,6 +25,12 @@ export function externalRequestUrl(c: AppContext): string {
   const proto = c.req.header('x-forwarded-proto')?.split(',')[0].trim() || original.protocol.replace(':', '');
   const host = c.req.header('x-forwarded-host')?.split(',')[0].trim() || original.host;
   return `${proto}://${host}${original.pathname}${original.search}`;
+}
+
+export function externalBaseUrl(c: AppContext): string {
+  if (c.env.BASE_URL) return c.env.BASE_URL.replace(/\/+$/, '');
+  const parsed = new URL(externalRequestUrl(c));
+  return parsed.origin;
 }
 
 export function withLinks(c: AppContext, data: Awaited<ReturnType<typeof getRulesData>>) {

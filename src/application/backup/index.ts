@@ -7,6 +7,7 @@ import {
 } from '../../data/repositories';
 import { appCards, publications, templates } from '../../data/schema';
 import { id, slugify } from '../../domain/rules/slug';
+import { applyOverlay } from '../../domain/templates/overlay';
 import { AppError } from '../../shared/errors';
 import {
   BACKUP_FORMAT_VERSION,
@@ -17,7 +18,7 @@ import {
   type BackupPublication,
   type BackupTemplate,
 } from '../../shared/schemas/backup';
-import { templateOverlaySchema, type TemplateOverlayOp } from '../../shared/schemas/template';
+import { templateBodySchema, templateOverlaySchema, type TemplateOverlayOp } from '../../shared/schemas/template';
 import type { TemplateClientId } from '../../shared/clients';
 import type { Env } from '../../types';
 import type { BackupRuleCategory, BackupRuleSource, RulesData } from '../../types/domain-rules';
@@ -343,15 +344,20 @@ export async function importRulesData(env: Env, input: unknown): Promise<RulesDa
       statements.push(env.DB.prepare('DELETE FROM template_versions'));
       statements.push(env.DB.prepare('DELETE FROM templates'));
       for (const template of data.templates) {
+        const templateId = template.id || id('tpl');
+        const createdAt = template.createdAt ?? timestamp;
+        const updatedAt = template.updatedAt ?? timestamp;
         const baseBody =
           template.output && !('output' in template.baseBody)
             ? { ...template.baseBody, output: template.output }
             : template.baseBody;
+        const parsedBody = templateBodySchema.safeParse(baseBody);
+        const resolvedBody = parsedBody.success ? applyOverlay(parsedBody.data, template.overlay).resolved : baseBody;
         statements.push(
           env.DB.prepare(
             'INSERT INTO templates (id, slug, name, description, base_kind, base_source_url, base_body, overlay, current_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)',
           ).bind(
-            template.id || id('tpl'),
+            templateId,
             template.slug,
             template.name,
             template.description ?? '',
@@ -359,9 +365,14 @@ export async function importRulesData(env: Env, input: unknown): Promise<RulesDa
             template.baseSourceUrl ?? null,
             JSON.stringify(baseBody),
             JSON.stringify(template.overlay),
-            template.createdAt ?? timestamp,
-            template.updatedAt ?? timestamp,
+            createdAt,
+            updatedAt,
           ),
+        );
+        statements.push(
+          env.DB.prepare(
+            'INSERT INTO template_versions (template_id, version, resolved_body, note, created_at) VALUES (?, 1, ?, ?, ?)',
+          ).bind(templateId, JSON.stringify(resolvedBody), '备份导入', createdAt),
         );
       }
     }

@@ -1052,6 +1052,7 @@ url-latency-benchmark=🇭🇰 香港, server-tag-regex=(?i)港|hk|hong ?kong, c
 | API Key | 只保存 SHA-256 哈希；预留 `scopes`；API Key 调用方不返回 `RULE_TOKEN` |
 | 订阅 Token | 常量时间比较；`RULE_TOKEN` 只在会话鉴权的响应中返回 |
 | 节点订阅地址（已定） | AES-GCM 加密存储，强制要求环境变量显式配置 `SESSION_SECRET`（不回退库内密钥，未配置时禁用节点绑定）；只写不读，界面显示脱敏值；不进日志、不进备份、不放进 URL 参数 |
+| 含节点的发布（已定） | A 类客户端配置需包含节点订阅明文（`proxy-providers.url`），因此凡存在任意节点绑定的发布，访问方式仅允许 `token` 或 `disabled`：将已绑定节点的发布改为 `public`、或给 `public` 发布绑定节点，均返回 `400 VALIDATION_FAILED` 并给出明确提示；`/p/:slug/:file` 投递前再做防御性校验，若存在节点绑定则直接返回 `404`（不泄露原因）并记录不含 URL 的 `warn` 日志 |
 | 客户端 IP | 只有 `TRUST_PROXY=true` 时才信任 `x-forwarded-for`；Cloudflare 形态使用 `cf-connecting-ip` |
 | 远程拉取 | 统一 SSRF 防护：禁止内网与保留地址、禁止重定向、超时 15s、大小上限 20MB |
 | 配置注入 | 编译输出前转义策略组名、节点名、备注 |

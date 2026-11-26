@@ -1,9 +1,31 @@
+import type { PublicationCacheIdentity } from '../../application/publications';
 import { listRulesetSlugs } from '../../application/rulesets';
 import { subscriptionFileNamesForSlug } from '../../domain/formatters';
 import type { Env, SubscriptionCacheStore } from '../../types';
 
 const CACHE_ORIGIN = 'https://cache.private-rules.internal';
 export const SUBSCRIPTION_CACHE_CONTROL = 'max-age=300';
+
+type TrackedPublicationKey = {
+  url: string;
+  publicationId: string;
+  slug: string;
+  templateId: string;
+};
+
+// Tracks recently cached publication keys per store instance so mutations can
+// actively call `cache.delete` on affected entries while composite keys also
+// prevent stale hits across Worker isolates.
+const trackedPublicationKeys = new WeakMap<SubscriptionCacheStore, Map<string, TrackedPublicationKey>>();
+
+function getTrackedMap(cache: SubscriptionCacheStore): Map<string, TrackedPublicationKey> {
+  let map = trackedPublicationKeys.get(cache);
+  if (!map) {
+    map = new Map();
+    trackedPublicationKeys.set(cache, map);
+  }
+  return map;
+}
 
 function resolveCacheStore(env: Env): SubscriptionCacheStore | undefined {
   if (env.SUBSCRIPTION_CACHE) return env.SUBSCRIPTION_CACHE;
@@ -17,6 +39,28 @@ function cacheKeyUrl(access: 'public' | 'token', file: string, token?: string): 
     return `${CACHE_ORIGIN}/sub/${encodeURIComponent(token ?? '')}/${normalizedFile}`;
   }
   return `${CACHE_ORIGIN}/rules/${normalizedFile}`;
+}
+
+/**
+ * Builds the deterministic cache key URL for a template publication delivery,
+ * incorporating publication ID/slug, template version, client, output profile,
+ * binding version, and dependency versions (design §15).
+ */
+export function publicationCacheKeyUrl(identity: PublicationCacheIdentity): string {
+  const parts = [
+    CACHE_ORIGIN,
+    'pub',
+    identity.access,
+    encodeURIComponent(identity.tokenHash),
+    encodeURIComponent(identity.publicationId),
+    encodeURIComponent(identity.slug.toLowerCase()),
+    `v${identity.templateVersion}`,
+    encodeURIComponent(identity.client),
+    encodeURIComponent(identity.output),
+    encodeURIComponent(identity.bindingsVersion),
+    encodeURIComponent(identity.depsVersion),
+  ];
+  return parts.join('/');
 }
 
 export async function computeSubscriptionEtag(body: string, contentType: string): Promise<string> {
@@ -67,6 +111,81 @@ export async function storeCachedSubscription(
   }
 }
 
+export async function matchCachedPublication(
+  env: Env,
+  identity: PublicationCacheIdentity,
+): Promise<Response | undefined> {
+  const cache = resolveCacheStore(env);
+  if (!cache) return undefined;
+  return cache.match(new Request(publicationCacheKeyUrl(identity)));
+}
+
+export async function storeCachedPublication(
+  env: Env,
+  identity: PublicationCacheIdentity,
+  response: Response,
+): Promise<void> {
+  const cache = resolveCacheStore(env);
+  if (!cache) return;
+  const url = publicationCacheKeyUrl(identity);
+  getTrackedMap(cache).set(url, {
+    url,
+    publicationId: identity.publicationId,
+    slug: identity.slug.toLowerCase(),
+    templateId: identity.templateId,
+  });
+  const putPromise = cache.put(new Request(url), response.clone()).catch(() => undefined);
+  if (env.BACKGROUND_TASKS) {
+    env.BACKGROUND_TASKS.schedule(putPromise);
+  } else {
+    await putPromise;
+  }
+}
+
+async function deleteTrackedPublicationEntries(
+  cache: SubscriptionCacheStore,
+  predicate: (entry: TrackedPublicationKey) => boolean,
+): Promise<void> {
+  const map = getTrackedMap(cache);
+  const matched: string[] = [];
+  for (const [url, entry] of map.entries()) {
+    if (predicate(entry)) {
+      matched.push(url);
+      map.delete(url);
+    }
+  }
+  if (matched.length === 0) return;
+  await Promise.all(matched.map((url) => cache.delete(new Request(url)))).catch(() => undefined);
+}
+
+export async function purgePublicationCacheForIds(env: Env, publicationIds: Iterable<string>): Promise<void> {
+  const cache = resolveCacheStore(env);
+  if (!cache) return;
+  const ids = new Set([...publicationIds].filter(Boolean));
+  if (ids.size === 0) return;
+  await deleteTrackedPublicationEntries(cache, (entry) => ids.has(entry.publicationId));
+}
+
+export async function purgePublicationCacheForSlugs(env: Env, slugs: Iterable<string>): Promise<void> {
+  const cache = resolveCacheStore(env);
+  if (!cache) return;
+  const normalized = new Set([...slugs].filter(Boolean).map((s) => s.toLowerCase()));
+  if (normalized.size === 0) return;
+  await deleteTrackedPublicationEntries(cache, (entry) => normalized.has(entry.slug));
+}
+
+export async function purgePublicationCacheForTemplate(env: Env, templateId: string): Promise<void> {
+  const cache = resolveCacheStore(env);
+  if (!cache || !templateId) return;
+  await deleteTrackedPublicationEntries(cache, (entry) => entry.templateId === templateId);
+}
+
+export async function purgeAllPublicationCaches(env: Env): Promise<void> {
+  const cache = resolveCacheStore(env);
+  if (!cache) return;
+  await deleteTrackedPublicationEntries(cache, () => true);
+}
+
 export async function purgeSubscriptionCacheForSlugs(env: Env, slugs: Iterable<string>): Promise<void> {
   const cache = resolveCacheStore(env);
   if (!cache) return;
@@ -83,6 +202,8 @@ export async function purgeSubscriptionCacheForSlugs(env: Env, slugs: Iterable<s
     }
   }
   await Promise.all(deletions).catch(() => undefined);
+  // Ruleset mutations can also affect publications that reference those rulesets.
+  await purgeAllPublicationCaches(env);
 }
 
 export async function purgeAllSubscriptionCaches(env: Env): Promise<void> {
@@ -90,4 +211,5 @@ export async function purgeAllSubscriptionCaches(env: Env): Promise<void> {
   if (!cache) return;
   const slugs = await listRulesetSlugs(env);
   await purgeSubscriptionCacheForSlugs(env, slugs);
+  await purgeAllPublicationCaches(env);
 }
