@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { lazy, Suspense, useState } from 'react';
 import { I18nProvider } from './i18n';
-import { createAppQueryClient } from './lib/query';
+import { createAppQueryClient } from './lib/query-core';
 import { ToastStateProvider } from './lib/toast';
 import { createAppRouter } from './router';
 import { ThemeProvider } from './theme/ThemeProvider';

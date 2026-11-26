@@ -1,14 +1,38 @@
-import { QueryClient, queryOptions } from '@tanstack/react-query';
+import { queryOptions, type QueryClient } from '@tanstack/react-query';
 import type { ListCardsResult } from '../../application/cards';
 import type { CatalogItem, CatalogItemKind, ListCatalogResult } from '../../application/catalog';
 import type { ListPublicationsResult } from '../../application/publications';
 import type { ListTemplatesResult } from '../../application/templates';
-import type { TemplateVersionSummary } from '../../data/repositories';
+import type { TemplateVersionRecord, TemplateVersionSummary } from '../../data/repositories';
 import type { PublicationWithLinks } from '../../server/routes/publications';
 import type { AppCard, CardOrigin, CatalogCategory, Stage } from '../../shared/schemas/card';
 import type { TemplateBody, TemplateRecord } from '../../shared/schemas/template';
 import type { ClientLink, DomainRule, RuleSettings, RuleSource, RulesData } from '../../types/domain-rules';
 import { api, readApiJson, type ApiClient } from './api';
+import {
+  authMeQueryOptions,
+  coreQueryKeys,
+  createAppQueryClient,
+  healthQueryOptions,
+  invalidateAuth,
+  invalidateRulesets,
+  rulesetsListQueryOptions,
+  type AuthMePayload,
+  type HealthPayload,
+  type RulesetSummaryPayload,
+} from './query-core';
+
+export {
+  authMeQueryOptions,
+  createAppQueryClient,
+  healthQueryOptions,
+  invalidateAuth,
+  invalidateRulesets,
+  rulesetsListQueryOptions,
+  type AuthMePayload,
+  type HealthPayload,
+  type RulesetSummaryPayload,
+};
 
 export type ApiKeySummary = {
   id: string;
@@ -41,11 +65,6 @@ export type TelegramAuditLogItem = {
   summary: string | null;
   result: string;
   created_at: string;
-};
-
-export type RulesetSummaryPayload = {
-  data: RulesData;
-  links: Record<string, ClientLink[]>;
 };
 
 export type RulesPageFilter = {
@@ -99,21 +118,12 @@ export type PublicationsListPayload = Omit<ListPublicationsResult, 'publications
 };
 
 export const queryKeys = {
-  auth: {
-    all: ['auth'] as const,
-    me: () => [...queryKeys.auth.all, 'me'] as const,
-  },
-  health: {
-    all: ['health'] as const,
-    status: () => [...queryKeys.health.all, 'status'] as const,
-  },
+  auth: coreQueryKeys.auth,
+  health: coreQueryKeys.health,
   rulesets: {
-    all: ['rulesets'] as const,
-    list: () => [...queryKeys.rulesets.all, 'list'] as const,
-    detail: (id: string) => [...queryKeys.rulesets.all, 'detail', id] as const,
-    rulesPrefix: (id: string) => [...queryKeys.rulesets.all, 'rules', id] as const,
-    rules: (id: string, filter?: RulesPageFilter) => [...queryKeys.rulesets.all, 'rules', id, filter ?? {}] as const,
-    sources: (id: string) => [...queryKeys.rulesets.all, 'sources', id] as const,
+    ...coreQueryKeys.rulesets,
+    rules: (id: string, filter?: RulesPageFilter) =>
+      [...coreQueryKeys.rulesets.all, 'rules', id, filter ?? {}] as const,
   },
   catalog: {
     all: ['catalog'] as const,
@@ -125,9 +135,7 @@ export const queryKeys = {
     list: (filter?: CardsFilter) => [...queryKeys.cards.all, 'list', filter ?? {}] as const,
     detail: (id: string) => [...queryKeys.cards.all, 'detail', id] as const,
   },
-  links: {
-    all: ['links'] as const,
-  },
+  links: coreQueryKeys.links,
   settings: {
     all: ['settings'] as const,
     detail: () => [...queryKeys.settings.all, 'detail'] as const,
@@ -140,6 +148,7 @@ export const queryKeys = {
     list: (filter?: TemplatesFilter) => [...queryKeys.templates.all, 'list', filter ?? {}] as const,
     detail: (id: string) => [...queryKeys.templates.all, 'detail', id] as const,
     versions: (id: string) => [...queryKeys.templates.all, 'versions', id] as const,
+    version: (id: string, version: number) => [...queryKeys.templates.all, 'versions', id, version] as const,
   },
   publications: {
     all: ['publications'] as const,
@@ -147,59 +156,6 @@ export const queryKeys = {
     detail: (id: string) => [...queryKeys.publications.all, 'detail', id] as const,
   },
 } as const;
-
-export type AuthMePayload = {
-  authenticated: boolean;
-  authType?: 'session' | 'telegram';
-  passwordConfigured: boolean;
-  ruleTokenConfigured: boolean;
-  sessionSecretConfigured: boolean;
-  apiKeyConfigured: boolean;
-  d1Ready: boolean;
-  appVersion: string;
-};
-
-export type HealthPayload = {
-  ok: boolean;
-  database: 'ok' | 'unavailable';
-  runtime: string;
-  version: string;
-};
-
-export function createAppQueryClient(): QueryClient {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 30_000,
-        gcTime: 5 * 60_000,
-        retry: 1,
-        refetchOnWindowFocus: false,
-      },
-    },
-  });
-}
-
-export function authMeQueryOptions(client: ApiClient = api) {
-  return queryOptions({
-    queryKey: queryKeys.auth.me(),
-    queryFn: async () => readApiJson<AuthMePayload>(await client.api.auth.me.$get()),
-  });
-}
-
-export function healthQueryOptions(client: ApiClient = api) {
-  return queryOptions({
-    queryKey: queryKeys.health.status(),
-    queryFn: async () => readApiJson<HealthPayload>(await client.health.$get()),
-  });
-}
-
-export function rulesetsListQueryOptions(client: ApiClient = api) {
-  return queryOptions({
-    queryKey: queryKeys.rulesets.list(),
-    queryFn: async () =>
-      readApiJson<RulesetSummaryPayload>(await client.api.rulesets.$get({ query: { summary: '1' } })),
-  });
-}
 
 export function rulesetRulesQueryOptions(id: string, filter: RulesPageFilter = {}, client: ApiClient = api) {
   const normalized: RulesPageFilter = {
@@ -384,6 +340,16 @@ export function templateVersionsQueryOptions(id: string, client: ApiClient = api
   });
 }
 
+export function templateVersionDetailQueryOptions(id: string, version: number, client: ApiClient = api) {
+  return queryOptions({
+    queryKey: queryKeys.templates.version(id, version),
+    queryFn: async () =>
+      readApiJson<{ version: TemplateVersionRecord }>(
+        await client.api.templates[':id'].versions[':v'].$get({ param: { id, v: String(version) } }),
+      ),
+  });
+}
+
 export function publicationsListQueryOptions(filter: PublicationsFilter = {}, client: ApiClient = api) {
   const normalized: PublicationsFilter = {
     ...(filter.q ? { q: filter.q } : {}),
@@ -415,26 +381,6 @@ export function publicationDetailQueryOptions(id: string, client: ApiClient = ap
         await client.api.publications[':id'].$get({ param: { id } }),
       ),
   });
-}
-
-export function invalidateAuth(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
-}
-
-export function invalidateRulesets(queryClient: QueryClient, id?: string) {
-  if (id) {
-    return Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.rulesets.list() }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.rulesets.detail(id) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.rulesets.rulesPrefix(id) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.rulesets.sources(id) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.links.all }),
-    ]);
-  }
-  return Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.rulesets.all }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.links.all }),
-  ]);
 }
 
 export function invalidateSettings(queryClient: QueryClient) {

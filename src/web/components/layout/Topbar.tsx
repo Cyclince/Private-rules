@@ -4,7 +4,7 @@ import { Globe, LogOut, Menu, Moon, Sun } from 'lucide-react';
 import { useState } from 'react';
 import { SUPPORTED_LOCALES, useI18n, type Locale } from '../../i18n';
 import { isTelegramSession, performLogout } from '../../lib/auth-guard';
-import { authMeQueryOptions } from '../../lib/query';
+import { authMeQueryOptions } from '../../lib/query-core';
 import { useTheme } from '../../theme/ThemeProvider';
 import { SIDEBAR_NAV_ITEMS } from './nav-items';
 

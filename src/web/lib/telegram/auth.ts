@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { api, readApiJson, type ApiClient } from '../api';
-import { authMeQueryOptions, invalidateAuth, type AuthMePayload } from '../query';
+import { authMeQueryOptions, invalidateAuth, type AuthMePayload } from '../query-core';
 import { applyTelegramTheme } from './theme';
 import { getTelegramWebApp } from './webapp';
 

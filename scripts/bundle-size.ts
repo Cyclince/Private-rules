@@ -5,8 +5,9 @@
  * first-screen JS/CSS totals and per-route lazy increments, and exits non-zero
  * if any budget is exceeded:
  *   - First-screen JS: <= 120 kB gzip
- *   - Single-route JS increment: <= 60 kB gzip
+ *   - Single-route JS increment: <= 60 kB gzip (except `/admin/templates/$id` <= 150 kB gzip)
  *   - CSS total: <= 25 kB gzip
+ *   - Editor-only vendors (`dnd-kit`, `codemirror`) must not leak outside `/admin/templates/$id`
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -14,7 +15,15 @@ import { gzipSync } from 'node:zlib';
 
 const FIRST_SCREEN_JS_BUDGET_KB = 120;
 const SINGLE_ROUTE_JS_BUDGET_KB = 60;
+const TEMPLATE_EDITOR_JS_BUDGET_KB = 150;
 const CSS_BUDGET_KB = 25;
+
+const ROUTE_BUDGET_OVERRIDES_KB: Readonly<Record<string, number>> = {
+  'templates.$id': TEMPLATE_EDITOR_JS_BUDGET_KB,
+  'templates._id': TEMPLATE_EDITOR_JS_BUDGET_KB,
+};
+
+const EDITOR_ONLY_CHUNK_PATTERNS = [/dnd-kit/i, /codemirror/i, /@codemirror/i, /lezer/i];
 
 const DIST_CLIENT = resolve(process.cwd(), 'dist/client');
 const ASSETS_DIR = join(DIST_CLIENT, 'assets');
@@ -91,6 +100,9 @@ function findRouteChunks(entryJsFiles: Set<string>): Array<{ route: string; file
     'catalog',
     'cards',
     'settings',
+    'templates.index',
+    'templates.$id',
+    'templates._id',
     'templates',
     'publications',
     'PwaInstallPage',
@@ -159,6 +171,23 @@ function main() {
   let dashboardFirstScreenKb = shellGzipKb;
   let loginFirstScreenKb = shellGzipKb;
 
+  const containsEditorOnlyVendor = (file: string): string | null => {
+    const source = readFileSync(join(ASSETS_DIR, file), 'utf8');
+    for (const pattern of EDITOR_ONLY_CHUNK_PATTERNS) {
+      if (pattern.test(file) || pattern.test(source)) {
+        return pattern.source;
+      }
+    }
+    return null;
+  };
+
+  for (const file of shellJs) {
+    const leaked = containsEditorOnlyVendor(file);
+    if (leaked) {
+      violations.push(`Entry shell chunk ${file} unexpectedly contains editor-only dependency (${leaked})`);
+    }
+  }
+
   for (const { route, file } of routes) {
     const graph = collectStaticGraph([file]);
     const incrementFiles = [...graph].filter((dep) => !shellJs.has(dep)).sort();
@@ -166,14 +195,32 @@ function main() {
     if (route === 'index') dashboardFirstScreenKb = shellGzipKb + incrementKb;
     if (route === 'login') loginFirstScreenKb = shellGzipKb + incrementKb;
 
-    const routeLabel = route === 'index' ? '/admin/' : route === 'PwaInstallPage' ? '/pwa-install' : `/admin/${route}`;
+    const routeLabel =
+      route === 'index'
+        ? '/admin/'
+        : route === 'PwaInstallPage'
+          ? '/pwa-install'
+          : route === 'templates.index'
+            ? '/admin/templates'
+            : route === 'templates._id' || route === 'templates.$id'
+              ? '/admin/templates/$id'
+              : `/admin/${route}`;
+    const routeBudgetKb = ROUTE_BUDGET_OVERRIDES_KB[route] ?? SINGLE_ROUTE_JS_BUDGET_KB;
     console.info(
-      `  ${routeLabel.padEnd(24)} +${incrementKb.toFixed(2).padStart(6)} kB gzip (${incrementFiles.length} chunk${incrementFiles.length === 1 ? '' : 's'}: ${incrementFiles.join(', ')})`,
+      `  ${routeLabel.padEnd(24)} +${incrementKb.toFixed(2).padStart(6)} kB gzip (budget <= ${routeBudgetKb} kB, ${incrementFiles.length} chunk${incrementFiles.length === 1 ? '' : 's'}: ${incrementFiles.join(', ')})`,
     );
-    if (incrementKb > SINGLE_ROUTE_JS_BUDGET_KB) {
+    if (incrementKb > routeBudgetKb) {
       violations.push(
-        `Route ${routeLabel} increment ${incrementKb.toFixed(2)} kB exceeds ${SINGLE_ROUTE_JS_BUDGET_KB} kB gzip budget`,
+        `Route ${routeLabel} increment ${incrementKb.toFixed(2)} kB exceeds ${routeBudgetKb} kB gzip budget`,
       );
+    }
+    if (route !== 'templates.$id' && route !== 'templates._id') {
+      for (const dep of incrementFiles) {
+        const leaked = containsEditorOnlyVendor(dep);
+        if (leaked) {
+          violations.push(`Non-editor route ${routeLabel} chunk ${dep} contains editor-only dependency (${leaked})`);
+        }
+      }
     }
   }
 

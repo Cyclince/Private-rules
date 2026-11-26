@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { redirect } from '@tanstack/react-router';
 import { api, readApiJson, type ApiClient } from './api';
-import { authMeQueryOptions, queryKeys, type AuthMePayload } from './query';
+import { authMeQueryOptions, coreQueryKeys, type AuthMePayload } from './query-core';
 import { isTelegramMiniApp } from './telegram/webapp';
 
 export const TELEGRAM_HIDDEN_SETTINGS_TABS = new Set(['api-keys', 'backup']);
@@ -54,7 +54,7 @@ export async function performLogout(
     await readApiJson(await client.api.auth.logout.$post());
   }
   await queryClient.cancelQueries();
-  queryClient.setQueryData<AuthMePayload | undefined>(queryKeys.auth.me(), (prev) =>
+  queryClient.setQueryData<AuthMePayload | undefined>(coreQueryKeys.auth.me(), (prev) =>
     prev ? { ...prev, authenticated: false, authType: undefined } : undefined,
   );
   if (onNavigate) {

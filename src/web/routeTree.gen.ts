@@ -16,7 +16,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as PublicationsRouteImport } from './routes/publications'
 import { Route as RulesetsRouteImport } from './routes/rulesets'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as TemplatesRouteImport } from './routes/templates'
+import { Route as TemplatesIndexRouteImport } from './routes/templates.index'
+import { Route as TemplatesIdRouteImport } from './routes/templates.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -53,9 +54,14 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TemplatesRoute = TemplatesRouteImport.update({
-  id: '/templates',
-  path: '/templates',
+const TemplatesIndexRoute = TemplatesIndexRouteImport.update({
+  id: '/templates/',
+  path: '/templates/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TemplatesIdRoute = TemplatesIdRouteImport.update({
+  id: '/templates/$id',
+  path: '/templates/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -67,7 +73,8 @@ export interface FileRoutesByFullPath {
   '/publications': typeof PublicationsRoute
   '/rulesets': typeof RulesetsRoute
   '/settings': typeof SettingsRoute
-  '/templates': typeof TemplatesRoute
+  '/templates/$id': typeof TemplatesIdRoute
+  '/templates/': typeof TemplatesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -77,7 +84,8 @@ export interface FileRoutesByTo {
   '/publications': typeof PublicationsRoute
   '/rulesets': typeof RulesetsRoute
   '/settings': typeof SettingsRoute
-  '/templates': typeof TemplatesRoute
+  '/templates/$id': typeof TemplatesIdRoute
+  '/templates': typeof TemplatesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -88,7 +96,8 @@ export interface FileRoutesById {
   '/publications': typeof PublicationsRoute
   '/rulesets': typeof RulesetsRoute
   '/settings': typeof SettingsRoute
-  '/templates': typeof TemplatesRoute
+  '/templates/$id': typeof TemplatesIdRoute
+  '/templates/': typeof TemplatesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -100,7 +109,8 @@ export interface FileRouteTypes {
     | '/publications'
     | '/rulesets'
     | '/settings'
-    | '/templates'
+    | '/templates/$id'
+    | '/templates/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -110,6 +120,7 @@ export interface FileRouteTypes {
     | '/publications'
     | '/rulesets'
     | '/settings'
+    | '/templates/$id'
     | '/templates'
   id:
     | '__root__'
@@ -120,7 +131,8 @@ export interface FileRouteTypes {
     | '/publications'
     | '/rulesets'
     | '/settings'
-    | '/templates'
+    | '/templates/$id'
+    | '/templates/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -131,7 +143,8 @@ export interface RootRouteChildren {
   PublicationsRoute: typeof PublicationsRoute
   RulesetsRoute: typeof RulesetsRoute
   SettingsRoute: typeof SettingsRoute
-  TemplatesRoute: typeof TemplatesRoute
+  TemplatesIdRoute: typeof TemplatesIdRoute
+  TemplatesIndexRoute: typeof TemplatesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -185,11 +198,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/templates': {
-      id: '/templates'
+    '/templates/': {
+      id: '/templates/'
       path: '/templates'
-      fullPath: '/templates'
-      preLoaderRoute: typeof TemplatesRouteImport
+      fullPath: '/templates/'
+      preLoaderRoute: typeof TemplatesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/templates/$id': {
+      id: '/templates/$id'
+      path: '/templates/$id'
+      fullPath: '/templates/$id'
+      preLoaderRoute: typeof TemplatesIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -203,7 +223,8 @@ const rootRouteChildren: RootRouteChildren = {
   PublicationsRoute: PublicationsRoute,
   RulesetsRoute: RulesetsRoute,
   SettingsRoute: SettingsRoute,
-  TemplatesRoute: TemplatesRoute,
+  TemplatesIdRoute: TemplatesIdRoute,
+  TemplatesIndexRoute: TemplatesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

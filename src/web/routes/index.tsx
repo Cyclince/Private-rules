@@ -3,10 +3,10 @@ import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { AlertTriangle, CheckCircle2, FolderKanban, Globe, Layers, RefreshCw, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import loginBgUrl from '../assets/miku-login-bg.webp';
-import { useI18n } from '../i18n';
+import { loadPageTranslations, useI18n } from '../i18n';
 import { api, formatApiError, readApiJson } from '../lib/api';
 import { requireAuthBeforeLoad } from '../lib/auth-guard';
-import { healthQueryOptions, invalidateRulesets, rulesetsListQueryOptions } from '../lib/query';
+import { healthQueryOptions, invalidateRulesets, rulesetsListQueryOptions } from '../lib/query-core';
 import { useToast } from '../lib/toast';
 
 type DashboardRange = '24h' | '7d' | '30d';
@@ -36,7 +36,7 @@ export const Route = createFileRoute('/')({
     };
   },
   beforeLoad: async ({ context, location, search }) => {
-    await requireAuthBeforeLoad(context.queryClient, location.href);
+    await Promise.all([requireAuthBeforeLoad(context.queryClient, location.href), loadPageTranslations()]);
     if (search.view === 'rules') {
       throw redirect({
         to: '/rulesets',

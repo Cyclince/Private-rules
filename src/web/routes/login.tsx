@@ -4,10 +4,10 @@ import { Globe, Lock, Moon, ShieldAlert, Sun } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import aboutEmblemUrl from '../assets/miku-about-emblem.webp';
 import loginBgUrl from '../assets/miku-login-bg.webp';
-import { SUPPORTED_LOCALES, useI18n, type Locale } from '../i18n';
+import { loadPageTranslations, SUPPORTED_LOCALES, useI18n, type Locale } from '../i18n';
 import { api, ApiClientError, readApiJson } from '../lib/api';
 import { ensureAuthenticatedSession } from '../lib/auth-guard';
-import { authMeQueryOptions, invalidateAuth } from '../lib/query';
+import { authMeQueryOptions, invalidateAuth } from '../lib/query-core';
 import { useTheme } from '../theme/ThemeProvider';
 
 const LOCKOUT_STORAGE_KEY = 'private-rules-login-lock-until';
@@ -75,7 +75,7 @@ export const Route = createFileRoute('/login')({
     return target ? { redirect: target } : {};
   },
   beforeLoad: async ({ context, search }) => {
-    const me = await ensureAuthenticatedSession(context.queryClient);
+    const [me] = await Promise.all([ensureAuthenticatedSession(context.queryClient), loadPageTranslations()]);
     if (me.authenticated) {
       throw redirect({ to: (search.redirect || '/') as '/' });
     }

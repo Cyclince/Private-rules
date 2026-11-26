@@ -44,7 +44,7 @@ type PublicationsSearch = {
   tab?: DetailTab;
 };
 
-const VALID_CLIENTS = new Set<string>(TEMPLATE_CLIENT_IDS);
+const VALID_CLIENTS = new Set<string>(['mihomo', 'stash', 'surge', 'sing-box', 'loon', 'qx', 'shadowrocket']);
 const VALID_TABS = new Set<string>(['links', 'nodes', 'preview']);
 
 export const Route = createFileRoute('/publications')({
