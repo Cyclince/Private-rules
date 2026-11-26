@@ -27,11 +27,21 @@ async function signed(secret: string, sessionId: string) {
   return `${sessionId}.${await hmac(secret, sessionId)}`;
 }
 
+/** Compares two strings in time that depends only on their lengths. */
+export function timingSafeEqual(a: string, b: string) {
+  const left = new TextEncoder().encode(a);
+  const right = new TextEncoder().encode(b);
+  let difference = left.length ^ right.length;
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index += 1) difference |= (left[index] ?? 0) ^ (right[index] ?? 0);
+  return difference === 0;
+}
+
 async function verify(secret: string, value?: string) {
   if (!value?.includes('.')) return null;
   const [sessionId, signature] = value.split('.');
   const expected = await hmac(secret, sessionId);
-  return signature === expected ? sessionId : null;
+  return timingSafeEqual(signature ?? '', expected) ? sessionId : null;
 }
 
 async function sha256(value: string) {
@@ -151,7 +161,7 @@ export const requireAuth: MiddlewareHandler<{ Bindings: Env; Variables: AppVaria
 };
 
 export async function checkPassword(env: Env, password: string) {
-  return Boolean(env.ADMIN_PASSWORD) && password === env.ADMIN_PASSWORD;
+  return Boolean(env.ADMIN_PASSWORD) && timingSafeEqual(password, env.ADMIN_PASSWORD!);
 }
 
 export function authConfigured(env: Env) {
@@ -163,9 +173,25 @@ export function safeFileName(file: string) {
 }
 
 export function tokenMatches(env: Env, token: string) {
-  return Boolean(env.RULE_TOKEN) && token === env.RULE_TOKEN;
+  return Boolean(env.RULE_TOKEN) && timingSafeEqual(token, env.RULE_TOKEN!);
 }
 
 export function safeSlug(value: string) {
   return slugify(value).toLowerCase();
+}
+
+/**
+ * Identifies the client for rate limiting. Forwarding headers are only trusted
+ * when TRUST_PROXY is enabled; on Cloudflare the edge-set cf-connecting-ip is used.
+ */
+export function clientIdentity(c: Context<{ Bindings: Env; Variables: AppVariables }>) {
+  if (c.env.RUNTIME !== 'node') {
+    const edge = c.req.header('cf-connecting-ip')?.trim();
+    if (edge) return edge;
+  }
+  if (c.env.TRUST_PROXY) {
+    const forwarded = c.req.header('x-forwarded-for')?.split(',')[0].trim();
+    if (forwarded) return forwarded;
+  }
+  return c.env.CLIENT_ADDRESS || 'unknown';
 }

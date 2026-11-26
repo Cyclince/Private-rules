@@ -4,6 +4,7 @@ import type { Env } from '../types';
 import { normalizeGithubMirrorUrl, sourceNameFromSubscriptionUrl } from './github-mirror';
 import { parseRuleInput } from './parser';
 import { id, slugify, validateCategoryName } from './slug';
+import { validateBackup } from './backup-validation';
 
 type CategoryRow = {
   id: string;
@@ -351,9 +352,8 @@ export async function getSettings(env: Env): Promise<RuleSettings> {
   return settings;
 }
 
-export async function saveSettings(env: Env, input: Partial<RuleSettings>) {
-  const current = await getSettings(env);
-  const next: RuleSettings = {
+function resolveSettings(current: RuleSettings, input: Partial<RuleSettings> = {}): RuleSettings {
+  return {
     baseUrl: input.baseUrl ?? current.baseUrl,
     policyName: input.policyName ?? current.policyName,
     githubMirrorUrl: input.githubMirrorUrl === undefined ? current.githubMirrorUrl : normalizeGithubMirrorUrl(input.githubMirrorUrl),
@@ -365,11 +365,17 @@ export async function saveSettings(env: Env, input: Partial<RuleSettings>) {
     iconPackUpdateIntervalHours: Math.max(1, Math.min(720, Number(input.iconPackUpdateIntervalHours ?? current.iconPackUpdateIntervalHours) || 24)),
     iconPackLastUpdatedAt: input.iconPackLastUpdatedAt ?? current.iconPackLastUpdatedAt,
   };
-  await env.DB.batch(
-    Object.entries(next).map(([key, value]) =>
-      env.DB.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').bind(key, typeof value === 'object' ? JSON.stringify(value) : String(value)),
-    ),
+}
+
+function settingsStatements(env: Env, settings: RuleSettings) {
+  return Object.entries(settings).map(([key, value]) =>
+    env.DB.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').bind(key, typeof value === 'object' ? JSON.stringify(value) : String(value)),
   );
+}
+
+export async function saveSettings(env: Env, input: Partial<RuleSettings>) {
+  const next = resolveSettings(await getSettings(env), input);
+  await env.DB.batch(settingsStatements(env, next));
   return next;
 }
 
@@ -899,54 +905,70 @@ export async function batchUpdateRules(env: Env, categoryId: string, ruleIds: st
   return getRulesOverview(env);
 }
 
-export async function insertRule(env: Env, categoryId: string, rule: DomainRule, sortOrder = 0, sourceId?: string) {
-  await env.DB.prepare(
+function insertRuleStatement(env: Env, categoryId: string, rule: DomainRule, sortOrder = 0, sourceId?: string) {
+  return env.DB.prepare(
     'INSERT OR IGNORE INTO rules (id, category_id, value, type, display_type, note, enabled, sort_order, source_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  )
-    .bind(
-      rule.id,
-      categoryId,
-      rule.value,
-      rule.type,
-      rule.displayType ?? '',
-      rule.note ?? '',
-      rule.enabled ? 1 : 0,
-      rule.sortOrder ?? sortOrder,
-      sourceId ?? rule.sourceId ?? null,
-      rule.createdAt,
-      rule.updatedAt,
-    )
-    .run();
+  ).bind(
+    rule.id,
+    categoryId,
+    rule.value,
+    rule.type,
+    rule.displayType ?? '',
+    rule.note ?? '',
+    rule.enabled ? 1 : 0,
+    rule.sortOrder ?? sortOrder,
+    sourceId ?? rule.sourceId ?? null,
+    rule.createdAt,
+    rule.updatedAt,
+  );
 }
 
-export async function importRulesData(env: Env, data: RulesData | RulesBackupData) {
+export async function insertRule(env: Env, categoryId: string, rule: DomainRule, sortOrder = 0, sourceId?: string) {
+  await insertRuleStatement(env, categoryId, rule, sortOrder, sourceId).run();
+}
+
+export class BackupValidationError extends Error {
+  constructor(readonly problems: string[]) {
+    super(`备份 JSON 格式不正确：${problems.slice(0, 5).join('；')}`);
+  }
+}
+
+/**
+ * Restores a backup. The payload is validated before anything is touched, and
+ * the delete + insert sequence is submitted as a single batch so a failure
+ * leaves the existing data untouched (D1 batches and SQLite transactions are
+ * both atomic).
+ */
+export async function importRulesData(env: Env, input: unknown) {
+  const problems = validateBackup(input);
+  if (problems.length) throw new BackupValidationError(problems);
+  const data = input as RulesData | RulesBackupData;
   const timestamp = now();
-  await saveSettings(env, data.settings);
-  await env.DB.batch([
+  const settings = resolveSettings(await getSettings(env), data.settings);
+  const statements = [
+    ...settingsStatements(env, settings),
     env.DB.prepare('DELETE FROM rules'),
     env.DB.prepare('DELETE FROM category_sources'),
     env.DB.prepare('DELETE FROM categories'),
-  ]);
+  ];
   for (const [index, category] of data.categories.entries()) {
     const categoryId = category.id || id('cat');
-    await env.DB.prepare(
-      'INSERT OR REPLACE INTO categories (id, name, slug, icon, description, note, sort_order, enabled, public_links_enabled, token_links_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    )
-      .bind(
-        categoryId,
-        category.name,
-        category.slug || slugify(category.name),
-        category.icon ?? category.name.slice(0, 2).toUpperCase(),
-        category.description ?? '',
-        category.note ?? '',
-        category.sortOrder ?? index,
-        category.enabled === false ? 0 : 1,
-        category.tokenLinksEnabled === false && category.publicLinksEnabled !== false ? 1 : 0,
-        category.tokenLinksEnabled === false ? 0 : 1,
-        category.createdAt ?? timestamp,
-        category.updatedAt ?? timestamp,
-      )
-      .run();
+    statements.push(env.DB.prepare(
+      'INSERT INTO categories (id, name, slug, icon, description, note, sort_order, enabled, public_links_enabled, token_links_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).bind(
+      categoryId,
+      category.name,
+      category.slug || slugify(category.name),
+      category.icon ?? category.name.slice(0, 2).toUpperCase(),
+      category.description ?? '',
+      category.note ?? '',
+      category.sortOrder ?? index,
+      category.enabled === false ? 0 : 1,
+      category.tokenLinksEnabled === false && category.publicLinksEnabled !== false ? 1 : 0,
+      category.tokenLinksEnabled === false ? 0 : 1,
+      category.createdAt ?? timestamp,
+      category.updatedAt ?? timestamp,
+    ));
     for (const [sourceIndex, source] of (category.sources ?? []).entries()) {
       const sourceType = source.sourceType ?? 'url';
       const sourceUrl = source.url || (sourceType === 'geosite' && source.geositeName
@@ -959,19 +981,26 @@ export async function importRulesData(env: Env, data: RulesData | RulesBackupDat
         : sourceType === 'geoip' && source.geoipName
           ? `GeoIP · ${source.geoipName}`
           : sourceNameFromUrl(sourceUrl, `来源 ${sourceIndex + 1}`));
-      await env.DB.prepare(
+      statements.push(env.DB.prepare(
         'INSERT INTO category_sources (id, category_id, name, url, enabled, last_synced_at, last_status, last_count, last_original_count, last_error, sync_interval_minutes, user_agent, source_type, geosite_name, geoip_name, rule_optimization, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ).bind(
         source.id || id('src'), categoryId, sourceName, sourceUrl,
         source.enabled === false ? 0 : 1, source.lastSyncedAt ?? null, source.lastStatus ?? 'pending',
         source.lastCount ?? 0, source.lastOriginalCount ?? source.lastCount ?? 0, source.lastError ?? null, source.syncIntervalMinutes ?? category.syncIntervalMinutes ?? 60,
         normalizeUserAgent(source.userAgent), sourceType, source.geositeName ?? null, source.geoipName ?? null, sourceType === 'url' ? source.ruleOptimization ?? 'none' : 'none', category.createdAt ?? timestamp, category.updatedAt ?? timestamp,
-      ).run();
+      ));
     }
     for (const [ruleIndex, rule] of category.rules.entries()) {
-      await insertRule(env, categoryId, { ...rule, id: rule.id || id('rule') }, rule.sortOrder ?? ruleIndex);
+      statements.push(insertRuleStatement(env, categoryId, {
+        ...rule,
+        id: rule.id || id('rule'),
+        enabled: rule.enabled !== false,
+        createdAt: rule.createdAt ?? timestamp,
+        updatedAt: rule.updatedAt ?? timestamp,
+      }, rule.sortOrder ?? ruleIndex));
     }
   }
+  await env.DB.batch(statements);
   return getRulesOverview(env);
 }
 

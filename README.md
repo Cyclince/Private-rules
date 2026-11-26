@@ -6,7 +6,7 @@
 
 <img src="./assets/banner.webp" alt="Private Rules — Miku 主题的电脑、平板与移动端规则管理" width="100%">
 
-[![Release](https://img.shields.io/badge/release-1.0.6-18B7B5?style=flat-square)](https://hub.docker.com/r/cyclince/private-rules/tags)
+[![Release](https://img.shields.io/badge/release-1.0.7-18B7B5?style=flat-square)](https://hub.docker.com/r/cyclince/private-rules/tags)
 [![Docker Pulls](https://img.shields.io/docker/pulls/cyclince/private-rules?style=flat-square&color=252A34)](https://hub.docker.com/r/cyclince/private-rules)
 [![License: MIT](https://img.shields.io/badge/license-MIT-EA4C89?style=flat-square)](./LICENSE)
 
@@ -84,7 +84,7 @@ Private Rules 把这条链路收拢成一个可持续维护的过程：
 
 ## 快速开始
 
-仓库提供的 Compose 默认锁定稳定版镜像 `cyclince/private-rules:1.0.6`；`cyclince/private-rules:latest` 同时指向这个版本，适合希望自动跟随后续稳定版本的部署。
+仓库提供的 Compose 默认锁定稳定版镜像 `cyclince/private-rules:1.0.7`；`cyclince/private-rules:latest` 同时指向这个版本，适合希望自动跟随后续稳定版本的部署。
 
 ```bash
 mkdir -p private-rules && cd private-rules

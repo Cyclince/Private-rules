@@ -170,6 +170,19 @@ export class TelegramRepository {
     return { allowed: hits <= limit, remaining: Math.max(0, limit - hits) };
   }
 
+  /** Reads the current window without counting a hit. */
+  async peekRateLimit(identity: string, operation: string, limit: number, windowSeconds = 60) {
+    const current = await this.database.prepare('SELECT window_started_at, hits FROM telegram_rate_limits WHERE identity = ? AND operation = ?')
+      .bind(identity, operation).first<{ window_started_at: string; hits: number }>();
+    const expired = !current || Date.parse(current.window_started_at) + windowSeconds * 1000 <= Date.now();
+    const hits = expired ? 0 : current.hits;
+    return { allowed: hits < limit, remaining: Math.max(0, limit - hits) };
+  }
+
+  async resetRateLimit(identity: string, operation: string) {
+    await this.database.prepare('DELETE FROM telegram_rate_limits WHERE identity = ? AND operation = ?').bind(identity, operation).run();
+  }
+
   async audit(input: {
     telegramUserId: string; chatId?: string; action: string; targetType?: string; targetId?: string;
     summary?: string; result: 'success' | 'failure' | 'denied' | 'started';

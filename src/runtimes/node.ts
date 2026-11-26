@@ -53,7 +53,7 @@ const scheduler = new NodeScheduler(config.scheduler.intervalSeconds, async () =
   await notifyScheduledSync(env, results, { startedAt, completedAt: Date.now() });
 }, logger);
 if (config.scheduler.enabled) scheduler.start();
-const server = serve({ hostname: config.host, port: config.port, fetch: (request) => app.fetch(request, env) }, (info) => logger.info(`listening on http://${info.address}:${info.port}`));
+const server = serve({ hostname: config.host, port: config.port, fetch: (request, bindings: { incoming?: { socket?: { remoteAddress?: string } } }) => app.fetch(request, { ...env, CLIENT_ADDRESS: bindings?.incoming?.socket?.remoteAddress }) }, (info) => logger.info(`listening on http://${info.address}:${info.port}`));
 if (config.nodeEnv !== 'test') {
   void ensureTelegramRegistration(env.TELEGRAM!, env.TELEGRAM_CLIENT)
     .then(() => {

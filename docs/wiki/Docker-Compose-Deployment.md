@@ -94,7 +94,7 @@ docker compose down -v
 
 ## 6. 升级
 
-项目的 `docker-compose.yml` 默认锁定稳定版 `cyclince/private-rules:1.0.6`；`cyclince/private-rules:latest` 同时指向这个版本。升级后重新拉取镜像：
+项目的 `docker-compose.yml` 默认锁定稳定版 `cyclince/private-rules:1.0.7`；`cyclince/private-rules:latest` 同时指向这个版本。升级后重新拉取镜像：
 
 ```bash
 cd /opt/private-rules

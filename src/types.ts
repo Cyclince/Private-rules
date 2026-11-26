@@ -15,6 +15,8 @@ export type Env = {
   RUNTIME?: 'cloudflare' | 'node';
   APP_VERSION?: string;
   TRUST_PROXY?: boolean;
+  /** Socket address of the direct peer (Node runtime only). */
+  CLIENT_ADDRESS?: string;
   BACKGROUND_TASKS?: BackgroundTaskPort;
   TELEGRAM?: TelegramConfig;
   TELEGRAM_CLIENT?: TelegramClient;

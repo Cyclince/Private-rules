@@ -3,13 +3,14 @@ import type { Context, MiddlewareHandler } from 'hono';
 import type { AppVariables, Env } from '../types';
 import { UPSTREAM_RULE_PREVIEW_LIMIT } from '../types/domain-rules';
 import { APP_VERSION } from '../version';
-import { apiKeyConfigured, apiKeyStatus, authConfigured, checkPassword, createApiKey, createSession, deleteApiKey, destroySession, isAuthenticated, requireAuth, requireSessionAuth, safeFileName, tokenMatches, updateApiKeyNote } from '../lib/auth';
+import { apiKeyConfigured, apiKeyStatus, authConfigured, checkPassword, clientIdentity, createApiKey, createSession, deleteApiKey, destroySession, isAuthenticated, requireAuth, requireSessionAuth, safeFileName, tokenMatches, updateApiKeyNote } from '../lib/auth';
 import {
   addRule,
   batchUpdateRules,
   createCategory,
   deleteCategory,
   deleteRule,
+  BackupValidationError,
   getBackupData,
   findRuleConflicts,
   getRulesOverview,
@@ -35,6 +36,10 @@ import { telegramWebhook } from '../integrations/telegram/webhook';
 import { TelegramRepository } from '../application/telegram/repository';
 import { getCachedIconPack, refreshIconPacks } from '../lib/icon-packs';
 
+const LOGIN_OPERATION = 'login-failure';
+const LOGIN_MAX_FAILURES = 10;
+const LOGIN_WINDOW_SECONDS = 15 * 60;
+
 export function createApp() {
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 type AppContext = Context<{ Bindings: Env; Variables: AppVariables }>;
@@ -53,8 +58,7 @@ const apiCors: AppMiddleware = async (c, next) => {
 };
 function persistentRateLimit(operation: string, limit: number): AppMiddleware {
   return async (c, next) => {
-    const identity = c.get('telegramUserId') || c.get('sessionId')
-      || c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for')?.split(',')[0].trim() || 'unknown';
+    const identity = c.get('telegramUserId') || c.get('sessionId') || clientIdentity(c);
     const result = await new TelegramRepository(c.env.DB).consumeRateLimit(identity, operation, limit);
     if (!result.allowed) {
       c.res = error('操作过于频繁，请稍后再试。', 429);
@@ -103,7 +107,9 @@ async function adminApp(c: AppContext) {
   // redirect back into the application's authenticated root route.
   url.pathname = '/';
   url.search = '';
-  const response = await c.env.ASSETS.fetch(new Request(url, c.req.raw));
+  // Pass an explicit init: using the incoming Request as RequestInit fails
+  // undici's brand check on newer Node releases ("Illegal invocation").
+  const response = await c.env.ASSETS.fetch(new Request(url, { method: 'GET', headers: c.req.raw.headers }));
   const headers = new Headers(response.headers);
   headers.set('cache-control', 'no-store, no-cache, must-revalidate, max-age=0');
   headers.set('pragma', 'no-cache');
@@ -190,7 +196,16 @@ app.put('/api/telegram/notifications/:chatId', requireSessionAuth, async (c) => 
 app.post('/api/auth/login', async (c) => {
   if (!authConfigured(c.env)) return error('服务端尚未配置登录密钥。', 503);
   const body = (await c.req.json<{ password?: string }>().catch(() => ({}))) as { password?: string };
-  if (!(await checkPassword(c.env, body.password ?? ''))) return error('密码不正确。', 401);
+  const limiter = new TelegramRepository(c.env.DB);
+  const identity = clientIdentity(c);
+  if (!(await limiter.peekRateLimit(identity, LOGIN_OPERATION, LOGIN_MAX_FAILURES, LOGIN_WINDOW_SECONDS)).allowed) {
+    return error('登录失败次数过多，请 15 分钟后再试。', 429);
+  }
+  if (!(await checkPassword(c.env, body.password ?? ''))) {
+    await limiter.consumeRateLimit(identity, LOGIN_OPERATION, LOGIN_MAX_FAILURES, LOGIN_WINDOW_SECONDS);
+    return error('密码不正确。', 401);
+  }
+  await limiter.resetRateLimit(identity, LOGIN_OPERATION);
   await createSession(c);
   return c.json({ ok: true });
 });
@@ -444,7 +459,7 @@ app.post('/api/settings/manual-rule-optimization', requireSessionAuth, async (c)
 
 app.get('/api/links', requireAuth, async (c) => {
   const data = await getRulesOverview(c.env);
-  return json({ links: linksByCategory(data, externalRequestUrl(c), c.env.RULE_TOKEN) });
+  return json({ links: linksByCategory(data, externalRequestUrl(c), c.get('authType') === 'apiKey' ? undefined : c.env.RULE_TOKEN) });
 });
 
 app.post('/api/sync', requireAuth, persistentRateLimit('sync-all', 5), async (c) => {
@@ -461,8 +476,12 @@ app.get('/api/data', requireAuth, async (c) => json(await getBackupData(c.env)))
 
 app.put('/api/data', requireAuth, async (c) => {
   const data = await c.req.json().catch(() => null);
-  if (!data?.categories || !data?.settings) return error('备份 JSON 格式不正确。');
-  return json(withLinks(c, await importRulesData(c.env, data)));
+  try {
+    return json(withLinks(c, await importRulesData(c.env, data)));
+  } catch (cause) {
+    if (cause instanceof BackupValidationError) return c.json({ ok: false, error: cause.message, problems: cause.problems }, 400);
+    throw cause;
+  }
 });
 
 async function subscription(c: AppContext, file: string, access: 'public' | 'token') {

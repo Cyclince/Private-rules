@@ -42,7 +42,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Compose 默认锁定稳定版 `cyclince/private-rules:1.0.6`；`cyclince/private-rules:latest` 同时指向这个版本。两个标签均支持 `linux/amd64` 与 `linux/arm64`。
+Compose 默认锁定稳定版 `cyclince/private-rules:1.0.7`；`cyclince/private-rules:latest` 同时指向这个版本。两个标签均支持 `linux/amd64` 与 `linux/arm64`。
 
 详细步骤请查看 [Docker Compose 从零部署](https://github.com/Cyclince/Private_rules/wiki/Docker-Compose-Deployment)。
 
