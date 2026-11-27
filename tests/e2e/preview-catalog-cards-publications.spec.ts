@@ -57,9 +57,18 @@ async function installClipboardSpy(page: Page) {
   });
 }
 
-test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
+async function ensureAdvancedMode(page: Page, enabled: boolean) {
+  const toggle = page.getByTestId('template-advanced-toggle');
+  await expect(toggle).toBeVisible();
+  const isChecked = (await toggle.getAttribute('aria-checked')) === 'true';
+  if (isChecked !== enabled) {
+    await toggle.click();
+  }
+}
+
+test.describe('M2b Consolidated Scenes Library, Community Rules Picker, and Advanced Template Publications', () => {
   for (const viewport of VIEWPORTS) {
-    test(`${viewport.name} (${viewport.width}x${viewport.height}): catalog hierarchy/filter/detail, card fork/edit/delete, publication create/bind/masked/public-disabled/preview/copy-link`, async ({
+    test(`${viewport.name} (${viewport.width}x${viewport.height}): community rules browse/filter/detail in scenes, scene fork/edit/create/delete, advanced output create/bind/masked/public-disabled/preview/copy-link`, async ({
       page,
     }) => {
       test.setTimeout(90_000);
@@ -93,32 +102,27 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         const slotId = tplPayload.resolvedBody.slots[0]?.id ?? 'slot-main';
 
         // ============================================================
-        // 1. RULE CATALOG PAGE: browse, search, category filter, hierarchy, detail drawer
+        // 1. SCENES LIBRARY (/admin/templates/scenes): community rules browser + detail drawer inside scene editor
         // ============================================================
-        await page.goto('/admin/catalog');
-        await expect(page.getByTestId('catalog-page')).toBeVisible();
-        await expect(page.getByTestId('catalog-list')).toBeVisible();
+        await page.goto('/admin/templates/scenes');
+        await expect(page.getByTestId('cards-page')).toBeVisible();
+        await expect(page.getByTestId('cards-list')).toBeVisible();
         await expectNoHorizontalOverflow(page);
 
-        // Filter by category: AI
-        await page.getByTestId('catalog-category-ai').click();
-        await expect(page).toHaveURL(/category=ai/);
-        await expect(page.getByTestId('catalog-group-ai-all')).toBeVisible();
-        await expect(page.getByTestId('catalog-children-ai-all')).toBeVisible();
-        await expect(page.getByTestId('catalog-children-ai-all').getByTestId('catalog-item-ai-openai')).toBeVisible();
+        // Open New Scene dialog -> browse community rules (replaces standalone /catalog page)
+        await page.getByTestId('cards-create-btn').click();
+        await expect(page.getByTestId('card-form-dialog')).toBeVisible();
+        await page.getByTestId('card-form-matcher-kind-0').selectOption('catalog');
+        await page.getByTestId('card-form-browse-catalog-0').click();
+        await expect(page.getByTestId('card-form-catalog-browser-0')).toBeVisible();
 
-        // Collapse and re-expand parent-child hierarchy
-        await page.getByTestId('catalog-toggle-ai-all').click();
-        await expect(page.getByTestId('catalog-children-ai-all')).toBeHidden();
-        await page.getByTestId('catalog-toggle-ai-all').click();
-        await expect(page.getByTestId('catalog-children-ai-all')).toBeVisible();
+        // Filter community rules by category AI and search OpenAI
+        await page.getByTestId('card-form-catalog-category-0').selectOption('ai');
+        await page.getByTestId('card-form-catalog-search-0').fill('OpenAI');
+        await expect(page.getByTestId('card-form-catalog-item-ai-openai')).toBeVisible();
 
-        // Search inside catalog
-        await page.getByTestId('catalog-search-input').fill('OpenAI');
-        await expect(page.getByTestId('catalog-item-ai-openai')).toBeVisible();
-
-        // Open detail drawer and verify repository, license, and rule count
-        await page.getByTestId('catalog-view-ai-openai').click();
+        // Open CatalogDetailSheet and verify repository, license, rule count & parent navigation
+        await page.getByTestId('card-form-catalog-detail-ai-openai').click();
         await expect(page.getByTestId('catalog-detail-sheet')).toBeVisible();
         await expect(page.getByTestId('catalog-detail-repository')).toContainText(
           'github.com/blackmatrix7/ios_rule_script',
@@ -126,7 +130,6 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await expect(page.getByTestId('catalog-detail-license')).not.toBeEmpty();
         await expect(page.getByTestId('catalog-detail-rule-count')).not.toBeEmpty();
 
-        // Navigate to parent entry from detail drawer
         await page.getByTestId('catalog-detail-parent-btn').click();
         await expect(page.getByTestId('catalog-detail-repository')).toContainText(
           'github.com/MetaCubeX/meta-rules-dat',
@@ -135,24 +138,25 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await page.keyboard.press('Escape');
         await expect(page.getByTestId('catalog-detail-sheet')).toBeHidden();
 
-        // ============================================================
-        // 2. APP CARDS LIBRARY: builtin/user/fork, view, fork, edit, create, delete
-        // ============================================================
-        await page.goto('/admin/cards');
-        await expect(page.getByTestId('cards-page')).toBeVisible();
-        await expect(page.getByTestId('cards-list')).toBeVisible();
-        await expectNoHorizontalOverflow(page);
+        // Pick entry from community rules browser and close dialog
+        await page.getByTestId('card-form-catalog-pick-ai-openai').click();
+        await expect(page.getByTestId('card-form-matcher-value-0')).toHaveValue('ai-openai');
+        await page.keyboard.press('Escape');
+        await expect(page.getByTestId('card-form-dialog')).toBeHidden();
 
-        // Filter to AI builtin cards and view details
+        // ============================================================
+        // 2. SCENES LIBRARY: builtin/user/fork, view, "复制并修改", edit, create, delete
+        // ============================================================
         await page.getByTestId('cards-origin-builtin').click();
         await page.getByTestId('cards-category-ai').click();
         await expect(page.getByTestId('card-item-openai')).toBeVisible();
+        await expect(page.getByTestId('card-fork-openai')).toContainText('复制并修改');
         await page.getByTestId('card-view-openai').click();
         await expect(page.getByTestId('card-detail-sheet')).toBeVisible();
         await expect(page.getByTestId('card-detail-edit-btn')).toHaveCount(0);
         await page.keyboard.press('Escape');
 
-        // Fork the builtin OpenAI card -> switches/creates a 'fork' card
+        // Fork the builtin OpenAI scene -> creates a 'fork' scene
         const forkResponsePromise = page.waitForResponse(
           (res) => res.url().includes('/api/cards/openai/fork') && res.request().method() === 'POST',
         );
@@ -164,13 +168,12 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         createdCardIds.push(forkedCardId);
         expect(forkedBody.card.origin).toBe('fork');
 
-        // Forking opens the newly forked card's detail sheet and switches origin filter to fork
         await expect(page.getByTestId('card-detail-sheet')).toBeVisible();
         await expect(page.getByTestId('card-detail-edit-btn')).toBeVisible();
         await page.keyboard.press('Escape');
         await expect(page.getByTestId('card-detail-sheet')).toBeHidden();
 
-        // Filter to fork origin and edit the forked card (name, icon, category, defaultRoute, inline matcher)
+        // Filter to fork origin and edit the forked scene
         await page.getByTestId('cards-origin-fork').click();
         await page.getByTestId('cards-category-all').click();
         await expect(page.getByTestId(`card-item-${forkedCardId}`)).toBeVisible();
@@ -199,8 +202,8 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await expect(page.getByTestId(`card-item-${forkedCardId}`)).toContainText(editedCardName);
         await expect(page.getByTestId(`card-default-route-${forkedCardId}`)).toContainText('直连');
 
-        // Create a custom (user) card and then delete it
-        const customCardName = `Custom Card ${suffix}`;
+        // Create a custom (user) scene and then delete it
+        const customCardName = `Custom Scene ${suffix}`;
         await page.getByTestId('cards-create-btn').click();
         await expect(page.getByTestId('card-form-dialog')).toBeVisible();
         await page.getByTestId('card-form-name').fill(customCardName);
@@ -219,7 +222,6 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await page.getByTestId('cards-origin-user').click();
         await expect(page.getByTestId(`card-item-${createdCard.id}`)).toContainText(customCardName);
 
-        // Delete the custom card via UI confirmation dialog
         await page.getByTestId(`card-delete-${createdCard.id}`).click();
         await expect(page.getByTestId('delete-confirm-dialog')).toBeVisible();
         await page.getByTestId('delete-confirm-submit').click();
@@ -227,16 +229,13 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await expect(page.getByTestId(`card-item-${createdCard.id}`)).toHaveCount(0);
 
         // ============================================================
-        // 3. PUBLICATIONS PAGE: create, node slot binding (masked + public disabled), preview, copy link
+        // 3. TEMPLATE DETAIL ADVANCED OUTPUT & NODES (replaces standalone /publications page)
         // ============================================================
-        await page.goto('/admin/publications');
-        await expect(page.getByTestId('publications-page')).toBeVisible();
+        await page.goto(`/admin/templates/${templateId}?tab=output`);
+        await expect(page.getByTestId('template-detail-page')).toBeVisible();
+        await ensureAdvancedMode(page, true);
+        await expect(page.getByTestId('advanced-output-panel')).toBeVisible();
         await expectNoHorizontalOverflow(page);
-
-        // All 7 clients are now supported (no "即将支持" badges on Loon, Quantumult X, or Shadowrocket)
-        for (const client of ['mihomo', 'stash', 'surge', 'sing-box', 'loon', 'quantumult-x', 'shadowrocket']) {
-          await expect(page.getByTestId(`publications-client-${client}`)).not.toContainText('即将支持');
-        }
 
         // Create a new publication with all 7 supported clients
         await page.getByTestId('publications-create-btn').click();
@@ -244,12 +243,10 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         for (const client of ['stash', 'surge', 'sing-box', 'loon', 'quantumult-x', 'shadowrocket']) {
           await expect(page.getByTestId(`pub-form-client-coming-soon-${client}`)).toHaveCount(0);
         }
-        // Experimental full-config toggle defaults to unchecked (safe rules-only for Loon & QX)
         await expect(page.getByTestId('pub-form-experimental-full-config')).not.toBeChecked();
         await expect(page.getByTestId('pub-form-experimental-warning')).toHaveCount(0);
 
         await page.getByTestId('pub-form-slug').fill(pubSlug);
-        await page.getByTestId('pub-form-template').selectOption(templateId);
         await page.getByTestId('pub-form-version').selectOption('1');
         await page.getByTestId('pub-form-client-stash').click();
         await page.getByTestId('pub-form-client-surge').click();
@@ -268,10 +265,11 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         expect(createPubRes.status()).toBe(201);
         publicationId = ((await createPubRes.json()) as { publication: { id: string } }).publication.id;
         await expect(page.getByTestId('publication-form-dialog')).toBeHidden();
-        await expect(page.getByTestId(`publication-item-${publicationId}`)).toBeVisible();
+        await expect(page.getByTestId(`publication-row-${publicationId}`)).toBeVisible();
 
-        // Bind a node slot (write-only: plaintext disappears, only masked value is displayed)
-        await page.getByTestId('publication-tab-nodes').click();
+        // Bind a node slot in Advanced Nodes tab (write-only: plaintext disappears, only masked value is displayed)
+        await page.getByTestId('template-tab-nodes').click();
+        await expect(page.getByTestId('advanced-nodes-panel')).toBeVisible();
         await expect(page.getByTestId('node-slots-panel')).toBeVisible();
         await expect(page.getByTestId(`node-slot-${slotId}`)).toBeVisible();
         await expectNoHorizontalOverflow(page);
@@ -284,12 +282,11 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await expect(page.getByTestId(`node-slot-masked-${slotId}`)).toContainText('secret-airport.example.test');
         await expect(page.getByTestId(`node-slot-masked-${slotId}`)).not.toContainText(secretTokenA);
 
-        // Verify plaintext URL / token never leaks anywhere in rendered DOM
         const bodyTextAfterBind = await page.evaluate(() => document.body.innerText);
         expect(bodyTextAfterBind).not.toContain(secretTokenA);
         expect(bodyTextAfterBind).not.toContain(secretUrlA);
 
-        // Replace flow opens an empty password input (cannot view old URL) and updates masked value
+        // Replace flow opens an empty password input and updates masked value
         await page.getByTestId(`node-slot-replace-${slotId}`).click();
         await expect(page.getByTestId(`node-slot-url-${slotId}`)).toHaveValue('');
         await page.getByTestId(`node-slot-url-${slotId}`).fill(secretUrlB);
@@ -297,9 +294,11 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await expect(page.getByTestId(`node-slot-masked-${slotId}`)).toContainText('backup-airport.example.test');
         await expect(page.getByTestId(`node-slot-masked-${slotId}`)).not.toContainText(secretTokenB);
 
-        // Open Edit Publication modal: "public" option MUST be disabled with explanation because node is bound;
-        // toggling experimentalFullConfig shows a prominent "未经真机验证" warning (without saving)
-        await page.getByTestId('publication-edit-btn').click();
+        // Switch back to Output tab: verify public disabled when bound, experimental warning, 7-client preview, and links
+        await page.getByTestId('template-tab-output').click();
+        await expect(page.getByTestId('advanced-output-panel')).toBeVisible();
+
+        await page.getByTestId(`publication-edit-${publicationId}`).click();
         await expect(page.getByTestId('publication-form-dialog')).toBeVisible();
         await expect(page.getByTestId('pub-form-access-public')).toBeDisabled();
         await expect(page.getByTestId('pub-public-disabled-reason')).toBeVisible();
@@ -311,7 +310,6 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await expect(page.getByTestId('publication-form-dialog')).toBeHidden();
 
         // Real-time compile preview across all 7 clients + compatibility report
-        await page.getByTestId('publication-tab-preview').click();
         await expect(page.getByTestId('publication-preview-panel')).toBeVisible();
         await expect(page.getByTestId('publication-preview-code')).toBeVisible();
         await expect(page.getByTestId('publication-preview-code')).toContainText('rules:');
@@ -339,17 +337,7 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
         await page.getByTestId('preview-client-mihomo').click();
         await expect(page.getByTestId('publication-preview-code')).toBeVisible();
 
-        // Subscription Links tab: all 7 supported clients have active token links; copy works
-        await page.getByTestId('publication-tab-links').click();
-        await expect(page.getByTestId('publication-links-panel')).toBeVisible();
-        await expect(page.getByTestId('pub-link-coming-soon-loon')).toHaveCount(0);
-        await expect(page.getByTestId('pub-link-item-mihomo')).toBeVisible();
-        await expect(page.getByTestId('pub-link-item-stash')).toBeVisible();
-        await expect(page.getByTestId('pub-link-item-surge')).toBeVisible();
-        await expect(page.getByTestId('pub-link-item-sing-box')).toBeVisible();
-        await expect(page.getByTestId('pub-link-item-loon')).toBeVisible();
-        await expect(page.getByTestId('pub-link-item-quantumult-x')).toBeVisible();
-        await expect(page.getByTestId('pub-link-item-shadowrocket')).toBeVisible();
+        // All 7 supported clients have active token links & copy works
         await expect(page.getByTestId('pub-link-url-stash')).toHaveText(
           `${ORIGIN}/t/e2e-rule-token/${pubSlug}/stash.yaml`,
         );
@@ -391,7 +379,9 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
     });
   }
 
-  test('keeps node slot binding enabled without requiring manual SESSION_SECRET banner', async ({ page }) => {
+  test('redirects /admin/publications?selected=<id> to template output and keeps node slot binding enabled without manual SESSION_SECRET banner', async ({
+    page,
+  }) => {
     await signInAdmin(page);
     await page.setViewportSize({ width: 1280, height: 800 });
 
@@ -417,8 +407,10 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
       });
       publicationId = ((await pubRes.json()) as { publication: { id: string } }).publication.id;
 
-      await page.goto(`/admin/publications?selected=${publicationId}&tab=nodes`);
-      await expect(page.getByTestId('publications-session-secret-banner')).toHaveCount(0);
+      await page.goto(`/admin/publications?selected=${publicationId}`);
+      await expect(page).toHaveURL(new RegExp(`/admin/templates/${templateId}\\?tab=output`));
+      await ensureAdvancedMode(page, true);
+      await page.getByTestId('template-tab-nodes').click();
       await expect(page.getByTestId('session-secret-missing-alert')).toHaveCount(0);
       await expect(page.getByTestId(`node-slot-url-${slotId}`)).toBeEnabled();
       await expect(page.getByTestId(`node-slot-save-${slotId}`)).toBeEnabled();
@@ -432,7 +424,7 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
     }
   });
 
-  test('Telegram Mini App session renders catalog, cards, and publications read-only with write buttons disabled', async ({
+  test('Telegram Mini App session renders scenes library and template detail (normal & advanced) read-only', async ({
     page,
   }) => {
     await signInAdmin(page);
@@ -442,7 +434,6 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
     let customCardId: string | null = null;
 
     try {
-      // Seed a custom card, template, and publication as admin
       const cardRes = await page.request.post('/api/cards', {
         data: {
           name: `TG Card ${suffix}`,
@@ -483,13 +474,8 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
 
       await page.setViewportSize({ width: 390, height: 844 });
 
-      // Catalog remains readable
-      await page.goto('/admin/catalog');
-      await expect(page.getByTestId('catalog-list')).toBeVisible();
-      await expectNoHorizontalOverflow(page);
-
-      // Cards page shows Telegram read-only notice and disables all write buttons
-      await page.goto('/admin/cards');
+      // Scenes library shows Telegram read-only notice and disables write buttons
+      await page.goto('/admin/templates/scenes');
       await expect(page.getByTestId('cards-telegram-readonly')).toBeVisible();
       await expect(page.getByTestId('cards-create-btn')).toBeDisabled();
       await expect(page.getByTestId('card-fork-openai')).toBeDisabled();
@@ -497,17 +483,22 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
       await expect(page.getByTestId(`card-delete-${customCardId}`)).toBeDisabled();
       await expectNoHorizontalOverflow(page);
 
-      // Publications page shows Telegram read-only notice, disables write controls, while keeping preview & links readable
-      await page.goto(`/admin/publications?selected=${publicationId}&tab=nodes`);
-      await expect(page.getByTestId('publications-telegram-readonly')).toBeVisible();
-      await expect(page.getByTestId('publications-create-btn')).toBeDisabled();
-      await expect(page.getByTestId('publication-edit-btn')).toBeDisabled();
-      await expect(page.getByTestId('publication-delete-btn')).toBeDisabled();
+      // Template detail Output & Nodes tabs stay read-only while keeping preview & links readable
+      await page.goto(`/admin/templates/${templateId}?tab=output`);
+      await expect(page.getByTestId('templates-telegram-readonly')).toBeVisible();
+      await expect(page.getByTestId('output-add-client-btn')).toHaveCount(0);
+      await expectNoHorizontalOverflow(page);
+
+      await ensureAdvancedMode(page, true);
+      await expect(page.getByTestId('publications-create-btn')).toHaveCount(0);
+      await expect(page.getByTestId(`publication-edit-${publicationId}`)).toHaveCount(0);
+      await expect(page.getByTestId(`publication-delete-${publicationId}`)).toHaveCount(0);
+      await expect(page.getByTestId('publication-preview-code')).toContainText('rules:');
+      await expectNoHorizontalOverflow(page);
+
+      await page.getByTestId('template-tab-nodes').click();
       await expect(page.getByTestId(`node-slot-url-${slotId}`)).toBeDisabled();
       await expect(page.getByTestId(`node-slot-save-${slotId}`)).toBeDisabled();
-
-      await page.getByTestId('publication-tab-preview').click();
-      await expect(page.getByTestId('publication-preview-code')).toContainText('rules:');
       await expectNoHorizontalOverflow(page);
     } finally {
       await signInAdmin(page);

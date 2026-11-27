@@ -13,19 +13,15 @@ import {
   Trash2,
 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
-import { WIZARD_SCENARIO_DEFINITIONS } from '../../domain/templates/quick-create';
 import type { PublicationWithLinks } from '../../server/routes/publications';
+import { CARD_TO_SCENARIO_ID } from '../../shared/scenarios';
 import type { WizardScenarioId } from '../../shared/schemas/quick-create';
 import type { TemplateRecord } from '../../shared/schemas/template';
+import { SectionSubNav } from '../components/layout/SectionSubNav';
+import { ActionMenu } from '../components/ui/action-menu';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../components/ui/dropdown-menu';
 import { EmptyState } from '../components/ui/empty-state';
 import { Input } from '../components/ui/input';
 import { loadPageTranslations, useI18n, type MessageKey } from '../i18n';
@@ -62,10 +58,6 @@ export const Route = createFileRoute('/templates/')({
   },
   component: TemplatesListPage,
 });
-
-const CARD_TO_SCENARIO_ID = new Map<string, WizardScenarioId>(
-  WIZARD_SCENARIO_DEFINITIONS.flatMap((def) => def.cardIds.map((cardId) => [cardId, def.id] as const)),
-);
 
 function scenarioLabelKey(id: WizardScenarioId): MessageKey {
   return `wizard.scenario.${id}` as MessageKey;
@@ -105,9 +97,6 @@ function deriveAirportStatus(tpl: TemplateRecord, pubs: readonly PublicationWith
 
 function deriveClientDisplayText(tpl: TemplateRecord, pubs: readonly PublicationWithLinks[]): string | null {
   const wizardMeta = tpl.baseBody.wizardMeta;
-  if (wizardMeta?.clientDisplayNames && wizardMeta.clientDisplayNames.length > 0) {
-    return wizardMeta.clientDisplayNames.join(' · ');
-  }
   const labels: string[] = [];
   const seen = new Set<string>();
   for (const pub of pubs) {
@@ -118,7 +107,13 @@ function deriveClientDisplayText(tpl: TemplateRecord, pubs: readonly Publication
       labels.push(display);
     }
   }
-  return labels.length > 0 ? labels.join(' · ') : null;
+  if (labels.length > 0) {
+    return labels.join(' · ');
+  }
+  if (wizardMeta?.clientDisplayNames && wizardMeta.clientDisplayNames.length > 0) {
+    return wizardMeta.clientDisplayNames.join(' · ');
+  }
+  return null;
 }
 
 function deriveTemplateCopyLinks(tpl: TemplateRecord, pubs: readonly PublicationWithLinks[]): TemplateCardLinkItem[] {
@@ -282,7 +277,9 @@ function TemplatesListPage() {
   const ruleTokenConfigured = publicationsQuery.data?.ruleTokenConfigured ?? true;
 
   return (
-    <div className="flex flex-col gap-6" data-testid="templates-page">
+    <div className="flex flex-col gap-5" data-testid="templates-page">
+      <SectionSubNav section="templates" />
+
       {/* Header banner per §4.1 */}
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-1">
@@ -303,7 +300,7 @@ function TemplatesListPage() {
           ) : null}
 
           <Link
-            to="/cards"
+            to="/templates/scenes"
             data-testid="templates-scenes-btn"
             className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[var(--radius-md)] border border-border bg-surface px-3 text-sm font-medium text-text transition-colors hover:bg-surface-muted"
           >
@@ -489,37 +486,37 @@ function TemplatesListPage() {
 
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="sm" variant="outline" data-testid={`template-copy-links-${tpl.id}`}>
+                      <ActionMenu
+                        align="start"
+                        trigger={({ open, toggle }) => (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            aria-expanded={open}
+                            aria-haspopup="menu"
+                            data-testid={`template-copy-links-${tpl.id}`}
+                            onClick={toggle}
+                          >
                             <Copy className="h-3.5 w-3.5" />
                             <span>{t('templates.copyLinkBtn')}</span>
                             <ChevronDown className="h-3.5 w-3.5 text-text-muted" />
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          {copyLinks.length > 0 ? (
-                            copyLinks.map((item) => (
-                              <DropdownMenuItem
-                                key={item.key}
-                                data-testid={`template-copy-item-${tpl.id}-${item.key}`}
-                                onSelect={() => {
-                                  void handleCopyLink(item.url);
-                                }}
-                              >
-                                <Copy className="h-3.5 w-3.5 text-text-muted" />
-                                <span>{item.label}</span>
-                              </DropdownMenuItem>
-                            ))
-                          ) : (
-                            <DropdownMenuItem disabled>
-                              <span className="text-xs text-text-muted">
-                                {!ruleTokenConfigured ? t('templates.copyLinkNoToken') : t('templates.copyLinkEmpty')}
-                              </span>
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        )}
+                        items={copyLinks.map((item) => ({
+                          key: item.key,
+                          label: item.label,
+                          icon: <Copy className="h-3.5 w-3.5 text-text-muted" />,
+                          testId: `template-copy-item-${tpl.id}-${item.key}`,
+                          onSelect: () => {
+                            void handleCopyLink(item.url);
+                          },
+                        }))}
+                        emptyContent={
+                          <div className="px-2.5 py-2 text-xs text-text-muted">
+                            {!ruleTokenConfigured ? t('templates.copyLinkNoToken') : t('templates.copyLinkEmpty')}
+                          </div>
+                        }
+                      />
 
                       <Link
                         to="/templates/$id"

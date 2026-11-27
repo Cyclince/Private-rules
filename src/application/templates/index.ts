@@ -886,3 +886,13 @@ export {
   type QuickCreateTemplateOptions,
   type QuickCreateTemplateResult,
 } from './quick-create';
+export {
+  getSimpleTemplateView,
+  patchSimpleTemplateView,
+  type SimpleTemplateNodeRegionStat,
+  type SimpleTemplateNodesView,
+  type SimpleTemplateOutputItem,
+  type SimpleTemplateOutputLink,
+  type SimpleTemplateView,
+  type SimpleTemplateViewOptions,
+} from './simple-view';

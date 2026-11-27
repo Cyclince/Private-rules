@@ -34,6 +34,7 @@ import {
 import {
   bindingAad,
   resolvePublicationSlotNodes,
+  snapshotAad,
   type ResolveSlotNodesOptions,
   type ResolvedSlotNodesResult,
 } from './nodes';
@@ -100,6 +101,8 @@ export type CreatePublicationInput = {
   access: PublicationAccess;
   output?: OutputProfile;
   experimentalFullConfig?: boolean;
+  /** Inherit encrypted slot bindings (and cached snapshots) from sibling publications of the same template. */
+  inheritSlotBindings?: boolean;
 };
 
 export type UpdatePublicationInput = {
@@ -362,6 +365,69 @@ export async function createPublication(
     createdAt: timestamp,
     updatedAt: timestamp,
   });
+
+  if (input.inheritSlotBindings && input.access !== 'public') {
+    const siblings = (await repos.publications.listAll()).filter(
+      (pub) => pub.templateId === template.id && pub.id !== pubId,
+    );
+    const inheritedBySlot = new Map<string, NodeBindingRow>();
+    for (const sibling of siblings) {
+      const siblingBindings = await repos.nodeBindings.listByPublication(sibling.id);
+      for (const row of siblingBindings) {
+        if (!inheritedBySlot.has(row.slotId)) {
+          inheritedBySlot.set(row.slotId, row);
+        }
+      }
+    }
+
+    if (inheritedBySlot.size > 0) {
+      const secret = await resolveSessionSecret(env);
+      for (const [slotId, sourceRow] of inheritedBySlot.entries()) {
+        try {
+          const plaintextUrl = await decryptNodeSecret(
+            sourceRow.subscriptionUrlEnc,
+            secret,
+            bindingAad(sourceRow.publicationId, slotId),
+          );
+          const reEncryptedUrl = await encryptNodeSecret(plaintextUrl, secret, bindingAad(pubId, slotId));
+          await repos.nodeBindings.upsert(
+            {
+              publicationId: pubId,
+              slotId,
+              subscriptionUrlEnc: reEncryptedUrl,
+              userAgent: sourceRow.userAgent ?? null,
+            },
+            timestamp,
+          );
+          if (sourceRow.lastFetchedAt || sourceRow.lastStatus || sourceRow.lastNodeCount !== null) {
+            await repos.nodeBindings.recordFetchMetadata(pubId, slotId, {
+              lastFetchedAt: sourceRow.lastFetchedAt ?? timestamp,
+              lastStatus: sourceRow.lastStatus ?? 'ok',
+              lastNodeCount: sourceRow.lastNodeCount ?? null,
+            });
+          }
+          const sourceSnapshot = await repos.nodeBindings.findNodeSnapshot(sourceRow.publicationId, slotId);
+          if (sourceSnapshot) {
+            const plaintextSnap = await decryptNodeSecret(
+              sourceSnapshot.nodesEnc,
+              secret,
+              snapshotAad(sourceRow.publicationId, slotId),
+            );
+            const reEncryptedSnap = await encryptNodeSecret(plaintextSnap, secret, snapshotAad(pubId, slotId));
+            await repos.nodeBindings.upsertNodeSnapshot({
+              publicationId: pubId,
+              slotId,
+              nodesEnc: reEncryptedSnap,
+              fetchedAt: sourceSnapshot.fetchedAt,
+              expiresAt: sourceSnapshot.expiresAt,
+            });
+          }
+        } catch {
+          // Skip unreadable sibling binding (e.g. rotated key requiring rebind)
+        }
+      }
+    }
+  }
 
   const created = await repos.publications.findById(pubId);
   if (!created) throw new AppError('INTERNAL', '创建发布配置失败。');

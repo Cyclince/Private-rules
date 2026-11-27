@@ -60,6 +60,7 @@ type PublicationFormDialogProps = {
   open: boolean;
   mode: 'create' | 'edit';
   initial?: PublicationWithLinks | null;
+  defaultTemplateId?: string;
   readOnly: boolean;
   submitting: boolean;
   onOpenChange: (open: boolean) => void;
@@ -73,6 +74,7 @@ export function PublicationFormDialog({
   open,
   mode,
   initial,
+  defaultTemplateId,
   readOnly,
   submitting,
   onOpenChange,
@@ -129,7 +131,7 @@ export function PublicationFormDialog({
     } else {
       form.reset({
         slug: '',
-        templateId: templates[0]?.id ?? '',
+        templateId: defaultTemplateId || templates[0]?.id || '',
         pinnedVersion: '',
         clients: ['mihomo'],
         access: 'token',
@@ -137,7 +139,7 @@ export function PublicationFormDialog({
         experimentalFullConfig: false,
       });
     }
-  }, [open, mode, initial, form, templates]);
+  }, [open, mode, initial, defaultTemplateId, form, templates]);
 
   const createStarterMutation = useMutation({
     mutationFn: async () =>

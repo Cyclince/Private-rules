@@ -97,6 +97,11 @@ test.describe('M4.4b Template List & Visual Template Editor', () => {
         createdTemplateIds.push(starterTemplateId);
 
         await page.goto(`/admin/templates/${starterTemplateId}`);
+        await expect(page.getByTestId('template-detail-page')).toBeVisible();
+        const advToggle = page.getByTestId('template-advanced-toggle');
+        if ((await advToggle.getAttribute('aria-checked')) !== 'true') {
+          await advToggle.click();
+        }
         await expect(page.getByTestId('template-editor-page')).toBeVisible();
         await expect(page.getByTestId('editor-version-badge')).toHaveText('v1');
         await expectNoHorizontalOverflow(page);
@@ -335,8 +340,16 @@ test.describe('M4.4b Template List & Visual Template Editor', () => {
       await expect(tgPage.getByTestId('templates-import-btn')).toHaveCount(0);
       await expectNoHorizontalOverflow(tgPage);
 
-      // Editor page is read-only
+      // Editor page is read-only (both normal mode and advanced mode)
       await tgPage.goto(`/admin/templates/${templateId}`);
+      await expect(tgPage.getByTestId('template-detail-page')).toBeVisible();
+      await expect(tgPage.getByTestId('templates-telegram-readonly')).toBeVisible();
+      await expectNoHorizontalOverflow(tgPage);
+
+      const tgAdvToggle = tgPage.getByTestId('template-advanced-toggle');
+      if ((await tgAdvToggle.getAttribute('aria-checked')) !== 'true') {
+        await tgAdvToggle.click();
+      }
       await expect(tgPage.getByTestId('template-editor-page')).toBeVisible();
       await expect(tgPage.getByTestId('templates-telegram-readonly')).toBeVisible();
       await expect(tgPage.getByTestId('editor-save-version-btn')).toHaveCount(0);

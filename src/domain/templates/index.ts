@@ -228,6 +228,7 @@ export {
 } from './importers';
 export {
   ALWAYS_ENABLED_CARD_IDS,
+  CANONICAL_BUILTIN_CARD_ORDER,
   CORE_REGION_CODES,
   WIZARD_CLIENT_OPTIONS,
   WIZARD_SCENARIO_DEFINITIONS,
@@ -252,3 +253,15 @@ export {
   type WizardPresetTier,
   type WizardScenarioDefinition,
 } from './quick-create';
+export {
+  applySimpleTemplatePatch,
+  mapPolicyRefToWizardRoute,
+  mapTemplateToSimpleRouting,
+  type ApplySimpleTemplatePatchInput,
+  type ApplySimpleTemplatePatchResult,
+  type SimpleCustomItem,
+  type SimpleRoutingView,
+  type SimpleRulesetItem,
+  type SimpleRulesetRef,
+  type SimpleScenarioItem,
+} from './simple-view';

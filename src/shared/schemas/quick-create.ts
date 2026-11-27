@@ -120,3 +120,13 @@ export const previewSubscriptionSchema = z.object({
   userAgent: z.string().trim().max(256).optional(),
 });
 export type PreviewSubscriptionInput = z.output<typeof previewSubscriptionSchema>;
+
+/** Request payload for B3 `PATCH /api/templates/:id/simple`. */
+export const simpleTemplatePatchSchema = z.object({
+  name: z.string().trim().min(1, '请输入模板名称').max(120).optional(),
+  scenarios: z.array(quickCreateScenarioInputSchema).optional(),
+  rulesets: z.array(quickCreateRulesetInputSchema).optional(),
+  groupMode: wizardGroupModeSchema.optional(),
+  note: z.string().max(500).optional(),
+});
+export type SimpleTemplatePatchInput = z.output<typeof simpleTemplatePatchSchema>;

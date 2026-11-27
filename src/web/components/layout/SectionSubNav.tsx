@@ -7,13 +7,12 @@ type SectionTab = {
   to: NavRoutePath;
   labelKey: MessageKey;
   testId: string;
+  exact?: boolean;
 };
 
 const TEMPLATES_TABS: readonly SectionTab[] = [
-  { to: '/templates', labelKey: 'nav.templates', testId: 'subnav-templates' },
-  { to: '/cards', labelKey: 'nav.cards', testId: 'subnav-cards' },
-  { to: '/catalog', labelKey: 'nav.catalog', testId: 'subnav-catalog' },
-  { to: '/publications', labelKey: 'nav.publications', testId: 'subnav-publications' },
+  { to: '/templates', labelKey: 'nav.templates', testId: 'subnav-templates', exact: true },
+  { to: '/templates/scenes', labelKey: 'nav.cards', testId: 'subnav-scenes' },
 ];
 
 export function SectionSubNav({ section }: { section: 'templates' }) {
@@ -29,6 +28,7 @@ export function SectionSubNav({ section }: { section: 'templates' }) {
         <Link
           key={tab.to}
           to={tab.to}
+          activeOptions={tab.exact ? { exact: true } : undefined}
           data-testid={tab.testId}
           className="flex-1 whitespace-nowrap rounded-[var(--radius-sm)] px-3 py-1.5 text-center text-xs font-medium text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
           activeProps={{

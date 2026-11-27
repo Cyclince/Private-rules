@@ -15,12 +15,12 @@ import { gzipSync } from 'node:zlib';
 
 const FIRST_SCREEN_JS_BUDGET_KB = 120;
 const SINGLE_ROUTE_JS_BUDGET_KB = 60;
+const TEMPLATES_LIST_JS_BUDGET_KB = 40;
 const TEMPLATE_EDITOR_JS_BUDGET_KB = 150;
 const CSS_BUDGET_KB = 25;
 
 const ROUTE_BUDGET_OVERRIDES_KB: Readonly<Record<string, number>> = {
-  'templates.$id': TEMPLATE_EDITOR_JS_BUDGET_KB,
-  'templates._id': TEMPLATE_EDITOR_JS_BUDGET_KB,
+  'templates.index': TEMPLATES_LIST_JS_BUDGET_KB,
 };
 
 const EDITOR_ONLY_CHUNK_PATTERNS = [/dnd-kit/i, /codemirror/i, /@codemirror/i, /lezer/i];
@@ -110,6 +110,7 @@ function findRouteChunks(entryJsFiles: Set<string>): Array<{ route: string; file
     'settings',
     'templates.index',
     'templates.new',
+    'templates.scenes',
     'templates.$id',
     'templates._id',
     'templates',
@@ -215,13 +216,15 @@ function main() {
               ? '/admin/rules/$id'
               : route === 'templates.index'
                 ? '/admin/templates'
-                : route === 'templates._id' || route === 'templates.$id'
-                  ? '/admin/templates/$id'
-                  : route === 'subscriptions.index'
-                    ? '/admin/subscriptions'
-                    : route === 'subscriptions._id' || route === 'subscriptions.$id'
-                      ? '/admin/subscriptions/$id'
-                      : `/admin/${route}`;
+                : route === 'templates.scenes'
+                  ? '/admin/templates/scenes'
+                  : route === 'templates._id' || route === 'templates.$id'
+                    ? '/admin/templates/$id'
+                    : route === 'subscriptions.index'
+                      ? '/admin/subscriptions'
+                      : route === 'subscriptions._id' || route === 'subscriptions.$id'
+                        ? '/admin/subscriptions/$id'
+                        : `/admin/${route}`;
     const routeBudgetKb = ROUTE_BUDGET_OVERRIDES_KB[route] ?? SINGLE_ROUTE_JS_BUDGET_KB;
     console.info(
       `  ${routeLabel.padEnd(24)} +${incrementKb.toFixed(2).padStart(6)} kB gzip (budget <= ${routeBudgetKb} kB, ${incrementFiles.length} chunk${incrementFiles.length === 1 ? '' : 's'}: ${incrementFiles.join(', ')})`,
@@ -231,13 +234,29 @@ function main() {
         `Route ${routeLabel} increment ${incrementKb.toFixed(2)} kB exceeds ${routeBudgetKb} kB gzip budget`,
       );
     }
-    if (route !== 'templates.$id' && route !== 'templates._id') {
-      for (const dep of incrementFiles) {
-        const leaked = containsEditorOnlyVendor(dep);
-        if (leaked) {
-          violations.push(`Non-editor route ${routeLabel} chunk ${dep} contains editor-only dependency (${leaked})`);
-        }
+    for (const dep of incrementFiles) {
+      const leaked = containsEditorOnlyVendor(dep);
+      if (leaked) {
+        violations.push(`Route ${routeLabel} first-screen chunk ${dep} contains editor-only dependency (${leaked})`);
       }
+    }
+  }
+
+  // Measure lazy advanced template editor chunk separately (<= 150 kB gzip)
+  const advancedEditorChunk = readdirSync(ASSETS_DIR).find(
+    (name) => name.startsWith('TemplateAdvancedEditor-') && name.endsWith('.js'),
+  );
+  if (advancedEditorChunk) {
+    const advGraph = collectStaticGraph([advancedEditorChunk]);
+    const advIncrement = [...advGraph].filter((dep) => !shellJs.has(dep)).sort();
+    const advKb = sumGzipKb(advIncrement);
+    console.info(
+      `  ${'[lazy] AdvancedEditor'.padEnd(24)} +${advKb.toFixed(2).padStart(6)} kB gzip (budget <= ${TEMPLATE_EDITOR_JS_BUDGET_KB} kB, ${advIncrement.length} chunk${advIncrement.length === 1 ? '' : 's'})`,
+    );
+    if (advKb > TEMPLATE_EDITOR_JS_BUDGET_KB) {
+      violations.push(
+        `Lazy TemplateAdvancedEditor increment ${advKb.toFixed(2)} kB exceeds ${TEMPLATE_EDITOR_JS_BUDGET_KB} kB gzip budget`,
+      );
     }
   }
 

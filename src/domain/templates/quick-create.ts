@@ -116,7 +116,7 @@ export const ALWAYS_ENABLED_CARD_IDS: readonly string[] = [
 ];
 
 /** Canonical 7-layer stage order of all built-in cards. */
-const CANONICAL_BUILTIN_CARD_ORDER: readonly string[] = [
+export const CANONICAL_BUILTIN_CARD_ORDER: readonly string[] = [
   // Hidden core hubs
   'auto-select',
   'proxy-select',

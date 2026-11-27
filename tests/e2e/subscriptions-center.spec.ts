@@ -180,7 +180,7 @@ test.describe('M1a Navigation, Routing, and Subscription Center', () => {
     }
   });
 
-  test('390px mobile bottom nav renders all 5 items and template SectionSubNav reaches 场景库/规则目录/发布', async ({
+  test('390px mobile bottom nav renders all 5 items and template SectionSubNav has 模板/场景库 with old routes redirecting', async ({
     page,
   }) => {
     await signInAdmin(page);
@@ -198,23 +198,28 @@ test.describe('M1a Navigation, Routing, and Subscription Center', () => {
     await page.goto('/admin/rulesets?q=demo&tab=sources');
     await expect(page).toHaveURL(/\/admin\/rules\?q=demo&tab=sources/);
 
-    // Check /admin/templates secondary scene library entry -> SectionSubNav on advanced subpages
+    // Check /admin/templates secondary scene library entry -> 2-tab SectionSubNav (模板 / 场景库)
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/admin/templates');
     await expect(page.getByTestId('templates-scenes-btn')).toHaveText('场景库');
     await page.getByTestId('templates-scenes-btn').click();
-    await expect(page).toHaveURL(/\/admin\/cards/);
+    await expect(page).toHaveURL(/\/admin\/templates\/scenes/);
 
     const subnav = page.getByTestId('section-subnav-templates');
     await expect(subnav).toBeVisible();
+    await expect(subnav.getByRole('link')).toHaveCount(2);
     await expect(subnav.getByTestId('subnav-templates')).toHaveText('模板');
-    await expect(subnav.getByTestId('subnav-cards')).toHaveText('场景库');
-    await expect(subnav.getByTestId('subnav-catalog')).toHaveText('规则目录');
-    await expect(subnav.getByTestId('subnav-publications')).toHaveText('发布');
+    await expect(subnav.getByTestId('subnav-scenes')).toHaveText('场景库');
 
-    await page.getByTestId('subnav-catalog').click();
-    await expect(page).toHaveURL(/\/admin\/catalog/);
-    await page.getByTestId('subnav-publications').click();
-    await expect(page).toHaveURL(/\/admin\/publications/);
+    await subnav.getByTestId('subnav-templates').click();
+    await expect(page).toHaveURL(/\/admin\/templates$/);
+
+    // Check old routes redirect cleanly
+    await page.goto('/admin/cards');
+    await expect(page).toHaveURL(/\/admin\/templates\/scenes/);
+    await page.goto('/admin/catalog');
+    await expect(page).toHaveURL(/\/admin\/templates\/scenes/);
+    await page.goto('/admin/publications');
+    await expect(page).toHaveURL(/\/admin\/templates$/);
   });
 });

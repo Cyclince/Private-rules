@@ -2,7 +2,7 @@ import { Layers, LayoutDashboard, Link2, Settings, ShieldCheck, type LucideIcon 
 import type { MessageKey } from '../../i18n';
 
 export type MainNavRoutePath = '/' | '/rules' | '/subscriptions' | '/templates' | '/settings';
-export type NavRoutePath = MainNavRoutePath | '/catalog' | '/cards' | '/publications';
+export type NavRoutePath = MainNavRoutePath | '/templates/scenes';
 
 export type NavItem = {
   to: MainNavRoutePath;
@@ -49,9 +49,7 @@ export const ROUTE_TITLE_ENTRIES: ReadonlyArray<{ path: NavRoutePath; labelKey: 
   { path: '/', labelKey: 'nav.dashboard' },
   { path: '/rules', labelKey: 'nav.rules' },
   { path: '/subscriptions', labelKey: 'nav.subscriptions' },
+  { path: '/templates/scenes', labelKey: 'nav.cards' },
   { path: '/templates', labelKey: 'nav.templates' },
-  { path: '/cards', labelKey: 'nav.cards' },
-  { path: '/catalog', labelKey: 'nav.catalog' },
-  { path: '/publications', labelKey: 'nav.publications' },
   { path: '/settings', labelKey: 'nav.settings' },
 ];

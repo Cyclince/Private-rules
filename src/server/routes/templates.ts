@@ -4,12 +4,14 @@ import { STARTER_TEMPLATE_TIERS } from '../../builtin';
 import {
   createTemplate,
   deleteTemplate,
+  getSimpleTemplateView,
   getTemplateById,
   getTemplateVersion,
   importTemplate,
   lintTemplateById,
   listTemplates,
   listTemplateVersions,
+  patchSimpleTemplateView,
   previewSubscription,
   previewTemplateById,
   probeTemplateById,
@@ -22,7 +24,11 @@ import { requireAuth } from '../../lib/auth';
 import { json } from '../../lib/response';
 import { AppError } from '../../shared/errors';
 import { outputProfileSchema, templateClientIdSchema } from '../../shared/schemas/publication';
-import { previewSubscriptionSchema, quickCreateTemplateSchema } from '../../shared/schemas/quick-create';
+import {
+  previewSubscriptionSchema,
+  quickCreateTemplateSchema,
+  simpleTemplatePatchSchema,
+} from '../../shared/schemas/quick-create';
 import {
   templateBaseKindSchema,
   templateBodySchema,
@@ -257,6 +263,31 @@ export const templateRoutes = new Hono<AppBindings>()
         await purgeAllPublicationCaches(c.env);
         return json(result, { status: 201 });
       }
+      return json(result);
+    },
+  )
+  .get('/api/templates/:id/simple', requireAuth, async (c) => {
+    const ruleToken = c.get('authType') === 'apiKey' ? undefined : c.env.RULE_TOKEN;
+    return json(
+      await getSimpleTemplateView(c.env, c.req.param('id'), {
+        baseUrl: externalBaseUrl(c),
+        ruleToken,
+      }),
+    );
+  })
+  .patch(
+    '/api/templates/:id/simple',
+    requireAuth,
+    rejectTelegramWrite,
+    validate('json', simpleTemplatePatchSchema),
+    async (c) => {
+      const templateId = c.req.param('id');
+      const ruleToken = c.get('authType') === 'apiKey' ? undefined : c.env.RULE_TOKEN;
+      const result = await patchSimpleTemplateView(c.env, templateId, c.req.valid('json'), {
+        baseUrl: externalBaseUrl(c),
+        ruleToken,
+      });
+      await purgePublicationCacheForTemplate(c.env, templateId);
       return json(result);
     },
   )

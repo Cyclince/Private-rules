@@ -2,7 +2,7 @@ import { queryOptions, type QueryClient } from '@tanstack/react-query';
 import type { ListCardsResult } from '../../application/cards';
 import type { CatalogItem, CatalogItemKind, ListCatalogResult } from '../../application/catalog';
 import type { ListPublicationsResult } from '../../application/publications';
-import type { ListTemplatesResult } from '../../application/templates';
+import type { ListTemplatesResult, SimpleTemplateView } from '../../application/templates';
 import type { TemplateVersionRecord, TemplateVersionSummary } from '../../data/repositories';
 import type { PublicationWithLinks } from '../../server/routes/publications';
 import type { AppCard, CardOrigin, CatalogCategory, Stage } from '../../shared/schemas/card';
@@ -147,6 +147,7 @@ export const queryKeys = {
     all: ['templates'] as const,
     list: (filter?: TemplatesFilter) => [...queryKeys.templates.all, 'list', filter ?? {}] as const,
     detail: (id: string) => [...queryKeys.templates.all, 'detail', id] as const,
+    simple: (id: string) => [...queryKeys.templates.all, 'simple', id] as const,
     versions: (id: string) => [...queryKeys.templates.all, 'versions', id] as const,
     version: (id: string, version: number) => [...queryKeys.templates.all, 'versions', id, version] as const,
   },
@@ -330,6 +331,14 @@ export function templateDetailQueryOptions(id: string, client: ApiClient = api) 
   });
 }
 
+export function templateSimpleQueryOptions(id: string, client: ApiClient = api) {
+  return queryOptions({
+    queryKey: queryKeys.templates.simple(id),
+    queryFn: async () =>
+      readApiJson<SimpleTemplateView>(await client.api.templates[':id'].simple.$get({ param: { id } })),
+  });
+}
+
 export function templateVersionsQueryOptions(id: string, client: ApiClient = api) {
   return queryOptions({
     queryKey: queryKeys.templates.versions(id),
@@ -402,6 +411,7 @@ export function invalidateTemplates(queryClient: QueryClient, id?: string) {
     return Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.templates.all }),
       queryClient.invalidateQueries({ queryKey: queryKeys.templates.detail(id) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.templates.simple(id) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.templates.versions(id) }),
     ]);
   }
