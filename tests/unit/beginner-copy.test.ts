@@ -52,6 +52,7 @@ const NORMAL_PREFIXES = [
 // Explicit exceptions for advanced editing and original syntax / type-guide examples.
 // Scene-library files and advanced-only components are deliberately not in NORMAL_FILES.
 const ALLOWED_TECHNICAL_PREFIXES = [
+  'subscriptions.examplePolicyHint', // Localized guidance within the configuration example, not ordinary copy.
   'cards.', // Scene-library editor vocabulary.
   'catalog.', // Community scene/rule library examples.
   'templates.editor',
@@ -120,6 +121,8 @@ describe('F7 ordinary-page Chinese copy', () => {
       expect(violations([['wizard.step1Desc', term]])).toHaveLength(1);
     }
     expect(violations([['templateDetail.outputDesc', '发布到策略组']])).toHaveLength(1);
+    expect(violations([['subscriptions.exampleTitle', '策略组']])).toHaveLength(1);
+    expect(violations([['subscriptions.examplePolicyHint', '把 PROXY 换成策略组名称']])).toEqual([]);
     expect(violations([['templates.deleteConfirmBody', '发布配置']])).toHaveLength(1);
     expect(
       violations([

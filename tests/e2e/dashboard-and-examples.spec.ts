@@ -149,7 +149,7 @@ test('subscription examples match current private/public addresses, file behavio
     await expect(yamlCode).toContainText('behavior: domain');
     await expect(yamlCode).toContainText('format: yaml');
     await expect(yamlCode).toContainText(`/sub/e2e-rule-token/${category.slug}_Domain.yaml`);
-    await expect(yamlCode).toContainText('Custom Outbound');
+    await expect(yamlCode).toContainText('# 把 Custom Outbound 换成你客户端里实际的策略组名称');
     await page.getByTestId('subscription-example-copy-yaml').click();
     expect(await page.evaluate(() => (window as unknown as { copiedExample: string }).copiedExample)).toBe(
       await yamlCode.textContent(),
@@ -169,6 +169,10 @@ test('subscription examples match current private/public addresses, file behavio
     await page.getByTestId('subscription-example-json').locator('summary').click();
     const jsonCode = JSON.parse((await page.getByTestId('subscription-example-code-json').textContent())!);
     expect(jsonCode.route.rule_set[0].format).toBe('source');
+    expect(jsonCode.route.rule_set[0]).not.toHaveProperty('download_detour');
+    await expect(page.getByTestId('subscription-example-policy-hint-json')).toHaveText(
+      '把 Custom Outbound 换成你客户端里实际的策略组名称',
+    );
     expect(jsonCode.route.rules[0]).toMatchObject({ action: 'route', outbound: 'Custom Outbound' });
     await page.getByTestId('subscription-group-toggle-txt').click();
     await expect(page.getByTestId('subscription-example-txt')).toHaveCount(0);

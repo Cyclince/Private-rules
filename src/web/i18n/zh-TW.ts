@@ -103,6 +103,7 @@ export const zhTW: Messages = {
   'subscriptions.exampleTitle': '怎麼在客戶端裡引用？',
   'subscriptions.exampleHint': '選擇軟體與檔案格式，複製片段到自己的設定中，再把去向改成自己使用的名稱。',
   'subscriptions.exampleClient': '示例適用軟體或格式',
+  'subscriptions.examplePolicyHint': '把 {policy} 換成你客戶端裡實際的策略組名稱',
   'subscriptions.exampleCopy': '複製示例',
   'wizard.doneImportBtn': '一鍵匯入',
   'dashboard.subtitle': '檢視規則集、規則、上游來源統計與最近同步狀態',

@@ -18,12 +18,14 @@ export function SubscriptionExample({
   const { notify } = useToast();
   const [selectedId, setSelectedId] = useState('');
   const codeRef = useRef<HTMLElement | null>(null);
+  const policyHint = t('subscriptions.examplePolicyHint').replace('{policy}', policyName?.trim() || 'PROXY');
   const candidates = group.formats.flatMap((format) => {
     const example = buildSubscriptionExample({
       client: format.link.id,
       url: preferHttpsLink(format.link.recommendedUrl),
       name,
       policyName,
+      policyHint,
     });
     return example ? [{ format, example }] : [];
   });
@@ -79,6 +81,11 @@ export function SubscriptionExample({
             {t('subscriptions.exampleCopy')}
           </Button>
         </div>
+        {selected.example.language === 'json' ? (
+          <p data-testid="subscription-example-policy-hint-json" className="text-xs text-text-muted">
+            {policyHint}
+          </p>
+        ) : null}
         <pre className="max-w-full overflow-x-auto rounded-[var(--radius-sm)] bg-surface-muted p-3 text-xs text-text">
           <code ref={codeRef} data-testid={`subscription-example-code-${group.id}`}>
             {selected.example.code}

@@ -76,6 +76,7 @@ export const zhCNPages = {
   'subscriptions.exampleTitle': '怎么在客户端里引用？',
   'subscriptions.exampleHint': '选择软件与文件格式，复制片段到自己的配置中，再把去向改成自己使用的名称。',
   'subscriptions.exampleClient': '示例适用软件或格式',
+  'subscriptions.examplePolicyHint': '把 {policy} 换成你客户端里实际的策略组名称',
   'subscriptions.exampleCopy': '复制示例',
   'wizard.doneImportBtn': '一键导入',
   'dashboard.subtitle': '查看规则集、规则、上游来源统计与最近同步状态',

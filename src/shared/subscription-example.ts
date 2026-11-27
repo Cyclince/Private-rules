@@ -6,6 +6,8 @@ export type SubscriptionExampleInput = {
   url: string;
   name: string;
   policyName?: string;
+  /** Caller-localized guidance without the comment marker. */
+  policyHint: string;
 };
 
 /** Configuration fragments only: no requests, storage, or changes to subscription output. */
@@ -14,6 +16,7 @@ export function buildSubscriptionExample({
   url,
   name,
   policyName,
+  policyHint,
 }: SubscriptionExampleInput): SubscriptionExample | null {
   if (!url) return null;
   const policy = policyName?.trim() || 'PROXY';
@@ -21,7 +24,12 @@ export function buildSubscriptionExample({
   const tag = `rules-${name.trim().replace(/[^\p{L}\p{N}_-]+/gu, '-') || 'custom'}`;
   const clean = (value: string) => value.replace(/[\r\n,\u2028\u2029]/g, ' ');
   const quote = JSON.stringify;
-  const note = '# Replace the outbound/policy name with your own client group name.\n';
+  // Prefix each line, so translated text cannot introduce YAML/INI settings.
+  const note =
+    policyHint
+      .split(/[\r\n\u2028\u2029]+/)
+      .map((line) => `# ${line}`)
+      .join('\n') + '\n';
 
   if (
     ['yaml-classical', 'yaml-domain', 'yaml-ipcidr', 'mihomo', 'clash', 'openclash', 'clash-verge', 'stash'].includes(
@@ -43,9 +51,7 @@ export function buildSubscriptionExample({
         JSON.stringify(
           {
             route: {
-              rule_set: [
-                { type: 'remote', tag, format: 'source', url, download_detour: policy, update_interval: '1d' },
-              ],
+              rule_set: [{ type: 'remote', tag, format: 'source', url, update_interval: '1d' }],
               rules: [{ rule_set: [tag], action: 'route', outbound: policy }],
             },
           },

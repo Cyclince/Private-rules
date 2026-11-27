@@ -139,6 +139,7 @@ export const en: Messages = {
   'subscriptions.exampleHint':
     'Choose a client and format, copy the fragment into your configuration, and change the outbound name to your own.',
   'subscriptions.exampleClient': 'Example client or format',
+  'subscriptions.examplePolicyHint': 'Replace {policy} with the actual policy group name in your client.',
   'subscriptions.exampleCopy': 'Copy Example',
   'wizard.doneImportBtn': 'Import into Client',
   'dashboard.subtitle': 'Rule sets, rules, upstream sources, and recent sync health',
