@@ -20,7 +20,9 @@ function RootLayout() {
 
   return (
     <AppShell>
-      <Outlet />
+      <div key={pathname} className="motion-page">
+        <Outlet />
+      </div>
     </AppShell>
   );
 }

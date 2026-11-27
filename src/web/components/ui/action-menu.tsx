@@ -54,8 +54,9 @@ export function ActionMenu({ trigger, items, align = 'start', menuTestId, emptyC
       {open ? (
         <div
           role="menu"
+          data-state="open"
           data-testid={menuTestId}
-          className={`absolute top-full z-50 mt-1 min-w-[11rem] overflow-hidden rounded-[var(--radius-md)] border border-border bg-surface p-1 text-text shadow-md ${
+          className={`motion-popover absolute top-full z-50 mt-1 min-w-[11rem] overflow-hidden rounded-[var(--radius-md)] border border-border bg-surface p-1 text-text shadow-md ${
             align === 'end' ? 'right-0' : 'left-0'
           }`}
         >
@@ -72,7 +73,7 @@ export function ActionMenu({ trigger, items, align = 'start', menuTestId, emptyC
                     setOpen(false);
                     item.onSelect?.();
                   }}
-                  className={`flex w-full cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-2 text-left text-sm transition-colors hover:bg-surface-muted focus-visible:bg-surface-muted focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
+                  className={`flex w-full cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-2 text-left text-sm transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)] hover:bg-surface-muted focus-visible:bg-surface-muted focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
                     item.danger ? 'text-danger hover:bg-danger/10' : 'text-text'
                   }`}
                 >

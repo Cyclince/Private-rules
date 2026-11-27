@@ -7,6 +7,7 @@ import { manualRuleFormSchema, type ManualRuleFormValues } from '../../../shared
 import type { DomainRule, RuleConflict } from '../../../types/domain-rules';
 import { useI18n } from '../../i18n';
 import { Button } from '../ui/button';
+import { CollapsibleDetails } from '../ui/collapsible';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Switch } from '../ui/switch';
@@ -158,28 +159,36 @@ export function RuleFormDialog({
           </div>
 
           {showNoResolve ? (
-            <details className="rounded-[var(--radius-md)] border border-border bg-surface-muted/40">
-              <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-xs font-medium text-text-muted hover:text-text">
-                <span className="inline-flex items-center gap-1.5">
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                  <span>{t('ruleDetail.moreOptions')}</span>
-                </span>
-                <ChevronDown className="h-3.5 w-3.5" />
-              </summary>
-              <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="text-xs font-medium text-text">{t('rules.fieldNoResolve')}</div>
-                  <p className="text-[11px] text-text-muted">{t('ruleDetail.noResolveHint')}</p>
-                </div>
-                <Controller
-                  control={form.control}
-                  name="noResolve"
-                  render={({ field }) => (
-                    <Switch data-testid="rule-form-no-resolve" checked={field.value} onCheckedChange={field.onChange} />
-                  )}
-                />
+            <CollapsibleDetails
+              className="rounded-[var(--radius-md)] border border-border bg-surface-muted/40"
+              summaryClassName="px-3 py-2 text-xs font-medium text-text-muted transition-colors duration-[var(--motion-fast)] hover:text-text"
+              summary={(expanded) => (
+                <>
+                  <span className="inline-flex items-center gap-1.5">
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    <span>{t('ruleDetail.moreOptions')}</span>
+                  </span>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 transition-transform duration-[var(--motion-base)] ease-[var(--ease-out)] ${
+                      expanded ? 'rotate-180' : ''
+                    }`}
+                  />
+                </>
+              )}
+              contentClassName="flex items-center justify-between gap-2 border-t border-border px-3 py-2.5"
+            >
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-text">{t('rules.fieldNoResolve')}</div>
+                <p className="text-[11px] text-text-muted">{t('ruleDetail.noResolveHint')}</p>
               </div>
-            </details>
+              <Controller
+                control={form.control}
+                name="noResolve"
+                render={({ field }) => (
+                  <Switch data-testid="rule-form-no-resolve" checked={field.value} onCheckedChange={field.onChange} />
+                )}
+              />
+            </CollapsibleDetails>
           ) : null}
 
           {conflicts.length > 0 ? (

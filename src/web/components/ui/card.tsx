@@ -1,18 +1,21 @@
 import * as React from 'react';
 import { cn } from '../../lib/cn';
 
-export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        'rounded-[var(--radius-lg)] border border-border bg-surface text-text shadow-sm transition-shadow duration-150',
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
+export type CardProps = React.HTMLAttributes<HTMLDivElement> & {
+  interactive?: boolean;
+};
+
+export const Card = React.forwardRef<HTMLDivElement, CardProps>(({ className, interactive = false, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      'rounded-[var(--radius-lg)] border border-border bg-surface text-text shadow-sm transition-[box-shadow,border-color] duration-[var(--motion-base)] ease-[var(--ease-out)]',
+      interactive && 'motion-card cursor-pointer',
+      className,
+    )}
+    {...props}
+  />
+));
 Card.displayName = 'Card';
 
 export const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(

@@ -30,6 +30,7 @@ import {
 import { CategoryIcon } from '../components/subscriptions/CategoryIcon';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { CollapsibleDetails } from '../components/ui/collapsible';
 import { EmptyState } from '../components/ui/empty-state';
 import { Input } from '../components/ui/input';
 import { loadPageTranslations, useI18n, type MessageKey } from '../i18n';
@@ -152,63 +153,54 @@ function CategoryRuleFolder({
   const rows = searching ? (searchedRules ?? []) : loadedRules;
 
   return (
-    <details
+    <CollapsibleDetails
       open={effectiveOpen}
-      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
+      onOpenChange={setOpen}
       className="rounded-[var(--radius-md)] border border-border bg-surface"
-    >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-2.5 [&::-webkit-details-marker]:hidden">
-        <span className="flex min-w-0 items-center gap-2.5">
-          <CategoryIcon icon={category.icon} name={category.name} size={34} />
-          <strong className="truncate text-sm font-semibold text-text">{category.name}</strong>
-        </span>
-        <span className="flex shrink-0 items-center gap-1.5 text-xs text-text-muted">
-          <span>
-            {count.toLocaleString()} {t('rules.unitItems')}
+      summaryClassName="gap-3 px-3.5 py-2.5"
+      summary={(expanded) => (
+        <>
+          <span className="flex min-w-0 items-center gap-2.5">
+            <CategoryIcon icon={category.icon} name={category.name} size={34} />
+            <strong className="truncate text-sm font-semibold text-text">{category.name}</strong>
           </span>
-          <ChevronDown className={`h-4 w-4 transition-transform ${effectiveOpen ? 'rotate-180' : ''}`} />
-        </span>
-      </summary>
+          <span className="flex shrink-0 items-center gap-1.5 text-xs text-text-muted">
+            <span>
+              {count.toLocaleString()} {t('rules.unitItems')}
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 transition-transform duration-[var(--motion-base)] ease-[var(--ease-out)] ${
+                expanded ? 'rotate-180' : ''
+              }`}
+            />
+          </span>
+        </>
+      )}
+      contentClassName="flex flex-col divide-y divide-border/70 border-t border-border"
+    >
+      {loading && rows.length === 0 ? (
+        <div className="px-3.5 py-3 text-xs text-text-muted">{t('common.loading')}</div>
+      ) : rows.length === 0 ? (
+        <div className="px-3.5 py-3 text-xs text-text-muted">{t('ruleLibrary.emptyGroup')}</div>
+      ) : (
+        rows.map((rule) => {
+          const friendly = describeRuleFriendly(rule);
+          const friendlyType = formatFriendlyRuleType(friendly, t);
+          const friendlyInline = formatFriendlyRuleInline(friendly, t);
+          const subtitle =
+            groupId === 'manual'
+              ? `${friendlyType} · ${friendlyInline} · ${t('ruleLibrary.groupManualTitle')}${rule.note ? ` · ${rule.note}` : ''}`
+              : `${friendlyType} · ${friendlyInline}${rule.sourceName ? ` · ${rule.sourceName}` : ''}`;
 
-      <div className="flex flex-col divide-y divide-border/70 border-t border-border">
-        {loading && rows.length === 0 ? (
-          <div className="px-3.5 py-3 text-xs text-text-muted">{t('common.loading')}</div>
-        ) : rows.length === 0 ? (
-          <div className="px-3.5 py-3 text-xs text-text-muted">{t('ruleLibrary.emptyGroup')}</div>
-        ) : (
-          rows.map((rule) => {
-            const friendly = describeRuleFriendly(rule);
-            const friendlyType = formatFriendlyRuleType(friendly, t);
-            const friendlyInline = formatFriendlyRuleInline(friendly, t);
-            const subtitle =
-              groupId === 'manual'
-                ? `${friendlyType} · ${friendlyInline} · ${t('ruleLibrary.groupManualTitle')}${rule.note ? ` · ${rule.note}` : ''}`
-                : `${friendlyType} · ${friendlyInline}${rule.sourceName ? ` · ${rule.sourceName}` : ''}`;
-
-            if (groupId === 'manual') {
-              return (
-                <Link
-                  key={rule.id}
-                  to="/rules/$id"
-                  params={{ id: category.id }}
-                  title={formatRawRuleLine(rule)}
-                  className="flex items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-surface-muted/60"
-                >
-                  <span
-                    className={`h-2 w-2 shrink-0 rounded-full ${rule.enabled ? 'bg-success' : 'bg-border'}`}
-                    aria-hidden="true"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-text">{friendly.params.displayValue}</div>
-                    <div className="truncate text-xs text-text-muted">{subtitle}</div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" />
-                </Link>
-              );
-            }
-
+          if (groupId === 'manual') {
             return (
-              <div key={rule.id} title={formatRawRuleLine(rule)} className="flex items-center gap-3 px-3.5 py-2.5">
+              <Link
+                key={rule.id}
+                to="/rules/$id"
+                params={{ id: category.id }}
+                title={formatRawRuleLine(rule)}
+                className="flex items-center gap-3 px-3.5 py-2.5 transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)] hover:bg-surface-muted/60"
+              >
                 <span
                   className={`h-2 w-2 shrink-0 rounded-full ${rule.enabled ? 'bg-success' : 'bg-border'}`}
                   aria-hidden="true"
@@ -217,26 +209,40 @@ function CategoryRuleFolder({
                   <div className="truncate text-sm font-medium text-text">{friendly.params.displayValue}</div>
                   <div className="truncate text-xs text-text-muted">{subtitle}</div>
                 </div>
-              </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" />
+              </Link>
             );
-          })
-        )}
+          }
 
-        {!searching && hasMore && nextCursor ? (
-          <div className="p-2.5 text-center">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={loading}
-              onClick={() => void fetchPage(nextCursor)}
-            >
-              {loading ? t('common.loading') : t('ruleLibrary.loadMore')}
-            </Button>
-          </div>
-        ) : null}
-      </div>
-    </details>
+          return (
+            <div key={rule.id} title={formatRawRuleLine(rule)} className="flex items-center gap-3 px-3.5 py-2.5">
+              <span
+                className={`h-2 w-2 shrink-0 rounded-full ${rule.enabled ? 'bg-success' : 'bg-border'}`}
+                aria-hidden="true"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-text">{friendly.params.displayValue}</div>
+                <div className="truncate text-xs text-text-muted">{subtitle}</div>
+              </div>
+            </div>
+          );
+        })
+      )}
+
+      {!searching && hasMore && nextCursor ? (
+        <div className="p-2.5 text-center">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={loading}
+            onClick={() => void fetchPage(nextCursor)}
+          >
+            {loading ? t('common.loading') : t('ruleLibrary.loadMore')}
+          </Button>
+        </div>
+      ) : null}
+    </CollapsibleDetails>
   );
 }
 
@@ -518,7 +524,7 @@ function RulesIndexPage() {
                   data-testid={`rules-sort-${option.key}`}
                   aria-pressed={active}
                   onClick={() => handleSortClick(option.key)}
-                  className={`inline-flex cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  className={`motion-press inline-flex cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-medium ${
                     active ? 'bg-surface text-primary shadow-sm' : 'text-text-muted hover:text-text'
                   }`}
                 >
@@ -571,7 +577,7 @@ function RulesIndexPage() {
                   <div
                     key={category.id}
                     data-testid={`ruleset-row-${category.id}`}
-                    className="group flex items-center gap-2 rounded-[var(--radius-md)] border border-border bg-surface p-3.5 transition-all duration-150 hover:border-primary/50 hover:bg-surface-muted/40 hover:shadow-sm"
+                    className="motion-card group flex items-center gap-2 rounded-[var(--radius-md)] border border-border bg-surface p-3.5 hover:border-primary/50 hover:bg-surface-muted/40"
                   >
                     <Link
                       to="/rules/$id"
@@ -658,46 +664,51 @@ function RulesIndexPage() {
               .filter((entry) => entry.count > 0);
 
             return (
-              <details
+              <CollapsibleDetails
                 key={group.id}
                 open={isSearching ? group.count > 0 : undefined}
                 data-testid={`all-rules-group-${group.id}`}
                 className="rounded-[var(--radius-md)] border border-border bg-surface-muted/30"
-              >
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-surface text-text-muted">
-                      <GroupIcon className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-text">{group.title}</div>
-                      <div className="truncate text-xs text-text-muted">{group.description}</div>
+                summaryClassName="gap-3 px-4 py-3.5"
+                summary={(expanded) => (
+                  <>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-surface text-text-muted">
+                        <GroupIcon className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-text">{group.title}</div>
+                        <div className="truncate text-xs text-text-muted">{group.description}</div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2 text-xs text-text-muted">
-                    <span className="font-semibold tabular-nums text-text">{group.count.toLocaleString()}</span>
-                    <span>{t('rules.unitItems')}</span>
-                    <ChevronDown className="h-4 w-4" />
-                  </div>
-                </summary>
-
-                <div className="flex flex-col gap-2.5 border-t border-border p-3">
-                  {categoryEntries.length === 0 ? (
-                    <p className="py-2 text-center text-xs text-text-muted">{t('ruleLibrary.emptyGroup')}</p>
-                  ) : (
-                    categoryEntries.map((entry) => (
-                      <CategoryRuleFolder
-                        key={entry.category.id}
-                        category={entry.category}
-                        count={entry.count}
-                        groupId={group.id}
-                        searchedRules={entry.matched}
-                        searching={isSearching}
+                    <div className="flex shrink-0 items-center gap-2 text-xs text-text-muted">
+                      <span className="font-semibold tabular-nums text-text">{group.count.toLocaleString()}</span>
+                      <span>{t('rules.unitItems')}</span>
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform duration-[var(--motion-base)] ease-[var(--ease-out)] ${
+                          expanded ? 'rotate-180' : ''
+                        }`}
                       />
-                    ))
-                  )}
-                </div>
-              </details>
+                    </div>
+                  </>
+                )}
+                contentClassName="flex flex-col gap-2.5 border-t border-border p-3"
+              >
+                {categoryEntries.length === 0 ? (
+                  <p className="py-2 text-center text-xs text-text-muted">{t('ruleLibrary.emptyGroup')}</p>
+                ) : (
+                  categoryEntries.map((entry) => (
+                    <CategoryRuleFolder
+                      key={entry.category.id}
+                      category={entry.category}
+                      count={entry.count}
+                      groupId={group.id}
+                      searchedRules={entry.matched}
+                      searching={isSearching}
+                    />
+                  ))
+                )}
+              </CollapsibleDetails>
             );
           })}
         </CardContent>

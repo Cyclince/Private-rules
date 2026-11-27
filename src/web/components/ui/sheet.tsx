@@ -15,14 +15,14 @@ export const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn('fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px]', className)}
+    className={cn('motion-overlay fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px]', className)}
     {...props}
   />
 ));
 SheetOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  'fixed z-50 flex flex-col gap-4 border-border bg-surface p-6 text-text shadow-lg transition-transform duration-200 focus:outline-none',
+  'motion-sheet fixed z-50 flex flex-col gap-4 border-border bg-surface p-6 text-text shadow-lg focus:outline-none',
   {
     variants: {
       side: {
@@ -45,11 +45,16 @@ export const SheetContent = React.forwardRef<React.ComponentRef<typeof DialogPri
   ({ side = 'right', className, children, ...props }, ref) => (
     <SheetPortal>
       <SheetOverlay />
-      <DialogPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
+      <DialogPrimitive.Content
+        ref={ref}
+        data-side={side ?? 'right'}
+        className={cn(sheetVariants({ side }), className)}
+        {...props}
+      >
         {children}
         <DialogPrimitive.Close
           aria-label="Close"
-          className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] text-text-muted transition-colors hover:bg-surface-muted hover:text-text focus-visible:outline-2 focus-visible:outline-primary cursor-pointer"
+          className="motion-press absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] text-text-muted hover:bg-surface-muted hover:text-text focus-visible:outline-2 focus-visible:outline-primary cursor-pointer"
         >
           <X className="h-4 w-4" />
         </DialogPrimitive.Close>

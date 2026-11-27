@@ -4,6 +4,7 @@ import { Globe, Lock, ShieldAlert } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import aboutEmblemUrl from '../assets/miku-about-emblem.webp';
 import loginBgUrl from '../assets/miku-login-bg.webp';
+import { LOGIN_ARRIVAL_STORAGE_KEY } from '../components/layout/AppShell';
 import { loadPageTranslations, SUPPORTED_LOCALES, useI18n, type Locale } from '../i18n';
 import { api, ApiClientError, readApiJson } from '../lib/api';
 import { ensureAuthenticatedSession } from '../lib/auth-guard';
@@ -90,6 +91,7 @@ function LoginPage() {
 
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [lockSeconds, setLockSeconds] = useState<number>(() => readLockoutRemainingSeconds());
 
@@ -111,7 +113,7 @@ function LoginPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submitting || lockSeconds > 0) return;
+    if (submitting || leaving || lockSeconds > 0) return;
     setSubmitting(true);
     setErrorMessage('');
 
@@ -122,9 +124,23 @@ function LoginPage() {
       setLockSeconds(0);
       await invalidateAuth(queryClient);
       await queryClient.fetchQuery(authMeQueryOptions());
+      const reducedMotion =
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      try {
+        window.sessionStorage.setItem(LOGIN_ARRIVAL_STORAGE_KEY, '1');
+      } catch {
+        // Ignore storage errors.
+      }
+      if (!reducedMotion) {
+        setLeaving(true);
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 120));
+      }
       const target = search.redirect || '/';
       await navigate({ to: target as '/', replace: true });
     } catch (cause) {
+      setLeaving(false);
       if (cause instanceof ApiClientError) {
         if (cause.code === 'LOGIN_LOCKED') {
           writeLockoutUntil(Date.now() + LOCKOUT_DURATION_MS);
@@ -144,13 +160,16 @@ function LoginPage() {
   };
 
   return (
-    <div data-testid="login-page" className="relative flex min-h-screen w-full flex-col bg-bg text-text">
+    <div
+      data-testid="login-page"
+      className={`relative flex min-h-screen w-full flex-col bg-bg text-text ${leaving ? 'login-leaving' : ''}`}
+    >
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <img
           src={loginBgUrl}
           alt=""
           aria-hidden="true"
-          className="h-full w-full object-cover object-center opacity-20"
+          className="login-bg h-full w-full object-cover object-center opacity-20"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-bg/70 via-bg/85 to-bg" />
       </div>
@@ -161,7 +180,7 @@ function LoginPage() {
           onClick={cycleLocale}
           aria-label={t('lang.label')}
           data-testid="locale-toggle"
-          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-surface/85 px-2.5 text-xs font-medium text-text transition-colors duration-150 hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-primary"
+          className="motion-press inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-surface/85 px-2.5 text-xs font-medium text-text hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-primary"
         >
           <Globe className="h-3.5 w-3.5" />
           <span>{t(`lang.${locale}`)}</span>
@@ -169,7 +188,7 @@ function LoginPage() {
       </header>
 
       <main className="relative z-10 flex flex-1 items-center justify-center px-4 pb-12">
-        <section className="w-full max-w-md rounded-[var(--radius-xl)] border border-border bg-surface/95 p-6 shadow-lg sm:p-8">
+        <section className="login-card motion-page w-full max-w-md rounded-[var(--radius-xl)] border border-border bg-surface/95 p-6 shadow-lg sm:p-8">
           <div className="mb-6 flex flex-col items-center text-center">
             <img
               src={aboutEmblemUrl}
@@ -226,8 +245,8 @@ function LoginPage() {
             <button
               type="submit"
               data-testid="login-submit"
-              disabled={submitting || lockSeconds > 0}
-              className="inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-[var(--radius-md)] bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-[opacity,box-shadow] duration-150 hover:opacity-95 hover:shadow-glow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={submitting || leaving || lockSeconds > 0}
+              className="motion-btn motion-btn-lift inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-[var(--radius-md)] bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-95 hover:shadow-glow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? t('auth.loggingIn') : t('auth.loginButton')}
             </button>

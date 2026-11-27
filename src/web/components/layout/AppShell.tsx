@@ -1,13 +1,42 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { BottomNav } from './BottomNav';
 import { DesktopSidebar, TabletSidebarDrawer } from './Sidebar';
 import { Topbar } from './Topbar';
 
+export const LOGIN_ARRIVAL_STORAGE_KEY = 'private-rules-login-arrival';
+
+function consumeLoginArrivalFlag(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const flag = window.sessionStorage.getItem(LOGIN_ARRIVAL_STORAGE_KEY);
+    if (!flag) return false;
+    window.sessionStorage.removeItem(LOGIN_ARRIVAL_STORAGE_KEY);
+    if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const [tabletOpen, setTabletOpen] = useState(false);
+  const [loginArrival, setLoginArrival] = useState(() => consumeLoginArrivalFlag());
+
+  useEffect(() => {
+    if (!loginArrival) return;
+    const timer = window.setTimeout(() => {
+      setLoginArrival(false);
+    }, 260);
+    return () => window.clearTimeout(timer);
+  }, [loginArrival]);
 
   return (
-    <div data-testid="app-shell" className="flex min-h-screen w-full bg-bg text-text">
+    <div
+      data-testid="app-shell"
+      className={`flex min-h-screen w-full bg-bg text-text ${loginArrival ? 'login-arrival' : ''}`}
+    >
       <DesktopSidebar />
       <TabletSidebarDrawer open={tabletOpen} onClose={() => setTabletOpen(false)} />
 
@@ -15,7 +44,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Topbar onOpenTabletSidebar={() => setTabletOpen(true)} />
         <main
           data-testid="app-main"
-          className="mx-auto w-full max-w-6xl min-w-0 flex-1 overflow-x-clip px-4 py-5 pb-24 sm:px-6 md:pb-8"
+          className="shell-main mx-auto w-full max-w-6xl min-w-0 flex-1 overflow-x-clip px-4 py-5 pb-24 sm:px-6 md:pb-8"
         >
           {children}
         </main>

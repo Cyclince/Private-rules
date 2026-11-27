@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { ArrowUpRight, X } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import aboutEmblemUrl from '../../assets/miku-about-emblem.webp';
 import { useI18n } from '../../i18n';
 import { SIDEBAR_NAV_SECTIONS } from './nav-items';
@@ -52,7 +52,7 @@ function SidebarNavLinks({ onNavigate }: { onNavigate?: () => void }) {
                 to={item.to}
                 activeOptions={{ exact: item.to === '/' }}
                 onClick={onNavigate}
-                className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm font-medium text-text-muted transition-colors duration-150 hover:bg-surface-muted hover:text-text"
+                className="motion-press flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm font-medium text-text-muted hover:bg-surface-muted hover:text-text"
                 activeProps={{
                   className: 'bg-surface-muted text-primary shadow-sm',
                 }}
@@ -74,7 +74,7 @@ function SidebarFooter() {
     <div className="border-t border-border p-3">
       <a
         href="/pwa-install"
-        className="flex items-center justify-between rounded-[var(--radius-md)] px-3 py-2 text-xs font-medium text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
+        className="motion-press flex items-center justify-between rounded-[var(--radius-md)] px-3 py-2 text-xs font-medium text-text-muted hover:bg-surface-muted hover:text-text"
       >
         <span>{locale === 'en' ? 'Install PWA App' : '安装 PWA 应用'}</span>
         <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
@@ -87,7 +87,7 @@ export function DesktopSidebar() {
   return (
     <aside
       data-testid="desktop-sidebar"
-      className="hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-surface lg:sticky lg:top-0 lg:flex"
+      className="shell-sidebar hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-surface lg:sticky lg:top-0 lg:flex"
     >
       <SidebarBrand />
       <div className="mx-4 h-px bg-border" />
@@ -99,6 +99,24 @@ export function DesktopSidebar() {
 
 export function TabletSidebarDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useI18n();
+  const [rendered, setRendered] = useState(open);
+
+  useEffect(() => {
+    if (open) {
+      setRendered(true);
+      return;
+    }
+    const reduced =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+      setRendered(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setRendered(false), 120);
+    return () => window.clearTimeout(timer);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -109,7 +127,9 @@ export function TabletSidebarDrawer({ open, onClose }: { open: boolean; onClose:
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!rendered) return null;
+
+  const state = open ? 'open' : 'closed';
 
   return (
     <div
@@ -122,11 +142,14 @@ export function TabletSidebarDrawer({ open, onClose }: { open: boolean; onClose:
         type="button"
         aria-label={t('layout.closeMenu')}
         onClick={onClose}
-        className="fixed inset-0 bg-black/55 backdrop-blur-[1px]"
+        data-state={state}
+        className="motion-overlay fixed inset-0 bg-black/55 backdrop-blur-[1px]"
       />
       <aside
         data-testid="tablet-sidebar-drawer"
-        className="relative z-10 flex h-full w-64 max-w-[80vw] flex-col border-r border-border bg-surface shadow-lg"
+        data-side="left"
+        data-state={state}
+        className="motion-sheet relative z-10 flex h-full w-64 max-w-[80vw] flex-col border-r border-border bg-surface shadow-lg"
       >
         <div className="flex items-center justify-between pr-2">
           <SidebarBrand />
@@ -134,7 +157,7 @@ export function TabletSidebarDrawer({ open, onClose }: { open: boolean; onClose:
             type="button"
             onClick={onClose}
             aria-label={t('layout.closeMenu')}
-            className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-[var(--radius-md)] text-text-muted transition-colors hover:bg-surface-muted hover:text-text focus-visible:outline-2 focus-visible:outline-primary"
+            className="motion-press inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-[var(--radius-md)] text-text-muted hover:bg-surface-muted hover:text-text focus-visible:outline-2 focus-visible:outline-primary"
           >
             <X className="h-4 w-4" />
           </button>

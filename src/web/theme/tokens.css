@@ -42,6 +42,13 @@
   /* Typography */
   --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif;
   --font-mono: ui-monospace, 'SFMono-Regular', 'JetBrains Mono', Menlo, Monaco, Consolas, monospace;
+
+  /* Motion */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 320ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
 }
 
 [data-theme='light'] {
@@ -142,18 +149,368 @@ html.theme-transition section,
 html.theme-transition button,
 html.theme-transition input {
   transition-property: background-color, color, border-color, opacity;
-  transition-duration: 200ms;
-  transition-timing-function: ease;
+  transition-duration: var(--motion-base);
+  transition-timing-function: var(--ease-out);
+}
+
+/* Unified motion keyframes (transform & opacity only, zero blur, zero layout) */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes scale-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+}
+
+@keyframes slide-up-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-up-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes sheet-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes login-card-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+}
+
+@keyframes login-bg-out {
+  from {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes shell-side-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shell-main-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes row-state-pulse {
+  0% {
+    transform: scale(0.992);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@layer components {
+  .motion-press {
+    transition-property: transform, background-color, color, border-color, box-shadow, opacity;
+    transition-duration: var(--motion-base);
+    transition-timing-function: var(--ease-out);
+  }
+
+  .motion-press:active:not(:disabled):not([aria-disabled='true']) {
+    transform: scale(0.97);
+    transition-duration: var(--motion-fast);
+  }
+
+  .motion-press:disabled,
+  .motion-press[aria-disabled='true'] {
+    transform: none;
+  }
+
+  .motion-btn {
+    transition-property: transform, background-color, color, border-color, box-shadow, opacity;
+    transition-duration: var(--motion-base);
+    transition-timing-function: var(--ease-out);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .motion-btn-lift:hover:not(:disabled):not([aria-disabled='true']) {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+  }
+
+  .motion-btn:active:not(:disabled):not([aria-disabled='true']) {
+    transform: scale(0.97);
+    transition-duration: var(--motion-fast);
+  }
+
+  .motion-btn:disabled,
+  .motion-btn[aria-disabled='true'] {
+    transform: none;
+  }
+
+  .motion-card {
+    transition-property: transform, box-shadow, border-color, background-color;
+    transition-duration: var(--motion-base);
+    transition-timing-function: var(--ease-out);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .motion-card:hover:not([aria-disabled='true']) {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+  }
+
+  .motion-card:active:not([aria-disabled='true']) {
+    transform: scale(0.97);
+    transition-duration: var(--motion-fast);
+  }
+
+  .motion-overlay[data-state='open'] {
+    animation: fade-in var(--motion-base) var(--ease-out) both;
+  }
+
+  .motion-overlay[data-state='closed'] {
+    animation: fade-out var(--motion-fast) var(--ease-in) both;
+  }
+
+  .motion-dialog[data-state='open'] {
+    animation: scale-in var(--motion-base) var(--ease-out) both;
+  }
+
+  .motion-dialog[data-state='closed'] {
+    animation: scale-out var(--motion-fast) var(--ease-in) both;
+  }
+
+  .motion-sheet[data-side='right'] {
+    transform-origin: right center;
+  }
+
+  .motion-sheet[data-side='left'] {
+    transform-origin: left center;
+  }
+
+  .motion-sheet[data-side='bottom'] {
+    transform-origin: bottom center;
+  }
+
+  .motion-sheet[data-side='top'] {
+    transform-origin: top center;
+  }
+
+  .motion-sheet[data-state='open'] {
+    animation: sheet-in var(--motion-base) var(--ease-out) both;
+  }
+
+  .motion-sheet[data-state='closed'] {
+    animation: sheet-out var(--motion-fast) var(--ease-in) both;
+  }
+
+  .motion-popover[data-state='open'],
+  .motion-popover[data-state='delayed-open'],
+  .motion-popover[data-state='instant-open'] {
+    animation: scale-in var(--motion-base) var(--ease-out) both;
+  }
+
+  .motion-popover[data-state='closed'] {
+    animation: scale-out var(--motion-fast) var(--ease-in) both;
+  }
+
+  .motion-toast[data-state='open'] {
+    animation: slide-up-in var(--motion-base) var(--ease-out) both;
+  }
+
+  .motion-toast[data-state='closed'] {
+    animation: slide-up-out var(--motion-fast) var(--ease-in) both;
+  }
+
+  .motion-batch-bar[data-state='open'] {
+    animation: slide-up-in var(--motion-base) var(--ease-out) both;
+  }
+
+  .motion-batch-bar[data-state='closed'] {
+    animation: slide-up-out var(--motion-fast) var(--ease-in) both;
+  }
+
+  .motion-collapsible {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition-property: grid-template-rows, opacity;
+    transition-duration: var(--motion-base);
+    transition-timing-function: var(--ease-out);
+  }
+
+  .motion-collapsible[data-open='true'] {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+
+  .motion-collapsible > .motion-collapsible-inner {
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .motion-list-row {
+    transition-property: opacity, transform, background-color, border-color;
+    transition-duration: var(--motion-base);
+    transition-timing-function: var(--ease-out);
+  }
+
+  .motion-row-enter {
+    animation: slide-up-in var(--motion-base) var(--ease-out) both;
+  }
+
+  .motion-row-exit {
+    animation: fade-out var(--motion-fast) var(--ease-in) both;
+    transform: translateX(8px);
+  }
+
+  .motion-row-pulse {
+    animation: row-state-pulse var(--motion-base) var(--ease-out);
+  }
+
+  .motion-checkbox-in {
+    animation: scale-in var(--motion-fast) var(--ease-out) both;
+  }
+
+  .motion-page {
+    animation: fade-in var(--motion-base) var(--ease-out) both;
+  }
+}
+
+[data-testid='toast-viewport'] > [role='status'],
+[data-testid='toast-viewport'] > [role='alert'] {
+  animation: slide-up-in var(--motion-base) var(--ease-out) both;
+}
+
+.login-leaving .login-card {
+  animation: login-card-out var(--motion-fast) var(--ease-in) both;
+  pointer-events: none;
+}
+
+.login-leaving .login-bg {
+  animation: login-bg-out var(--motion-fast) var(--ease-in) both;
+}
+
+.login-arrival .shell-sidebar {
+  animation: shell-side-in var(--motion-base) var(--ease-out) both;
+}
+
+.login-arrival .shell-main {
+  animation: shell-main-in var(--motion-base) var(--ease-out) 40ms both;
+}
+
+.login-arrival .shell-bottom-nav {
+  animation: slide-up-in var(--motion-base) var(--ease-out) 40ms both;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0.01ms;
+    --motion-base: 0.01ms;
+    --motion-slow: 0.01ms;
+  }
+
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
-    transition-property: opacity !important;
-    transition-duration: 150ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
     scroll-behavior: auto !important;
+  }
+
+  .motion-btn:hover,
+  .motion-btn:active,
+  .motion-card:hover,
+  .motion-card:active,
+  .motion-press:active {
+    transform: none !important;
   }
 }

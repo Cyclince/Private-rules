@@ -7,7 +7,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
   Code2,
   Copy,
   Link2,
@@ -50,6 +49,7 @@ import { CategoryIcon } from '../components/subscriptions/CategoryIcon';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { CollapsibleDetails, CollapsiblePanel } from '../components/ui/collapsible';
 import { EmptyState } from '../components/ui/empty-state';
 import { Input } from '../components/ui/input';
 import { Switch } from '../components/ui/switch';
@@ -166,7 +166,8 @@ function RuleRowMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 top-full z-20 mt-1 flex w-56 flex-col rounded-[var(--radius-md)] border border-border bg-surface p-1 shadow-lg"
+          data-state="open"
+          className="motion-popover absolute right-0 top-full z-20 mt-1 flex w-56 flex-col rounded-[var(--radius-md)] border border-border bg-surface p-1 shadow-lg"
         >
           <button
             type="button"
@@ -177,7 +178,7 @@ function RuleRowMenu({
               setOpen(false);
               onEdit();
             }}
-            className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-xs text-text transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-xs text-text transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)] hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Pencil className="h-3.5 w-3.5 text-text-muted" />
             <span>{t('common.edit')}</span>
@@ -190,7 +191,7 @@ function RuleRowMenu({
               setOpen(false);
               onCopy();
             }}
-            className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-xs text-text transition-colors hover:bg-surface-muted"
+            className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-xs text-text transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)] hover:bg-surface-muted"
           >
             <Copy className="h-3.5 w-3.5 text-text-muted" />
             <span>{t('ruleDetail.copyValue')}</span>
@@ -204,7 +205,7 @@ function RuleRowMenu({
               setOpen(false);
               onToggleRaw();
             }}
-            className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-xs text-text transition-colors hover:bg-surface-muted"
+            className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-xs text-text transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)] hover:bg-surface-muted"
           >
             <Code2 className="h-3.5 w-3.5 text-text-muted" />
             <span>{rawExpanded ? t('ruleDetail.hideRaw') : t('ruleDetail.viewRaw')}</span>
@@ -221,7 +222,7 @@ function RuleRowMenu({
               setOpen(false);
               onDelete();
             }}
-            className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-xs text-danger transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-xs text-danger transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)] hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Trash2 className="h-3.5 w-3.5" />
             <span>{t('common.delete')}</span>
@@ -263,6 +264,7 @@ function RuleDetailPage() {
 
   // Upstream mirror collapsible state
   const [mirrorOpen, setMirrorOpen] = useState(false);
+  const [mirrorMounted, setMirrorMounted] = useState(false);
   const [mirrorCursorStack, setMirrorCursorStack] = useState<Array<string | undefined>>([undefined]);
   const mirrorCursor = mirrorCursorStack[mirrorCursorStack.length - 1];
   const mirrorRulesQuery = useQuery({
@@ -277,8 +279,26 @@ function RuleDetailPage() {
 
   useEffect(() => {
     setMirrorOpen(false);
+    setMirrorMounted(false);
     setMirrorCursorStack([undefined]);
   }, [id]);
+
+  useEffect(() => {
+    if (mirrorOpen) {
+      setMirrorMounted(true);
+      return;
+    }
+    const reduced =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+      setMirrorMounted(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setMirrorMounted(false), 200);
+    return () => window.clearTimeout(timer);
+  }, [mirrorOpen]);
 
   // Custom rules search + pagination + batch mode
   const [ruleSearchInput, setRuleSearchInput] = useState(rq);
@@ -300,12 +320,37 @@ function RuleDetailPage() {
 
   const [cursorStack, setCursorStack] = useState<Array<string | undefined>>([undefined]);
   const [manageMode, setManageMode] = useState(false);
+  const [batchBarMounted, setBatchBarMounted] = useState(false);
   const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>([]);
   const [rawExpandedIds, setRawExpandedIds] = useState<Record<string, boolean>>({});
+  const [enteringRuleIds, setEnteringRuleIds] = useState<Record<string, boolean>>({});
+  const [exitingRuleIds, setExitingRuleIds] = useState<Record<string, boolean>>({});
+  const [toggledRuleIds, setToggledRuleIds] = useState<Record<string, boolean>>({});
+  const seenRuleIdsRef = useRef<Set<string>>(new Set());
+  const highlightNewRowsRef = useRef(false);
+
+  useEffect(() => {
+    if (manageMode) {
+      setBatchBarMounted(true);
+      return;
+    }
+    const reduced =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+      setBatchBarMounted(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setBatchBarMounted(false), 120);
+    return () => window.clearTimeout(timer);
+  }, [manageMode]);
 
   useEffect(() => {
     setCursorStack([undefined]);
     setSelectedRuleIds([]);
+    seenRuleIdsRef.current = new Set();
+    highlightNewRowsRef.current = false;
   }, [id, rq]);
 
   const currentCursor = cursorStack[cursorStack.length - 1];
@@ -331,6 +376,41 @@ function RuleDetailPage() {
   const totalCustomRules = rulesQuery.data?.total ?? category?.manualRuleCount ?? 0;
   const hasMore = rulesQuery.data?.hasMore ?? false;
   const nextCursor = rulesQuery.data?.nextCursor ?? null;
+
+  useEffect(() => {
+    const currentIds = rules.map((item) => item.id);
+    if (highlightNewRowsRef.current && seenRuleIdsRef.current.size >= 0) {
+      const added = currentIds.filter((ruleId) => !seenRuleIdsRef.current.has(ruleId));
+      if (added.length > 0) {
+        highlightNewRowsRef.current = false;
+        const nextMap: Record<string, boolean> = {};
+        for (const ruleId of added) nextMap[ruleId] = true;
+        setEnteringRuleIds(nextMap);
+        const timer = window.setTimeout(() => {
+          setEnteringRuleIds({});
+        }, 220);
+        seenRuleIdsRef.current = new Set(currentIds);
+        return () => window.clearTimeout(timer);
+      }
+    }
+    seenRuleIdsRef.current = new Set(currentIds);
+  }, [rules]);
+
+  const pulseRuleRows = (ruleIds: string[]) => {
+    if (ruleIds.length === 0) return;
+    setToggledRuleIds((prev) => {
+      const next = { ...prev };
+      for (const ruleId of ruleIds) next[ruleId] = true;
+      return next;
+    });
+    window.setTimeout(() => {
+      setToggledRuleIds((prev) => {
+        const next = { ...prev };
+        for (const ruleId of ruleIds) delete next[ruleId];
+        return next;
+      });
+    }, 220);
+  };
 
   // Single add inline form state
   const [singleValue, setSingleValue] = useState('');
@@ -594,6 +674,7 @@ function RuleDetailPage() {
       setSingleNoResolveTouched(false);
       setSingleConflicts([]);
       setSingleValueError('');
+      highlightNewRowsRef.current = true;
       await invalidateRulesets(queryClient, id);
       notify({ title: t('rules.created'), variant: 'success' });
     },
@@ -647,6 +728,7 @@ function RuleDetailPage() {
         }),
       ),
     onMutate: async ({ ruleId, enabled }) => {
+      pulseRuleRows([ruleId]);
       const key = queryKeys.rulesets.rules(id, rulesFilter);
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<RulesPagePayload>(key);
@@ -676,6 +758,9 @@ function RuleDetailPage() {
           param: { id, ruleId },
         }),
       ),
+    onMutate: (ruleId) => {
+      setExitingRuleIds((prev) => ({ ...prev, [ruleId]: true }));
+    },
     onSuccess: async () => {
       setDeleteRuleTarget(null);
       await invalidateRulesets(queryClient, id);
@@ -683,6 +768,13 @@ function RuleDetailPage() {
     },
     onError: (error) => {
       notify({ title: formatApiError(error, locale), variant: 'danger' });
+    },
+    onSettled: (_data, _error, ruleId) => {
+      setExitingRuleIds((prev) => {
+        const next = { ...prev };
+        delete next[ruleId];
+        return next;
+      });
     },
   });
 
@@ -694,6 +786,17 @@ function RuleDetailPage() {
           json: args,
         }),
       ),
+    onMutate: (variables) => {
+      if (variables.action === 'delete') {
+        setExitingRuleIds((prev) => {
+          const next = { ...prev };
+          for (const ruleId of variables.ruleIds) next[ruleId] = true;
+          return next;
+        });
+      } else {
+        pulseRuleRows(variables.ruleIds);
+      }
+    },
     onSuccess: async (_data, variables) => {
       setSelectedRuleIds([]);
       setBatchDeleteOpen(false);
@@ -710,6 +813,15 @@ function RuleDetailPage() {
     },
     onError: (error) => {
       notify({ title: formatApiError(error, locale), variant: 'danger' });
+    },
+    onSettled: (_data, _error, variables) => {
+      if (variables.action === 'delete') {
+        setExitingRuleIds((prev) => {
+          const next = { ...prev };
+          for (const ruleId of variables.ruleIds) delete next[ruleId];
+          return next;
+        });
+      }
     },
   });
 
@@ -748,6 +860,7 @@ function RuleDetailPage() {
           json: { text: bulkText, confirm: true, replaceConflicts: bulkReplaceConflicts },
         }),
       );
+      highlightNewRowsRef.current = true;
       await invalidateRulesets(queryClient, id);
       setBulkResult({
         importedCount: payload.preview.rules.length,
@@ -1113,9 +1226,10 @@ function RuleDetailPage() {
             <div className="rounded-[var(--radius-md)] border border-border bg-surface">
               <button
                 type="button"
+                aria-expanded={mirrorOpen}
                 data-testid="upstream-mirror-rules-toggle"
                 onClick={() => setMirrorOpen((prev) => !prev)}
-                className="flex w-full cursor-pointer items-center justify-between gap-2 px-3.5 py-2.5 text-left text-xs font-medium text-text transition-colors hover:bg-surface-muted/60"
+                className="flex w-full cursor-pointer items-center justify-between gap-2 px-3.5 py-2.5 text-left text-xs font-medium text-text transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)] hover:bg-surface-muted/60"
               >
                 <span className="flex items-center gap-2">
                   <span>{t('ruleDetail.mirrorRulesTitle')}</span>
@@ -1128,71 +1242,79 @@ function RuleDetailPage() {
                 </span>
                 <span className="inline-flex items-center gap-1 text-text-muted">
                   <span>{mirrorOpen ? t('ruleDetail.collapseView') : t('ruleDetail.expandView')}</span>
-                  {mirrorOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 transition-transform duration-[var(--motion-base)] ease-[var(--ease-out)] ${
+                      mirrorOpen ? 'rotate-180' : ''
+                    }`}
+                  />
                 </span>
               </button>
 
-              {mirrorOpen ? (
-                <div className="border-t border-border p-3" data-testid="upstream-mirror-rules-list">
-                  {mirrorRulesQuery.isLoading ? (
-                    <div className="flex flex-col gap-1.5">
-                      <div className="h-10 animate-pulse rounded bg-surface-muted" />
-                      <div className="h-10 animate-pulse rounded bg-surface-muted" />
-                    </div>
-                  ) : mirrorRules.length === 0 ? (
-                    <p className="py-2 text-center text-xs text-text-muted">{t('ruleDetail.mirrorEmpty')}</p>
-                  ) : (
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex max-h-80 flex-col divide-y divide-border overflow-y-auto rounded-[var(--radius-sm)] border border-border">
-                        {mirrorRules.map((rule) => {
-                          const descriptor = describeRuleFriendly(rule);
-                          const typeLabel = formatFriendlyRuleType(descriptor, t);
-                          const inlineDesc = formatFriendlyRuleInline(descriptor, t);
-                          const rawLine = formatRawRuleLine(rule);
-                          return (
-                            <div key={rule.id} title={rawLine} className="flex flex-col gap-0.5 px-3 py-2 text-xs">
-                              <div className="break-all font-mono font-medium text-text">
-                                {descriptor.params.displayValue}
-                              </div>
-                              <div className="text-[11px] text-text-muted">
-                                {typeLabel} · {inlineDesc}
-                                {rule.sourceName ? ` · ${rule.sourceName}` : ''}
-                              </div>
-                            </div>
-                          );
-                        })}
+              <CollapsiblePanel open={mirrorOpen}>
+                {mirrorMounted ? (
+                  <div className="border-t border-border p-3" data-testid="upstream-mirror-rules-list">
+                    {mirrorRulesQuery.isLoading ? (
+                      <div className="flex flex-col gap-1.5">
+                        <div className="h-10 animate-pulse rounded bg-surface-muted" />
+                        <div className="h-10 animate-pulse rounded bg-surface-muted" />
                       </div>
-
-                      {mirrorCursorStack.length > 1 || mirrorHasMore ? (
-                        <div className="flex items-center justify-end gap-1.5 pt-1">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={mirrorCursorStack.length <= 1 || mirrorRulesQuery.isFetching}
-                            onClick={() => setMirrorCursorStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev))}
-                          >
-                            <ChevronLeft className="h-3.5 w-3.5" />
-                            <span>{t('rules.prevPage')}</span>
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={!mirrorHasMore || !mirrorNextCursor || mirrorRulesQuery.isFetching}
-                            onClick={() => {
-                              if (mirrorNextCursor) setMirrorCursorStack((prev) => [...prev, mirrorNextCursor]);
-                            }}
-                          >
-                            <span>{t('rules.nextPage')}</span>
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </Button>
+                    ) : mirrorRules.length === 0 ? (
+                      <p className="py-2 text-center text-xs text-text-muted">{t('ruleDetail.mirrorEmpty')}</p>
+                    ) : (
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex max-h-80 flex-col divide-y divide-border overflow-y-auto rounded-[var(--radius-sm)] border border-border">
+                          {mirrorRules.map((rule) => {
+                            const descriptor = describeRuleFriendly(rule);
+                            const typeLabel = formatFriendlyRuleType(descriptor, t);
+                            const inlineDesc = formatFriendlyRuleInline(descriptor, t);
+                            const rawLine = formatRawRuleLine(rule);
+                            return (
+                              <div key={rule.id} title={rawLine} className="flex flex-col gap-0.5 px-3 py-2 text-xs">
+                                <div className="break-all font-mono font-medium text-text">
+                                  {descriptor.params.displayValue}
+                                </div>
+                                <div className="text-[11px] text-text-muted">
+                                  {typeLabel} · {inlineDesc}
+                                  {rule.sourceName ? ` · ${rule.sourceName}` : ''}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-              ) : null}
+
+                        {mirrorCursorStack.length > 1 || mirrorHasMore ? (
+                          <div className="flex items-center justify-end gap-1.5 pt-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={mirrorCursorStack.length <= 1 || mirrorRulesQuery.isFetching}
+                              onClick={() =>
+                                setMirrorCursorStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev))
+                              }
+                            >
+                              <ChevronLeft className="h-3.5 w-3.5" />
+                              <span>{t('rules.prevPage')}</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={!mirrorHasMore || !mirrorNextCursor || mirrorRulesQuery.isFetching}
+                              onClick={() => {
+                                if (mirrorNextCursor) setMirrorCursorStack((prev) => [...prev, mirrorNextCursor]);
+                              }}
+                            >
+                              <span>{t('rules.nextPage')}</span>
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </CollapsiblePanel>
             </div>
           ) : null}
         </CardContent>
@@ -1281,33 +1403,39 @@ function RuleDetailPage() {
 
               {/* Collapsible More Options (no-resolve, IP rules only) */}
               {singleIsIpType ? (
-                <details
+                <CollapsibleDetails
                   data-testid="single-rule-more-options"
                   className="rounded-[var(--radius-md)] border border-border bg-surface-muted/40"
+                  summaryClassName="px-3 py-2 text-xs font-medium text-text-muted transition-colors duration-[var(--motion-fast)] hover:text-text"
+                  summary={(expanded) => (
+                    <>
+                      <span className="inline-flex items-center gap-1.5">
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                        <span>{t('ruleDetail.moreOptions')}</span>
+                      </span>
+                      <ChevronDown
+                        className={`h-3.5 w-3.5 transition-transform duration-[var(--motion-base)] ease-[var(--ease-out)] ${
+                          expanded ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </>
+                  )}
+                  contentClassName="flex items-center justify-between gap-3 border-t border-border px-3 py-2.5"
                 >
-                  <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-xs font-medium text-text-muted hover:text-text">
-                    <span className="inline-flex items-center gap-1.5">
-                      <SlidersHorizontal className="h-3.5 w-3.5" />
-                      <span>{t('ruleDetail.moreOptions')}</span>
-                    </span>
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  </summary>
-                  <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2.5">
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium text-text">{t('rules.fieldNoResolve')}</div>
-                      <p className="text-[11px] text-text-muted">{t('ruleDetail.noResolveHint')}</p>
-                    </div>
-                    <Switch
-                      data-testid="single-rule-no-resolve"
-                      checked={singleNoResolve}
-                      disabled={isTelegram}
-                      onCheckedChange={(checked) => {
-                        setSingleNoResolveTouched(true);
-                        setSingleNoResolve(checked);
-                      }}
-                    />
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-text">{t('rules.fieldNoResolve')}</div>
+                    <p className="text-[11px] text-text-muted">{t('ruleDetail.noResolveHint')}</p>
                   </div>
-                </details>
+                  <Switch
+                    data-testid="single-rule-no-resolve"
+                    checked={singleNoResolve}
+                    disabled={isTelegram}
+                    onCheckedChange={(checked) => {
+                      setSingleNoResolveTouched(true);
+                      setSingleNoResolve(checked);
+                    }}
+                  />
+                </CollapsibleDetails>
               ) : null}
 
               {singleConflicts.length > 0 ? (
@@ -1584,62 +1712,7 @@ function RuleDetailPage() {
           </div>
         </CardHeader>
 
-        <CardContent className="flex flex-col gap-3">
-          {/* Batch selection bar */}
-          {manageMode ? (
-            <div
-              data-testid="batch-action-bar"
-              className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] border border-primary/40 bg-primary/5 px-3 py-2 text-xs"
-            >
-              <label className="flex cursor-pointer items-center gap-2 font-medium text-text">
-                <input
-                  type="checkbox"
-                  data-testid="select-all-page-checkbox"
-                  checked={allPageSelected}
-                  disabled={pageRuleIds.length === 0}
-                  onChange={toggleSelectAllPage}
-                  className="h-4 w-4 accent-primary"
-                />
-                <span>
-                  {t('rules.selectAllPage')} ({t('rules.selectedCount')} {selectedRuleIds.length})
-                </span>
-              </label>
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  data-testid="batch-enable-btn"
-                  disabled={selectedRuleIds.length === 0 || batchRuleMutation.isPending}
-                  onClick={() => batchRuleMutation.mutate({ ruleIds: selectedRuleIds, action: 'enable' })}
-                >
-                  {t('rules.batchEnable')}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  data-testid="batch-disable-btn"
-                  disabled={selectedRuleIds.length === 0 || batchRuleMutation.isPending}
-                  onClick={() => batchRuleMutation.mutate({ ruleIds: selectedRuleIds, action: 'disable' })}
-                >
-                  {t('rules.batchDisable')}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="danger"
-                  data-testid="batch-delete-btn"
-                  disabled={selectedRuleIds.length === 0 || batchRuleMutation.isPending}
-                  onClick={() => setBatchDeleteOpen(true)}
-                >
-                  {t('rules.batchDelete')}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-
+        <CardContent className={`flex flex-col gap-3 ${manageMode ? 'pb-20' : ''}`}>
           {rulesQuery.isLoading ? (
             <div className="flex flex-col gap-2">
               <div className="h-14 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
@@ -1667,6 +1740,10 @@ function RuleDetailPage() {
                 const inlineDesc = formatFriendlyRuleInline(descriptor, t);
                 const rawLine = formatRawRuleLine(rule);
                 const isRawExpanded = Boolean(rawExpandedIds[rule.id]);
+                const isSelected = selectedRuleIds.includes(rule.id);
+                const isEntering = Boolean(enteringRuleIds[rule.id]);
+                const isExiting = Boolean(exitingRuleIds[rule.id]);
+                const isToggled = Boolean(toggledRuleIds[rule.id]);
                 const subtitleParts = [typeLabel, inlineDesc, t('ruleDetail.manualMaintenance')];
                 const resolveHint = formatRuleResolveHint(rule, t);
                 if (resolveHint) subtitleParts.push(resolveHint);
@@ -1677,18 +1754,20 @@ function RuleDetailPage() {
                     key={rule.id}
                     data-testid={`rule-row-${rule.id}`}
                     title={rawLine}
-                    className={`flex items-center gap-3 px-3.5 py-3 transition-colors hover:bg-surface-muted/40 ${
-                      rule.enabled ? '' : 'opacity-65'
-                    }`}
+                    className={`motion-list-row flex items-center gap-3 px-3.5 py-3 hover:bg-surface-muted/40 ${
+                      rule.enabled ? '' : 'opacity-60'
+                    } ${isSelected ? 'bg-primary/5' : ''} ${isEntering ? 'motion-row-enter' : ''} ${
+                      isExiting ? 'motion-row-exit pointer-events-none' : ''
+                    } ${isToggled ? 'motion-row-pulse' : ''}`}
                   >
                     {manageMode ? (
                       <input
                         type="checkbox"
                         aria-label={rule.value}
                         data-testid={`rule-select-${rule.id}`}
-                        checked={selectedRuleIds.includes(rule.id)}
+                        checked={isSelected}
                         onChange={() => toggleSelectRule(rule.id)}
-                        className="h-4 w-4 shrink-0 accent-primary"
+                        className="motion-checkbox-in h-4 w-4 shrink-0 cursor-pointer accent-primary"
                       />
                     ) : null}
 
@@ -1710,7 +1789,7 @@ function RuleDetailPage() {
                         {subtitleParts.join(' · ')}
                       </div>
                       {isRawExpanded ? (
-                        <div className="mt-1.5 flex max-w-full flex-col gap-1 rounded bg-surface-muted px-2.5 py-1.5 text-[11px]">
+                        <div className="motion-row-enter mt-1.5 flex max-w-full flex-col gap-1 rounded bg-surface-muted px-2.5 py-1.5 text-[11px]">
                           <code data-testid={`rule-raw-${rule.id}`} className="break-all font-mono text-text">
                             {rawLine}
                           </code>
@@ -1783,6 +1862,74 @@ function RuleDetailPage() {
           ) : null}
         </CardContent>
       </Card>
+
+      {/* Floating bottom batch action dock */}
+      {batchBarMounted ? (
+        <div
+          data-testid="batch-action-bar"
+          data-state={manageMode ? 'open' : 'closed'}
+          className="motion-batch-bar fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-2 rounded-[var(--radius-lg)] border border-primary/40 bg-surface/95 px-3.5 py-2.5 text-xs shadow-lg backdrop-blur md:bottom-5 lg:left-64 lg:right-6"
+        >
+          <label className="flex cursor-pointer items-center gap-2 font-medium text-text">
+            <input
+              type="checkbox"
+              data-testid="select-all-page-checkbox"
+              checked={allPageSelected}
+              disabled={pageRuleIds.length === 0}
+              onChange={toggleSelectAllPage}
+              className="h-4 w-4 accent-primary"
+            />
+            <span>
+              {t('rules.selectAllPage')} ({t('rules.selectedCount')} {selectedRuleIds.length})
+            </span>
+          </label>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              data-testid="batch-enable-btn"
+              disabled={selectedRuleIds.length === 0 || batchRuleMutation.isPending}
+              onClick={() => batchRuleMutation.mutate({ ruleIds: selectedRuleIds, action: 'enable' })}
+            >
+              {t('rules.batchEnable')}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              data-testid="batch-disable-btn"
+              disabled={selectedRuleIds.length === 0 || batchRuleMutation.isPending}
+              onClick={() => batchRuleMutation.mutate({ ruleIds: selectedRuleIds, action: 'disable' })}
+            >
+              {t('rules.batchDisable')}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="danger"
+              data-testid="batch-delete-btn"
+              disabled={selectedRuleIds.length === 0 || batchRuleMutation.isPending}
+              onClick={() => setBatchDeleteOpen(true)}
+            >
+              {t('rules.batchDelete')}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              data-testid="batch-exit-btn"
+              onClick={() => {
+                setManageMode(false);
+                setSelectedRuleIds([]);
+              }}
+            >
+              {t('ruleDetail.exitManage')}
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Lazy Dialogs */}
       <Suspense fallback={null}>

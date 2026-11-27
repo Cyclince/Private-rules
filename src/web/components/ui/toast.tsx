@@ -22,7 +22,7 @@ export const ToastViewport = React.forwardRef<
 ToastViewport.displayName = ToastPrimitive.Viewport.displayName;
 
 const toastVariants = cva(
-  'group pointer-events-auto relative flex w-full items-start justify-between gap-3 overflow-hidden rounded-[var(--radius-md)] border p-4 shadow-md transition-all',
+  'motion-toast group pointer-events-auto relative flex w-full items-start justify-between gap-3 overflow-hidden rounded-[var(--radius-md)] border p-4 shadow-md',
   {
     variants: {
       variant: {
@@ -54,7 +54,7 @@ export const ToastAction = React.forwardRef<
   <ToastPrimitive.Action
     ref={ref}
     className={cn(
-      'inline-flex h-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 text-xs font-medium text-text hover:bg-surface cursor-pointer',
+      'motion-press inline-flex h-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 text-xs font-medium text-text hover:bg-surface cursor-pointer',
       className,
     )}
     {...props}
@@ -70,7 +70,7 @@ export const ToastClose = React.forwardRef<
     ref={ref}
     aria-label="Close"
     className={cn(
-      'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-text-muted hover:bg-surface-muted hover:text-text cursor-pointer',
+      'motion-press inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-text-muted hover:bg-surface-muted hover:text-text cursor-pointer',
       className,
     )}
     toast-close=""

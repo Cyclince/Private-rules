@@ -8,7 +8,7 @@ export function BottomNav() {
     <nav
       data-testid="mobile-bottom-nav"
       aria-label={t('layout.navigation')}
-      className="fixed inset-x-0 bottom-0 z-30 grid h-16 grid-cols-5 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      className="shell-bottom-nav fixed inset-x-0 bottom-0 z-30 grid h-16 grid-cols-5 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
     >
       {MOBILE_NAV_ITEMS.map((item) => {
         const Icon = item.icon;
@@ -17,7 +17,7 @@ export function BottomNav() {
             key={item.to}
             to={item.to}
             activeOptions={{ exact: item.to === '/' }}
-            className="flex flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium text-text-muted transition-colors hover:text-text"
+            className="motion-press flex flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium text-text-muted hover:text-text"
             activeProps={{
               className: 'text-primary',
             }}

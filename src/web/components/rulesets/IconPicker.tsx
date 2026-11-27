@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { api, readApiJson } from '../../lib/api';
 import { CategoryIcon } from '../subscriptions/CategoryIcon';
+import { CollapsibleDetails } from '../ui/collapsible';
 import { Input } from '../ui/input';
 
 export const PRESET_ICON_PACKS = [
@@ -89,100 +90,105 @@ export function IconPicker({ value, name, customPackUrls = [], customPackNames =
   }, [icons, query]);
 
   return (
-    <details
+    <CollapsibleDetails
       open={open}
-      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
+      onOpenChange={setOpen}
       data-testid="icon-picker-disclosure"
       className="rounded-[var(--radius-md)] border border-border bg-surface-muted/40"
+      summaryClassName="gap-3 px-3.5 py-2.5"
+      summary={(expanded) => (
+        <>
+          <CategoryIcon icon={value} name={name || 'PR'} size={44} />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-text">{t('ruleDialog.iconTitle')}</div>
+            <div className="truncate text-xs text-text-muted">
+              {value ? t('ruleDialog.iconSelectedHint') : t('ruleDialog.iconCollapsedHint')}
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5 text-xs text-text-muted">
+            {expanded && icons.length > 0 ? (
+              <span>
+                {visible.length} {t('ruleDialog.iconCountUnit')}
+              </span>
+            ) : null}
+            <ChevronDown
+              className={`h-4 w-4 transition-transform duration-[var(--motion-base)] ease-[var(--ease-out)] ${
+                expanded ? 'rotate-180' : ''
+              }`}
+            />
+          </div>
+        </>
+      )}
+      contentClassName="flex flex-col gap-2.5 border-t border-border p-3"
     >
-      <summary className="flex cursor-pointer list-none items-center gap-3 px-3.5 py-2.5 [&::-webkit-details-marker]:hidden">
-        <CategoryIcon icon={value} name={name || 'PR'} size={44} />
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-text">{t('ruleDialog.iconTitle')}</div>
-          <div className="truncate text-xs text-text-muted">
-            {value ? t('ruleDialog.iconSelectedHint') : t('ruleDialog.iconCollapsedHint')}
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5 text-xs text-text-muted">
-          {open && icons.length > 0 ? (
-            <span>
-              {visible.length} {t('ruleDialog.iconCountUnit')}
-            </span>
-          ) : null}
-          <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
-        </div>
-      </summary>
-
-      <div className="flex flex-col gap-2.5 border-t border-border p-3">
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <select
-            value={packUrl}
-            onChange={(event) => setPackUrl(event.target.value)}
-            aria-label={t('ruleDialog.iconTitle')}
-            className="flex h-9 rounded-[var(--radius-sm)] border border-border bg-surface px-2.5 text-xs text-text focus-visible:outline-2 focus-visible:outline-primary sm:w-44"
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <select
+          value={packUrl}
+          onChange={(event) => setPackUrl(event.target.value)}
+          aria-label={t('ruleDialog.iconTitle')}
+          className="flex h-9 rounded-[var(--radius-sm)] border border-border bg-surface px-2.5 text-xs text-text focus-visible:outline-2 focus-visible:outline-primary sm:w-44"
+        >
+          {packs.map((pack) => (
+            <option key={pack.url} value={pack.url}>
+              {pack.label}
+            </option>
+          ))}
+        </select>
+        <Input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t('ruleDialog.iconSearchPlaceholder')}
+          className="h-9 flex-1 text-xs"
+        />
+        {value ? (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="motion-press inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1 rounded-[var(--radius-sm)] border border-border bg-surface px-2.5 text-xs text-text-muted hover:text-text"
           >
-            {packs.map((pack) => (
-              <option key={pack.url} value={pack.url}>
-                {pack.label}
-              </option>
-            ))}
-          </select>
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t('ruleDialog.iconSearchPlaceholder')}
-            className="h-9 flex-1 text-xs"
-          />
-          {value ? (
-            <button
-              type="button"
-              onClick={() => onChange('')}
-              className="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1 rounded-[var(--radius-sm)] border border-border bg-surface px-2.5 text-xs text-text-muted hover:text-text"
-            >
-              <X className="h-3.5 w-3.5" />
-              <span>{t('ruleDialog.iconClear')}</span>
-            </button>
-          ) : null}
-        </div>
-
-        {loading ? (
-          <p className="py-4 text-center text-xs text-text-muted">{t('ruleDialog.iconLoading')}</p>
-        ) : loadError ? (
-          <p className="py-3 text-center text-xs text-danger">{loadError}</p>
-        ) : visible.length === 0 ? (
-          <p className="py-4 text-center text-xs text-text-muted">{t('ruleDialog.iconEmpty')}</p>
-        ) : (
-          <div className="grid max-h-48 grid-cols-4 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-6">
-            {visible.slice(0, 120).map((icon) => {
-              const selected = value === icon.url;
-              return (
-                <button
-                  key={`${icon.name}-${icon.url}`}
-                  type="button"
-                  title={icon.name}
-                  onClick={() => onChange(icon.url)}
-                  className={`flex cursor-pointer flex-col items-center gap-1 rounded-[var(--radius-sm)] border p-1.5 text-center transition-colors ${
-                    selected
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-transparent bg-surface hover:border-border hover:bg-surface-muted'
-                  }`}
-                >
-                  <img
-                    src={icon.url}
-                    alt=""
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                    className="h-7 w-7 rounded object-contain"
-                  />
-                  <span className="w-full truncate text-[10px] leading-tight text-text-muted">
-                    {icon.name.replace(/\.png$/i, '')}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+            <X className="h-3.5 w-3.5" />
+            <span>{t('ruleDialog.iconClear')}</span>
+          </button>
+        ) : null}
       </div>
-    </details>
+
+      {loading ? (
+        <p className="py-4 text-center text-xs text-text-muted">{t('ruleDialog.iconLoading')}</p>
+      ) : loadError ? (
+        <p className="py-3 text-center text-xs text-danger">{loadError}</p>
+      ) : visible.length === 0 ? (
+        <p className="py-4 text-center text-xs text-text-muted">{t('ruleDialog.iconEmpty')}</p>
+      ) : (
+        <div className="grid max-h-48 grid-cols-4 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-6">
+          {visible.slice(0, 120).map((icon) => {
+            const selected = value === icon.url;
+            return (
+              <button
+                key={`${icon.name}-${icon.url}`}
+                type="button"
+                title={icon.name}
+                onClick={() => onChange(icon.url)}
+                className={`motion-press flex cursor-pointer flex-col items-center gap-1 rounded-[var(--radius-sm)] border p-1.5 text-center ${
+                  selected
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-transparent bg-surface hover:border-border hover:bg-surface-muted'
+                }`}
+              >
+                <img
+                  src={icon.url}
+                  alt=""
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  className="h-7 w-7 rounded object-contain"
+                />
+                <span className="w-full truncate text-[10px] leading-tight text-text-muted">
+                  {icon.name.replace(/\.png$/i, '')}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </CollapsibleDetails>
   );
 }

@@ -1,6 +1,7 @@
 export { Badge, badgeVariants, type BadgeProps } from './badge';
 export { Button, buttonVariants, type ButtonProps } from './button';
-export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './card';
+export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, type CardProps } from './card';
+export { CollapsibleDetails, CollapsiblePanel } from './collapsible';
 export {
   Dialog,
   DialogClose,

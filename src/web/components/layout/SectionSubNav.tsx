@@ -30,7 +30,7 @@ export function SectionSubNav({ section }: { section: 'templates' }) {
           to={tab.to}
           activeOptions={tab.exact ? { exact: true } : undefined}
           data-testid={tab.testId}
-          className="flex-1 whitespace-nowrap rounded-[var(--radius-sm)] px-3 py-1.5 text-center text-xs font-medium text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
+          className="motion-press flex-1 whitespace-nowrap rounded-[var(--radius-sm)] px-3 py-1.5 text-center text-xs font-medium text-text-muted hover:bg-surface-muted hover:text-text"
           activeProps={{
             className: 'bg-primary text-primary-foreground shadow-sm hover:bg-primary hover:text-primary-foreground',
           }}

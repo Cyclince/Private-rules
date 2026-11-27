@@ -8,7 +8,7 @@ import { authMeQueryOptions } from '../../lib/query-core';
 import { ROUTE_TITLE_ENTRIES } from './nav-items';
 
 const topbarBtn =
-  'items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-transparent text-text transition-colors duration-150 hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-primary cursor-pointer';
+  'motion-press items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-transparent text-text hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-primary cursor-pointer';
 
 export function Topbar({ onOpenTabletSidebar }: { onOpenTabletSidebar: () => void }) {
   const { t } = useI18n();
