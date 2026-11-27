@@ -49,6 +49,7 @@ export const LINTED = [
   'tests/e2e/preview-sources-settings-backup.spec.ts',
   'tests/e2e/qr-code.spec.ts',
   'tests/e2e/templates-detail-r4b.spec.ts',
+  'tests/e2e/acceptance-beta3.spec.ts',
 ];
 
 export default tseslint.config(

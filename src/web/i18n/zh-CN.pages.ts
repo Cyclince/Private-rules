@@ -69,7 +69,7 @@ export const zhCNPages = {
   'dashboard.sourceErrors': '{count} 个异常',
   'dashboard.newRule': '新建规则',
   'dashboard.copySubscription': '复制订阅',
-  'dashboard.templatesIntro': '三步生成一份能直接导入客户端的配置。',
+  'dashboard.templatesIntro': '按引导选好软件与机场，生成能直接导入的配置。',
   'dashboard.templateCount': '模板数',
   'dashboard.outputCount': '输出数',
   'dashboard.airportStatus': '机场',
@@ -1135,7 +1135,7 @@ export const zhCNPages = {
 
   // M2a: Beginner-first Templates List & 3-Step Quick-Create Wizard
   'templates.listTitle': '配置模板',
-  'templates.listSubtitle': '首次使用？三步生成一份能直接导入客户端的配置',
+  'templates.listSubtitle': '首次使用？跟着向导选好软件与机场，几步生成可直接导入的配置',
   'templates.newBtn': '新建模板',
   'templates.scenesBtn': '策略组',
   'templates.importConfigBtn': '导入配置',

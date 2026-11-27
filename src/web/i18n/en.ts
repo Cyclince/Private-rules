@@ -131,7 +131,7 @@ export const en: Messages = {
   'dashboard.sourceErrors': '{count} failed',
   'dashboard.newRule': 'New Rule',
   'dashboard.copySubscription': 'Copy Subscription',
-  'dashboard.templatesIntro': 'Create an import-ready client configuration in three steps.',
+  'dashboard.templatesIntro': 'Pick your app and subscription in a guided flow to generate a ready-to-import config.',
   'dashboard.templateCount': 'Templates',
   'dashboard.outputCount': 'Outputs',
   'dashboard.airportStatus': 'Subscriptions',
@@ -1290,7 +1290,7 @@ export const en: Messages = {
 
   // M2a: Beginner-first Templates List & 3-Step Quick-Create Wizard
   'templates.listTitle': 'Templates',
-  'templates.listSubtitle': 'First time here? Create a ready-to-import client config in 3 quick steps',
+  'templates.listSubtitle': 'First time here? Follow the guided wizard to build a ready-to-import config',
   'templates.newBtn': 'New Template',
   'templates.scenesBtn': 'Policy Groups',
   'templates.importConfigBtn': 'Import Config',
