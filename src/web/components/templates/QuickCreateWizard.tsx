@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  Copy,
   HelpCircle,
   Loader2,
   ShieldAlert,
@@ -30,7 +29,6 @@ import {
   type WizardClientOptionId,
   type WizardPresetTier,
 } from '../../../domain/templates/quick-create';
-import type { TemplateClientId } from '../../../shared/clients';
 import type {
   PreviewSubscriptionErrorCode,
   QuickCreateScenarioInput,
@@ -52,6 +50,7 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
+import { WizardDoneLinks } from './WizardDoneLinks';
 
 type WizardStep = 1 | 2 | 3 | 'done';
 
@@ -68,27 +67,6 @@ function scenarioDescKey(id: WizardScenarioId): MessageKey {
 
 function clientDescKey(id: WizardClientOptionId): MessageKey {
   return `wizard.clientDesc.${id}` as MessageKey;
-}
-
-function clientGuideKey(client: TemplateClientId): MessageKey {
-  switch (client) {
-    case 'mihomo':
-      return 'wizard.guide.mihomo';
-    case 'sing-box':
-      return 'wizard.guide.sing-box';
-    case 'shadowrocket':
-      return 'wizard.guide.shadowrocket';
-    case 'stash':
-      return 'wizard.guide.stash';
-    case 'surge':
-      return 'wizard.guide.surge';
-    case 'loon':
-      return 'wizard.guide.loon';
-    case 'quantumult-x':
-      return 'wizard.guide.quantumult-x';
-    default:
-      return 'wizard.guide.generic';
-  }
 }
 
 function formatClientDisplayName(option: WizardClientOption, locale: string): string {
@@ -928,54 +906,16 @@ export function QuickCreateWizard() {
               </div>
             ) : null}
 
-            <div className="flex flex-col gap-3">
-              {createdResult.publications.map((pub) => {
-                const isCopied = copiedKey === pub.id;
-                return (
-                  <div
-                    key={pub.id}
-                    data-testid={`wizard-done-link-${pub.client}`}
-                    className="flex flex-col gap-2.5 rounded-[var(--radius-md)] border border-border bg-surface p-3.5"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-text">{pub.clientLabel}</span>
-                      {pub.url ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={isCopied ? 'outline' : 'primary'}
-                          data-testid={`wizard-done-copy-${pub.client}`}
-                          onClick={() => {
-                            if (pub.url) void handleCopyDoneUrl(pub.id, pub.url);
-                          }}
-                        >
-                          {isCopied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
-                          <span>{isCopied ? t('wizard.doneCopiedBtn') : t('wizard.doneCopyBtn')}</span>
-                        </Button>
-                      ) : null}
-                    </div>
-
-                    {pub.url ? (
-                      <code
-                        ref={(el) => {
-                          if (el) urlCodeRefs.current.set(pub.id, el);
-                          else urlCodeRefs.current.delete(pub.id);
-                        }}
-                        data-testid={`wizard-done-url-${pub.client}`}
-                        className="block overflow-x-auto rounded-[var(--radius-sm)] border border-border bg-surface-muted px-2.5 py-2 font-mono text-xs text-text select-all"
-                      >
-                        {pub.url}
-                      </code>
-                    ) : null}
-
-                    <div className="rounded-[var(--radius-sm)] bg-surface-muted/50 px-3 py-2 text-xs leading-relaxed text-text-muted">
-                      <span className="font-medium text-text">{t('wizard.doneHowToTitle')}：</span>
-                      {t(clientGuideKey(pub.client))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <WizardDoneLinks
+              publications={createdResult.publications}
+              name={createdResult.template.name}
+              copiedKey={copiedKey}
+              onCopy={(id, url) => void handleCopyDoneUrl(id, url)}
+              onUrlElement={(id, element) => {
+                if (element) urlCodeRefs.current.set(id, element);
+                else urlCodeRefs.current.delete(id);
+              }}
+            />
 
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
               <Link

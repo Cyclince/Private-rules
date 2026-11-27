@@ -10,6 +10,7 @@ import { useToast } from '../../lib/toast';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { ClientImportButton } from './ClientImportButton';
 
 const AddClientDialog = lazy(() => import('./AddClientDialog').then((m) => ({ default: m.AddClientDialog })));
 const DeleteConfirmDialog = lazy(() =>
@@ -185,6 +186,14 @@ export function TemplateSimpleOutputTab({ view, readOnly }: TemplateSimpleOutput
                           {isCopied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
                           <span>{isCopied ? t('wizard.doneCopiedBtn') : t('wizard.doneCopyBtn')}</span>
                         </Button>
+
+                        <ClientImportButton
+                          client={link.client}
+                          url={output.access !== 'disabled' && link.supported ? link.url : null}
+                          name={view.template.name}
+                          label={t('wizard.doneImportBtn')}
+                          testId={`output-import-${link.client}`}
+                        />
 
                         {isFirstOfOutput ? (
                           <>

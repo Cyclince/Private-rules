@@ -3,6 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft, Check, ChevronDown, Copy, FileText, Info, Settings, ShieldAlert } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { CategoryIcon } from '../components/subscriptions/CategoryIcon';
+import { SubscriptionExample } from '../components/subscriptions/SubscriptionExample';
 import {
   accessPolicyToPatch,
   buildSubscriptionFormatGroups,
@@ -390,6 +391,11 @@ function SubscriptionDetailPage() {
                         );
                       })}
                     </div>
+                    <SubscriptionExample
+                      group={group}
+                      name={selectedCategory.name}
+                      policyName={summaryQuery.data?.data.settings.policyName}
+                    />
                   </div>
                 ) : null}
               </section>

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, redirect } from '@tanstack/react-router';
-import { AlertTriangle, CheckCircle2, FolderKanban, Globe, Layers, RefreshCw, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, RefreshCw, Sparkles } from 'lucide-react';
+import { dashboardTemplatesQueryOptions } from '../lib/dashboard';
 import { useState } from 'react';
 import dashboardBannerUrl from '../assets/miku-dashboard-banner.webp';
 import { loadPageTranslations, useI18n } from '../i18n';
@@ -78,50 +79,46 @@ function formatTimestamp(iso: string | undefined, fallback: string): string {
   return new Date(time).toLocaleString();
 }
 
+const ACTION_CLASS =
+  'inline-flex h-9 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-primary';
+
 function DashboardPage() {
   const { t, locale } = useI18n();
   const { notify } = useToast();
   const queryClient = useQueryClient();
   const search = Route.useSearch();
-  const range: DashboardRange = search.range ?? '7d';
   const navigate = Route.useNavigate();
-
   const healthQuery = useQuery(healthQueryOptions());
   const summaryQuery = useQuery(rulesetsListQueryOptions());
+  const templatesQuery = useQuery(dashboardTemplatesQueryOptions(queryClient));
   const [syncing, setSyncing] = useState(false);
+  const categories = summaryQuery.data?.data.categories ?? [];
+  const totalRules = categories.reduce((sum, category) => sum + (category.ruleCount ?? 0), 0);
+  const allSources = categories.flatMap((category) =>
+    (category.sources ?? []).map((source) => ({ ...source, categoryName: category.name, categoryId: category.id })),
+  );
+  const errorSources = allSources
+    .filter((source) => source.lastStatus === 'error')
+    .sort((a, b) => (b.lastSyncedAt ?? '').localeCompare(a.lastSyncedAt ?? ''));
+  const lastSyncedAt = summaryQuery.data?.data.lastSyncedAt;
+  const templateStats = templatesQuery.data;
 
   const handleSyncAll = async () => {
     if (syncing) return;
     setSyncing(true);
     try {
-      await readApiJson<{ results: Array<{ ok: boolean }> }>(await api.api.sync.$post());
+      const result = await readApiJson<{ results: Array<{ ok: boolean }> }>(await api.api.sync.$post());
       await invalidateRulesets(queryClient);
-      notify({ title: t('dashboard.syncDone'), variant: 'success' });
+      notify({
+        title: t(result.results.some((item) => !item.ok) ? 'dashboard.syncPartial' : 'dashboard.syncDone'),
+        variant: result.results.some((item) => !item.ok) ? 'danger' : 'success',
+      });
     } catch (error) {
       notify({ title: formatApiError(error, locale), variant: 'danger' });
     } finally {
       setSyncing(false);
     }
   };
-
-  const categories = summaryQuery.data?.data.categories ?? [];
-  const enabledRulesets = categories.filter((c) => c.enabled !== false).length;
-  const totalRules = categories.reduce((sum, c) => sum + (c.ruleCount ?? 0), 0);
-  const manualRules = categories.reduce((sum, c) => sum + (c.manualRuleCount ?? 0), 0);
-  const upstreamRules = Math.max(0, totalRules - manualRules);
-
-  const allSources = categories.flatMap((category) =>
-    (category.sources ?? []).map((source) => ({
-      ...source,
-      categoryName: category.name,
-      categoryId: category.id,
-    })),
-  );
-  const errorSources = allSources
-    .filter((source) => source.lastStatus === 'error')
-    .sort((a, b) => (b.lastSyncedAt ?? '').localeCompare(a.lastSyncedAt ?? ''));
-  const healthySources = allSources.filter((source) => source.lastStatus !== 'error').length;
-  const lastSyncedAt = summaryQuery.data?.data.lastSyncedAt;
 
   return (
     <div className="flex flex-col gap-5" data-testid="dashboard-page">
@@ -146,258 +143,214 @@ function DashboardPage() {
             <p className="text-sm text-[#b7d3d9]">{t('dashboard.subtitle')}</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-text-muted">{t('dashboard.rangeLabel')}:</span>
-            {(['24h', '7d', '30d'] as const).map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => navigate({ search: { range: item }, replace: true })}
-                className={`inline-flex h-8 cursor-pointer items-center justify-center rounded-[var(--radius-sm)] border px-3 text-xs font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-primary ${
-                  range === item
-                    ? 'border-transparent bg-primary text-primary-foreground shadow-sm hover:shadow-glow'
-                    : 'border-border bg-transparent text-text hover:bg-surface-muted'
-                }`}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              data-testid="dashboard-sync-all"
-              disabled={syncing}
-              onClick={() => void handleSyncAll()}
-              className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 text-xs font-medium text-text transition-colors hover:bg-surface disabled:opacity-50"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? t('dashboard.syncing') : t('dashboard.syncAll')}
-            </button>
-            <Link
-              to="/rules"
-              data-testid="dashboard-manage-rulesets"
-              className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] bg-primary px-3 text-xs font-medium text-primary-foreground shadow-sm transition-shadow hover:shadow-glow"
-            >
-              <FolderKanban className="h-3.5 w-3.5" />
-              {t('dashboard.manageRulesets')}
-            </Link>
-          </div>
-        </div>
       </section>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 lg:grid-cols-2" data-testid="dashboard-modules">
         <section
-          data-testid="stat-card-rulesets"
-          className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm"
+          className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-border bg-surface p-5"
+          data-testid="dashboard-rules-panel"
         >
-          <div className="flex items-center justify-between text-xs font-medium text-text-muted">
-            <span>{t('dashboard.statRulesets')}</span>
-            <FolderKanban className="h-4 w-4 text-primary" />
-          </div>
-          {summaryQuery.isLoading ? (
-            <div className="mt-3 h-7 w-20 animate-pulse rounded bg-surface-muted" />
-          ) : (
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-bold tracking-tight" data-testid="stat-rulesets-count">
-                {enabledRulesets}
-              </span>
-              <span className="text-xs text-text-muted">/ {categories.length}</span>
-            </div>
-          )}
-          <p className="mt-1 text-xs text-text-muted">{t('dashboard.statRulesetsHint')}</p>
-        </section>
-
-        <section
-          data-testid="stat-card-rules"
-          className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm"
-        >
-          <div className="flex items-center justify-between text-xs font-medium text-text-muted">
-            <span>{t('dashboard.statRules')}</span>
-            <Layers className="h-4 w-4 text-primary" />
-          </div>
-          {summaryQuery.isLoading ? (
-            <div className="mt-3 h-7 w-24 animate-pulse rounded bg-surface-muted" />
-          ) : (
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-bold tracking-tight" data-testid="stat-rules-count">
-                {totalRules.toLocaleString()}
-              </span>
-            </div>
-          )}
-          <p className="mt-1 text-xs text-text-muted">
-            {t('dashboard.statRulesHint')}: {manualRules.toLocaleString()} / {upstreamRules.toLocaleString()}
-          </p>
-        </section>
-
-        <section
-          data-testid="stat-card-sources"
-          className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm"
-        >
-          <div className="flex items-center justify-between text-xs font-medium text-text-muted">
-            <span>{t('dashboard.statSources')}</span>
-            <Globe className="h-4 w-4 text-primary" />
-          </div>
-          {summaryQuery.isLoading ? (
-            <div className="mt-3 h-7 w-20 animate-pulse rounded bg-surface-muted" />
-          ) : (
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-bold tracking-tight" data-testid="stat-sources-count">
-                {allSources.length}
-              </span>
-              {errorSources.length > 0 ? (
-                <span className="inline-flex items-center rounded-full bg-danger px-2 py-0.5 text-[11px] font-medium text-danger-foreground">
-                  {errorSources.length}
-                </span>
-              ) : null}
-            </div>
-          )}
-          <p className="mt-1 text-xs text-text-muted">
-            {t('dashboard.statSourcesHint')}: {healthySources} / {errorSources.length}
-          </p>
-        </section>
-
-        <section
-          data-testid="stat-card-sync"
-          className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm"
-        >
-          <div className="flex items-center justify-between text-xs font-medium text-text-muted">
-            <span>{t('dashboard.statSync')}</span>
-            {errorSources.length > 0 ? (
-              <AlertTriangle className="h-4 w-4 text-danger" />
-            ) : (
-              <CheckCircle2 className="h-4 w-4 text-success" />
-            )}
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <span
-              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                healthQuery.data?.ok ? 'bg-success text-success-foreground' : 'bg-danger text-danger-foreground'
-              }`}
-            >
-              {healthQuery.data?.database ?? '…'}
-            </span>
-            <span className="text-xs text-text-muted">{healthQuery.data?.runtime ?? '-'}</span>
-          </div>
-          <p className="mt-1.5 truncate text-xs text-text-muted">
-            {formatTimestamp(lastSyncedAt, t('dashboard.neverSynced'))}
-          </p>
-        </section>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section
-          data-testid="dashboard-recent-errors"
-          className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-base font-semibold tracking-tight">{t('dashboard.recentErrors')}</h3>
-            {errorSources.length > 0 ? (
-              <span className="inline-flex items-center rounded-full bg-danger px-2.5 py-0.5 text-xs font-medium text-danger-foreground">
-                {errorSources.length} {t('dashboard.recentErrorsCount')}
-              </span>
-            ) : null}
-          </div>
-          {errorSources.length === 0 ? (
-            <div className="mt-4 flex items-center gap-3 rounded-[var(--radius-md)] border border-border bg-surface-muted p-4">
-              <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
-              <div>
-                <div className="text-sm font-medium">{t('dashboard.syncHealthy')}</div>
-                <p className="text-xs text-text-muted">{t('dashboard.syncHealthyHint')}</p>
-              </div>
-            </div>
-          ) : (
-            <ul className="mt-4 flex flex-col gap-2.5">
-              {errorSources.slice(0, 8).map((source) => (
-                <li
-                  key={source.id}
-                  data-testid={`dashboard-error-${source.id}`}
-                  className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-danger/40 bg-surface-muted p-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium">
-                      {source.categoryName} · {source.name}
-                    </span>
-                    <Link
-                      to="/rules/$id"
-                      params={{ id: source.categoryId }}
-                      className="shrink-0 text-xs font-medium text-primary hover:underline"
-                    >
-                      {t('dashboard.viewRuleset')}
-                    </Link>
-                  </div>
-                  <p className="break-words text-xs text-danger">{source.lastError || 'Sync failed'}</p>
-                  <span className="text-[11px] text-text-muted">
-                    {formatTimestamp(source.lastSyncedAt, t('dashboard.neverSynced'))}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section
-          data-testid="dashboard-ruleset-snapshot"
-          className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-sm"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-base font-semibold tracking-tight">{t('dashboard.rulesetSnapshot')}</h3>
-            <Link to="/rules" className="text-xs font-medium text-primary hover:underline">
-              {t('dashboard.manageRulesets')}
-            </Link>
-          </div>
-          {summaryQuery.isLoading ? (
-            <div className="mt-4 flex flex-col gap-2">
-              <div className="h-12 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
-              <div className="h-12 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
-            </div>
-          ) : categories.length === 0 ? (
-            <p className="mt-4 rounded-[var(--radius-md)] border border-border bg-surface-muted p-4 text-sm text-text-muted">
-              {t('dashboard.noRulesets')}
+          <h3 className="text-lg font-semibold text-text">{t('dashboard.rulesModule')}</h3>
+          {summaryQuery.isError ? (
+            <p role="alert" className="text-sm text-danger">
+              {t('dashboard.loadFailed')}
             </p>
           ) : (
-            <div className="mt-4 flex max-h-80 flex-col gap-2 overflow-y-auto pr-1">
+            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div data-testid="stat-card-rulesets">
+                <dt className="text-xs text-text-muted">{t('dashboard.rulesCount')}</dt>
+                <dd className="mt-1 text-2xl font-semibold" data-testid="stat-rulesets-count">
+                  {summaryQuery.isLoading ? '…' : categories.length}
+                </dd>
+              </div>
+              <div data-testid="stat-card-rules">
+                <dt className="text-xs text-text-muted">{t('dashboard.ruleEntries')}</dt>
+                <dd className="mt-1 text-2xl font-semibold" data-testid="stat-rules-count">
+                  {summaryQuery.isLoading ? '…' : totalRules.toLocaleString()}
+                </dd>
+              </div>
+              <div data-testid="stat-card-sources">
+                <dt className="text-xs text-text-muted">{t('dashboard.statSources')}</dt>
+                <dd className="mt-1 text-2xl font-semibold" data-testid="stat-sources-count">
+                  {summaryQuery.isLoading ? '…' : allSources.length}
+                </dd>
+                <span className={errorSources.length ? 'text-xs text-danger' : 'text-xs text-text-muted'}>
+                  {t('dashboard.sourceErrors').replace('{count}', String(errorSources.length))}
+                </span>
+              </div>
+            </dl>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Link
+              className={ACTION_CLASS + ' bg-primary text-primary-foreground'}
+              to="/rules"
+              search={{}}
+              data-testid="dashboard-manage-rulesets"
+            >
+              {t('dashboard.newRule')}
+            </Link>
+            <Link
+              className={ACTION_CLASS + ' bg-surface text-text hover:bg-surface-muted'}
+              to="/subscriptions"
+              data-testid="dashboard-copy-subscription"
+            >
+              {t('dashboard.copySubscription')}
+            </Link>
+          </div>
+          {categories.length > 0 ? (
+            <div
+              className="flex max-h-52 flex-col gap-1 overflow-y-auto border-t border-border pt-3"
+              data-testid="dashboard-ruleset-snapshot"
+            >
               {categories.map((category) => (
                 <Link
                   key={category.id}
                   to="/rules/$id"
                   params={{ id: category.id }}
-                  className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-surface-muted/60 px-3.5 py-2.5 transition-colors hover:bg-surface-muted"
+                  className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] px-2 py-1.5 text-sm text-text hover:bg-surface-muted"
                 >
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{category.name}</div>
-                    <div className="truncate font-mono text-xs text-text-muted">{category.slug}</div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-text-muted">
-                      {(category.ruleCount ?? 0).toLocaleString()}
-                    </span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                        category.enabled === false
-                          ? 'bg-surface text-text-muted'
-                          : category.tokenLinksEnabled
-                            ? 'bg-primary text-primary-foreground'
-                            : category.publicLinksEnabled
-                              ? 'bg-success text-success-foreground'
-                              : 'bg-surface text-text-muted'
-                      }`}
-                    >
-                      {category.enabled === false
-                        ? t('common.disabled')
-                        : category.tokenLinksEnabled
-                          ? t('rulesets.policyToken')
-                          : category.publicLinksEnabled
-                            ? t('rulesets.policyPublic')
-                            : t('rulesets.policyOff')}
-                    </span>
-                  </div>
+                  <span className="min-w-0 truncate">{category.name}</span>
+                  <span className="shrink-0 text-xs text-text-muted">{(category.ruleCount ?? 0).toLocaleString()}</span>
                 </Link>
               ))}
             </div>
-          )}
+          ) : null}
         </section>
+        <section
+          className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-border bg-surface p-5"
+          data-testid="dashboard-templates-panel"
+        >
+          <h3 className="text-lg font-semibold text-text">{t('dashboard.templatesModule')}</h3>
+          {templatesQuery.isLoading ? (
+            <p className="text-sm text-text-muted">{t('common.loading')}</p>
+          ) : templatesQuery.isError ? (
+            <p role="alert" className="text-sm text-danger">
+              {t('dashboard.loadFailed')}
+            </p>
+          ) : templateStats?.templateCount === 0 ? (
+            <p className="text-sm text-text-muted" data-testid="dashboard-templates-empty">
+              {t('dashboard.templatesIntro')}
+            </p>
+          ) : templateStats ? (
+            <>
+              <dl className="grid grid-cols-2 gap-3">
+                <div>
+                  <dt className="text-xs text-text-muted">{t('dashboard.templateCount')}</dt>
+                  <dd className="mt-1 text-2xl font-semibold" data-testid="dashboard-template-count">
+                    {templateStats.templateCount}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-text-muted">{t('dashboard.outputCount')}</dt>
+                  <dd className="mt-1 text-2xl font-semibold" data-testid="dashboard-output-count">
+                    {templateStats.outputCount}
+                  </dd>
+                </div>
+              </dl>
+              <div className="text-sm text-text-muted" data-testid="dashboard-airport-status">
+                <span>{t('dashboard.airportStatus')}：</span>
+                {(['ok', 'bound', 'error', 'empty'] as const)
+                  .filter((status) => templateStats.airports[status] > 0)
+                  .map((status) => (
+                    <span key={status} className={status === 'error' ? 'mr-3 text-danger' : 'mr-3'}>
+                      {t(`dashboard.airport.${status}`).replace('{count}', String(templateStats.airports[status]))}
+                    </span>
+                  ))}
+              </div>
+            </>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Link
+              className={ACTION_CLASS + ' bg-primary text-primary-foreground'}
+              to="/templates/new"
+              data-testid="dashboard-new-template"
+            >
+              {t('dashboard.newTemplate')}
+            </Link>
+            {templateStats && templateStats.templateCount > 0 ? (
+              <Link
+                className={ACTION_CLASS + ' bg-surface text-text hover:bg-surface-muted'}
+                to="/templates"
+                data-testid="dashboard-copy-template-link"
+              >
+                {t('dashboard.copyLinks')}
+              </Link>
+            ) : null}
+          </div>
+        </section>
+      </div>
+      <section
+        className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-border bg-surface px-5 py-4"
+        data-testid="stat-card-sync"
+      >
+        <p className="text-sm text-text-muted">
+          {t('dashboard.statSync')} · {formatTimestamp(lastSyncedAt, t('dashboard.neverSynced'))}
+        </p>
+        <button
+          type="button"
+          className={ACTION_CLASS + ' bg-surface text-text hover:bg-surface-muted disabled:opacity-50'}
+          data-testid="dashboard-sync-all"
+          disabled={syncing}
+          onClick={() => void handleSyncAll()}
+        >
+          <RefreshCw className={syncing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+          {t(syncing ? 'dashboard.syncing' : 'dashboard.syncAll')}
+        </button>
+      </section>
+      <details
+        key={errorSources.map((source) => source.id).join(',')}
+        open={errorSources.length > 0}
+        className="rounded-[var(--radius-lg)] border border-border bg-surface"
+        data-testid="dashboard-recent-errors"
+      >
+        <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-text">
+          {t('dashboard.recentErrors')}
+          {errorSources.length > 0 ? <span className="ml-2 text-danger">{errorSources.length}</span> : null}
+        </summary>
+        <div className="border-t border-border p-5">
+          {errorSources.length === 0 ? (
+            <p className="flex items-center gap-2 text-sm text-text-muted">
+              <CheckCircle2 className="h-4 w-4 text-success" />
+              {t('dashboard.syncHealthy')}
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {errorSources.slice(0, 8).map((source) => (
+                <li
+                  key={source.id}
+                  data-testid={'dashboard-error-' + source.id}
+                  className="rounded-[var(--radius-md)] border border-danger/30 p-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-sm text-text">
+                      <AlertTriangle className="mr-1 inline h-4 w-4 text-danger" />
+                      {source.categoryName} · {source.name}
+                    </span>
+                    <Link to="/rules/$id" params={{ id: source.categoryId }} className="shrink-0 text-xs text-primary">
+                      {t('dashboard.viewRuleset')}
+                    </Link>
+                  </div>
+                  <p className="mt-1 break-words text-xs text-danger">
+                    {source.lastError || t('dashboard.syncPartial')}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </details>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+        <span>{t('dashboard.rangeLabel')}:</span>
+        {(['24h', '7d', '30d'] as const).map((range) => (
+          <button
+            key={range}
+            type="button"
+            onClick={() => navigate({ search: { range }, replace: true })}
+            aria-pressed={(search.range ?? '7d') === range}
+            className="rounded-[var(--radius-sm)] border border-border px-2 py-1"
+          >
+            {range}
+          </button>
+        ))}
       </div>
     </div>
   );
