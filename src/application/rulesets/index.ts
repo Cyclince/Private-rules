@@ -153,11 +153,32 @@ export async function getSubscriptionFile(
   let matchedFormatter = candidates[0].formatter;
 
   for (const candidate of candidates) {
-    const row = await repos.rulesets.findBySlug(candidate.slug);
+    const row = await repos.rulesets.findBySlug(candidate.slug, { enabledOnly: true });
     if (row) {
       matchedRow = row;
       matchedFormatter = candidate.formatter;
       break;
+    }
+  }
+  if (!matchedRow) {
+    // Fallback for legacy rows whose stored `slug` wasn't normalized via `slugify`
+    // (e.g., pre-1.0.4 or backup-imported non-ASCII / spaced slugs where 1.0.7's
+    // `baseName` resolves via `slugify(category.slug || category.name)`).
+    const enabledRows = (await repos.rulesets.listAll()).filter((row) => row.enabled !== 0);
+    for (const candidate of candidates) {
+      const exact = enabledRows.find((row) => slugify(row.slug || row.name) === candidate.slug);
+      if (exact) {
+        matchedRow = exact;
+        matchedFormatter = candidate.formatter;
+        break;
+      }
+      const lowerCandidate = candidate.slug.toLowerCase();
+      const insensitive = enabledRows.find((row) => slugify(row.slug || row.name).toLowerCase() === lowerCandidate);
+      if (insensitive) {
+        matchedRow = insensitive;
+        matchedFormatter = candidate.formatter;
+        break;
+      }
     }
   }
   if (!matchedRow || matchedRow.enabled === 0) return null;

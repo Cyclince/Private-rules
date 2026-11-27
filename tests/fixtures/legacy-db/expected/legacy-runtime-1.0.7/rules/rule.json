@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "rules": [
+    {
+      "domain": [
+        "api.netflix.com"
+      ],
+      "domain_suffix": [
+        "nflxvideo.net"
+      ],
+      "ip_cidr": [
+        "23.246.0.0/18"
+      ]
+    },
+    {
+      "port": [
+        8443
+      ]
+    }
+  ]
+}

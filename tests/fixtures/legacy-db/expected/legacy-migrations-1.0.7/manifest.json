@@ -241,6 +241,252 @@
       "status": 404,
       "contentType": "text/plain; charset=UTF-8",
       "file": "sub/wrong-token/private-proxy.yaml"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services.yaml"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services.yml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services.yml"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services_Classical.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services_Classical.yaml"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services_Domain.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services_Domain.yaml"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services_Domian.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services_Domian.yaml"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services_IPCIDR.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services_IPCIDR.yaml"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services.list"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services.conf",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services.conf"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services.txt",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services.txt"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services-loon.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services-loon.list"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services-qx.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services-qx.list"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services-surge.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services-surge.list"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services-shadowrocket.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services-shadowrocket.list"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services-egern.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services-egern.list"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services-surfboard.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services-surfboard.list"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services-sing-box.json",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services-sing-box.json"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services-v2ray.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services-v2ray.list"
+    },
+    {
+      "path": "/sub/legacy-token/Google-Services.json",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "file": "sub/legacy-token/Google-Services.json"
+    },
+    {
+      "path": "/sub/legacy-token/google-services.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "case-variants/sub/legacy-token/google-services.list"
+    },
+    {
+      "path": "/sub/legacy-token/GOOGLE-SERVICES_CLASSICAL.YAML",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "case-variants/sub/legacy-token/GOOGLE-SERVICES_CLASSICAL.YAML"
+    },
+    {
+      "path": "/rules/Google-Services.yaml",
+      "status": 404,
+      "contentType": "text/plain; charset=UTF-8",
+      "file": "rules/Google-Services.yaml"
+    },
+    {
+      "path": "/rules/rule.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule.yaml"
+    },
+    {
+      "path": "/rules/rule.yml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule.yml"
+    },
+    {
+      "path": "/rules/rule_Classical.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule_Classical.yaml"
+    },
+    {
+      "path": "/rules/rule_Domain.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule_Domain.yaml"
+    },
+    {
+      "path": "/rules/rule_Domian.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule_Domian.yaml"
+    },
+    {
+      "path": "/rules/rule_IPCIDR.yaml",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule_IPCIDR.yaml"
+    },
+    {
+      "path": "/rules/rule.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule.list"
+    },
+    {
+      "path": "/rules/rule.conf",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule.conf"
+    },
+    {
+      "path": "/rules/rule.txt",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule.txt"
+    },
+    {
+      "path": "/rules/rule-loon.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule-loon.list"
+    },
+    {
+      "path": "/rules/rule-qx.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule-qx.list"
+    },
+    {
+      "path": "/rules/rule-surge.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule-surge.list"
+    },
+    {
+      "path": "/rules/rule-shadowrocket.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule-shadowrocket.list"
+    },
+    {
+      "path": "/rules/rule-egern.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule-egern.list"
+    },
+    {
+      "path": "/rules/rule-surfboard.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule-surfboard.list"
+    },
+    {
+      "path": "/rules/rule-sing-box.json",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "file": "rules/rule-sing-box.json"
+    },
+    {
+      "path": "/rules/rule-v2ray.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "rules/rule-v2ray.list"
+    },
+    {
+      "path": "/rules/rule.json",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "file": "rules/rule.json"
+    },
+    {
+      "path": "/rules/RULE.list",
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "file": "case-variants/rules/RULE.list"
+    },
+    {
+      "path": "/sub/legacy-token/rule.yaml",
+      "status": 404,
+      "contentType": "text/plain; charset=UTF-8",
+      "file": "sub/legacy-token/rule.yaml"
     }
   ]
 }

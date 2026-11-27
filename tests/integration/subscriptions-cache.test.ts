@@ -259,4 +259,98 @@ describe('M1.4 subscriptions caching, ETag/304, single-category query, and canon
     expect(invalidRes.status).toBe(400);
     expect(await invalidRes.json()).toMatchObject({ ok: false, code: 'BACKUP_INVALID' });
   });
+
+  it('serves mixed-case slugs, disambiguates case-colliding slugs without cache collisions, and purges all case variants', async () => {
+    // 1. Creating "Drill Added" preserves slug "Drill-Added" and serves exact + case-insensitive URLs
+    const createRes = await app.request(
+      '/api/rulesets',
+      {
+        method: 'POST',
+        headers: { cookie, origin: 'http://localhost', 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Drill Added', tokenLinksEnabled: true, publicLinksEnabled: false }),
+      },
+      env,
+    );
+    expect(createRes.status).toBe(201);
+    const createdJson = (await createRes.json()) as {
+      data: { categories: Array<{ id: string; name: string; slug: string }> };
+      links: Record<string, Array<{ id: string; fileName: string; tokenUrl: string }>>;
+    };
+    const drill = createdJson.data.categories.find((c) => c.name === 'Drill Added')!;
+    expect(drill.slug).toBe('Drill-Added');
+    expect(createdJson.links[drill.id].find((l) => l.id === 'general')?.fileName).toBe('Drill-Added.list');
+    expect(createdJson.links[drill.id].find((l) => l.id === 'yaml-classical')?.fileName).toBe(
+      'Drill-Added_Classical.yaml',
+    );
+
+    await addRule(env, drill.id, { value: 'drill.example.com' });
+
+    for (const file of ['Drill-Added.list', 'Drill-Added_Classical.yaml', 'drill-added.list', 'DRILL-ADDED.LIST']) {
+      const res = await app.request(`/sub/cache-token/${file}`, {}, env);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toContain('drill.example.com');
+    }
+    // Public access remains 404 for token-only ruleset
+    expect((await app.request('/rules/Drill-Added.list', {}, env)).status).toBe(404);
+
+    // Mutating the mixed-case ruleset purges cached canonical, lowercase, and arbitrary-case entries
+    const mutateRes = await app.request(
+      `/api/rulesets/${drill.id}/rules`,
+      {
+        method: 'POST',
+        headers: { cookie, origin: 'http://localhost', 'content-type': 'application/json' },
+        body: JSON.stringify({ value: 'drill-updated.example.com' }),
+      },
+      env,
+    );
+    expect(mutateRes.status).toBe(201);
+    expect(cache.entries.size).toBe(0);
+
+    const afterMutate = await app.request('/sub/cache-token/DRILL-ADDED.LIST', {}, env);
+    expect(afterMutate.status).toBe(200);
+    expect(await afterMutate.text()).toContain('drill-updated.example.com');
+
+    // 2. Two rulesets differing only by slug case must resolve to exact matches without cache collision
+    const upper = await createCategory(env, {
+      name: 'Case Upper',
+      slug: 'CaseTest',
+      tokenLinksEnabled: false,
+      publicLinksEnabled: true,
+    });
+    const upperId = upper.categories.find((c) => c.slug === 'CaseTest')!.id;
+    await addRule(env, upperId, { value: 'upper-only.example.com' });
+
+    const lower = await createCategory(env, {
+      name: 'Case Lower',
+      slug: 'casetest',
+      tokenLinksEnabled: false,
+      publicLinksEnabled: true,
+    });
+    const lowerId = lower.categories.find((c) => c.slug === 'casetest')!.id;
+    await addRule(env, lowerId, { value: 'lower-only.example.com' });
+
+    const upperRes = await app.request('/rules/CaseTest.list', {}, env);
+    expect(upperRes.status).toBe(200);
+    expect(await upperRes.text()).toContain('upper-only.example.com');
+
+    const lowerRes = await app.request('/rules/casetest.list', {}, env);
+    expect(lowerRes.status).toBe(200);
+    const lowerBody = await lowerRes.text();
+    expect(lowerBody).toContain('lower-only.example.com');
+    expect(lowerBody).not.toContain('upper-only.example.com');
+
+    // 3. Legacy non-ASCII slug stored directly in DB resolves via 1.0.7 slugify fallback ("rule")
+    database.native
+      .prepare(
+        `INSERT INTO categories (id, name, slug, icon, description, note, sort_order, enabled, public_links_enabled, token_links_enabled, created_at, updated_at)
+         VALUES ('cat_cjk_raw', '流媒体', '流媒体', '流媒', '', '', 99, 1, 1, 0, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`,
+      )
+      .run();
+    await addRule(env, 'cat_cjk_raw', { value: 'cjk-stream.example.com' });
+
+    const cjkResolved = await app.request('/rules/rule.list', {}, env);
+    expect(cjkResolved.status).toBe(200);
+    expect(await cjkResolved.text()).toContain('cjk-stream.example.com');
+    expect((await app.request(`/rules/${encodeURIComponent('流媒体')}.list`, {}, env)).status).toBe(404);
+  });
 });

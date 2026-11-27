@@ -1,0 +1,6 @@
+# Generated for Google Services by Private Rules
+# UPDATED: 2026-11-15 20:30:00
+mail.google.com
+googleapis.com
+gstatic
+142.250.0.0/15

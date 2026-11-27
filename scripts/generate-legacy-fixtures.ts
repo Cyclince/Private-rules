@@ -55,6 +55,15 @@ const GOLDEN_ENDPOINTS = [
   '/rules/internal-only.yaml',
   `/sub/${LEGACY_RULE_TOKEN}/internal-only.yaml`,
   '/sub/wrong-token/private-proxy.yaml',
+  // Mixed-case slug ("Google Services" -> "Google-Services", token-protected)
+  ...ALL_FORMAT_SUFFIXES.map((suffix) => `/sub/${LEGACY_RULE_TOKEN}/Google-Services${suffix}`),
+  `/sub/${LEGACY_RULE_TOKEN}/google-services.list`,
+  `/sub/${LEGACY_RULE_TOKEN}/GOOGLE-SERVICES_CLASSICAL.YAML`,
+  '/rules/Google-Services.yaml',
+  // Pure CJK name ("流媒体" -> 1.0.7 slugify fallback "rule", public)
+  ...ALL_FORMAT_SUFFIXES.map((suffix) => `/rules/rule${suffix}`),
+  '/rules/RULE.list',
+  `/sub/${LEGACY_RULE_TOKEN}/rule.yaml`,
 ] as const;
 
 const FIXED_CREATED_AT = '2026-10-01T08:00:00.000Z';
@@ -270,6 +279,10 @@ function seedCoreData(db: Database.Database, includeIconPackSettings: boolean) {
   insertCategory.run('cat_public', 'Public Direct', 'public-direct', 'PD', 'Public direct rules', 'Direct note', 1, 1, 1, 0, FIXED_CREATED_AT, FIXED_UPDATED_AT);
   insertCategory.run('cat_private', 'Private Proxy', 'private-proxy', 'PP', 'Token protected rules', 'Proxy note', 2, 1, 0, 1, FIXED_CREATED_AT, FIXED_UPDATED_AT);
   insertCategory.run('cat_disabled', 'Internal Only', 'internal-only', 'IO', 'Disabled links', '', 3, 1, 0, 0, FIXED_CREATED_AT, FIXED_UPDATED_AT);
+  // Mixed-case name with space ("Google Services" -> 1.0.7 slugify -> "Google-Services", token-protected)
+  insertCategory.run('cat_google', 'Google Services', 'Google-Services', 'GS', 'Google services rules', 'Google note', 4, 1, 0, 1, FIXED_CREATED_AT, FIXED_UPDATED_AT);
+  // Pure CJK name ("流媒体" -> 1.0.7 slugify -> "rule", public links enabled)
+  insertCategory.run('cat_streaming', '流媒体', 'rule', '流媒', '中文分类规则', 'Streaming note', 5, 1, 1, 0, FIXED_CREATED_AT, FIXED_UPDATED_AT);
 
   const insertSource = db.prepare(`INSERT INTO category_sources
     (id, category_id, name, url, enabled, last_synced_at, last_status, last_count, last_original_count, last_error,
@@ -312,6 +325,18 @@ function seedCoreData(db: Database.Database, includeIconPackSettings: boolean) {
 
   // Disabled-links category rule
   insertRule.run('rule_dis_1', 'cat_disabled', 'internal.example.com', 'DOMAIN', '完整域名', '', 1, 1, null, FIXED_CREATED_AT, FIXED_UPDATED_AT);
+
+  // Mixed-case slug ("Google Services") rules across multiple types
+  insertRule.run('rule_goo_1', 'cat_google', 'mail.google.com', 'DOMAIN', '完整域名', 'Gmail', 1, 1, null, FIXED_CREATED_AT, FIXED_UPDATED_AT);
+  insertRule.run('rule_goo_2', 'cat_google', 'googleapis.com', 'DOMAIN-SUFFIX', '域名后缀', '', 1, 2, null, FIXED_CREATED_AT, FIXED_UPDATED_AT);
+  insertRule.run('rule_goo_3', 'cat_google', 'gstatic', 'DOMAIN-KEYWORD', '关键词', '', 1, 3, null, FIXED_CREATED_AT, FIXED_UPDATED_AT);
+  insertRule.run('rule_goo_4', 'cat_google', '142.250.0.0/15', 'IP-CIDR', 'IP 段', 'Google ASN', 1, 4, null, FIXED_CREATED_AT, FIXED_UPDATED_AT);
+
+  // Pure CJK name ("流媒体" -> slug "rule") rules across multiple types
+  insertRule.run('rule_str_1', 'cat_streaming', 'api.netflix.com', 'DOMAIN', '完整域名', 'Netflix API', 1, 1, null, FIXED_CREATED_AT, FIXED_UPDATED_AT);
+  insertRule.run('rule_str_2', 'cat_streaming', 'nflxvideo.net', 'DOMAIN-SUFFIX', '域名后缀', '', 1, 2, null, FIXED_CREATED_AT, FIXED_UPDATED_AT);
+  insertRule.run('rule_str_3', 'cat_streaming', '23.246.0.0/18', 'IP-CIDR', 'IP 段', '', 1, 3, null, FIXED_CREATED_AT, FIXED_UPDATED_AT);
+  insertRule.run('rule_str_4', 'cat_streaming', '8443', 'DST-PORT', '目标端口', '', 1, 4, null, FIXED_CREATED_AT, FIXED_UPDATED_AT);
 
   // Auth & API key rows
   db.prepare('INSERT INTO sessions (id, expires_at, created_at) VALUES (?, ?, ?)').run('sess_legacy_1', FIXED_EXPIRES_AT, FIXED_CREATED_AT);
@@ -396,8 +421,21 @@ type GoldenManifest = {
   endpoints: GoldenEntry[];
 };
 
-function bodyFileForEndpoint(endpoint: string): string {
-  return endpoint.replace(/^\/+/, '');
+function bodyFileForEndpoint(endpoint: string, seenLowerPaths: Set<string>): string {
+  const base = endpoint.replace(/^\/+/, '');
+  const lower = base.toLowerCase();
+  if (!seenLowerPaths.has(lower)) {
+    seenLowerPaths.add(lower);
+    return base;
+  }
+  let candidate = `case-variants/${base}`;
+  let counter = 2;
+  while (seenLowerPaths.has(candidate.toLowerCase())) {
+    candidate = `case-variants-${counter}/${base}`;
+    counter += 1;
+  }
+  seenLowerPaths.add(candidate.toLowerCase());
+  return candidate;
 }
 
 /**
@@ -507,8 +545,9 @@ await writeFile(outputPath, JSON.stringify(results), 'utf8');
         throw new Error(`Failed to capture all golden endpoints for ${fixtureName}`);
       }
       const manifestEntries: GoldenEntry[] = [];
+      const seenLowerPaths = new Set<string>();
       for (const entry of entries) {
-        const relativeFile = bodyFileForEndpoint(entry.path);
+        const relativeFile = bodyFileForEndpoint(entry.path, seenLowerPaths);
         const targetPath = join(fixtureOutDir, relativeFile);
         await mkdir(dirname(targetPath), { recursive: true });
         await writeFile(targetPath, entry.body, 'utf8');

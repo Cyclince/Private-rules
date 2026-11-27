@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "rules": [
+    {
+      "domain": [
+        "mail.google.com"
+      ],
+      "domain_suffix": [
+        "googleapis.com"
+      ],
+      "domain_keyword": [
+        "gstatic"
+      ],
+      "ip_cidr": [
+        "142.250.0.0/15"
+      ]
+    }
+  ]
+}

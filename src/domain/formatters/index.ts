@@ -346,11 +346,11 @@ export function fileNameForClient(category: RuleCategory, client: ClientId) {
 }
 
 export const SUBSCRIPTION_FILE_SUFFIXES: ReadonlyArray<readonly [string, Formatter]> = [
-  ['_classical.yaml', formatters['yaml-classical']],
-  ['_domain.yaml', formatters['yaml-domain']],
+  ['_Classical.yaml', formatters['yaml-classical']],
+  ['_Domain.yaml', formatters['yaml-domain']],
   // Compatibility for the common "Domian" typo used by older copied links.
-  ['_domian.yaml', formatters['yaml-domain']],
-  ['_ipcidr.yaml', formatters['yaml-ipcidr']],
+  ['_Domian.yaml', formatters['yaml-domain']],
+  ['_IPCIDR.yaml', formatters['yaml-ipcidr']],
   ['-shadowrocket.list', formatters.shadowrocket],
   ['-surfboard.list', formatters.surfboard],
   ['-sing-box.json', formatters['sing-box']],
@@ -377,23 +377,28 @@ export type FormattedSubscriptionFile = {
 
 /**
  * Splits a subscription filename into candidate `{ slug, formatter }` pairs
- * ordered so specific client suffixes (`-loon.list`, `_ipcidr.yaml`, ...) take
+ * ordered so specific client suffixes (`-loon.list`, `_IPCIDR.yaml`, ...) take
  * precedence over generic ones (`.list`, `.yaml`), while still allowing a
  * category whose slug ends with `-loon` to fall back to `.list`.
+ *
+ * Suffix matching is case-insensitive (matching 1.0.7), while the extracted
+ * `slug` preserves the original casing from `fileName` so callers can prefer
+ * exact case matches before falling back to case-insensitive lookup.
  */
 export function subscriptionFileCandidates(fileName: string): Array<{ slug: string; formatter: Formatter }> {
   const lower = fileName.toLowerCase();
   const candidates: Array<{ slug: string; formatter: Formatter }> = [];
   for (const [suffix, formatter] of SUBSCRIPTION_FILE_SUFFIXES) {
-    if (lower.endsWith(suffix) && lower.length > suffix.length) {
-      candidates.push({ slug: lower.slice(0, -suffix.length), formatter });
+    const lowerSuffix = suffix.toLowerCase();
+    if (lower.endsWith(lowerSuffix) && fileName.length > suffix.length) {
+      candidates.push({ slug: fileName.slice(0, -suffix.length), formatter });
     }
   }
   return candidates;
 }
 
 export function subscriptionFileNamesForSlug(slug: string): string[] {
-  const base = slugify(slug).toLowerCase();
+  const base = slugify(slug);
   return SUBSCRIPTION_FILE_SUFFIXES.map(([suffix]) => `${base}${suffix}`);
 }
 
@@ -418,34 +423,23 @@ export function formatCategoryFile(
 }
 
 export function resolveFile(data: RulesData, fileName: string): FormattedSubscriptionFile | null {
-  const lower = fileName.toLowerCase();
-  for (const category of data.categories) {
-    if (category.enabled === false) continue;
-    const base = baseName(category).toLowerCase();
-    const candidates: Array<[string, Formatter]> = [
-      [`${base}.yaml`, formatters.yaml],
-      [`${base}.yml`, formatters.yaml],
-      [`${base}_classical.yaml`, formatters['yaml-classical']],
-      [`${base}_domain.yaml`, formatters['yaml-domain']],
-      // Compatibility for the common "Domian" typo used by older copied links.
-      [`${base}_domian.yaml`, formatters['yaml-domain']],
-      [`${base}_ipcidr.yaml`, formatters['yaml-ipcidr']],
-      [`${base}.list`, formatters.general],
-      [`${base}.conf`, formatters.general],
-      [`${base}.txt`, formatters.url],
-      [`${base}-loon.list`, formatters.loon],
-      [`${base}-qx.list`, formatters['quantumult-x']],
-      [`${base}-surge.list`, formatters.surge],
-      [`${base}-shadowrocket.list`, formatters.shadowrocket],
-      [`${base}-egern.list`, formatters.egern],
-      [`${base}-surfboard.list`, formatters.surfboard],
-      [`${base}-sing-box.json`, formatters['sing-box']],
-      [`${base}-v2ray.list`, formatters.v2ray],
-      [`${base}.json`, formatters.json],
-    ];
-    const match = candidates.find(([candidate]) => candidate === lower);
-    if (match) {
-      return formatCategoryFile(category, match[1], data);
+  const candidates = subscriptionFileCandidates(fileName);
+  if (candidates.length === 0) return null;
+
+  for (const candidate of candidates) {
+    const exact = data.categories.find(
+      (category) => category.enabled !== false && baseName(category) === candidate.slug,
+    );
+    if (exact) {
+      return formatCategoryFile(exact, candidate.formatter, data);
+    }
+
+    const lowerSlug = candidate.slug.toLowerCase();
+    const insensitive = data.categories.find(
+      (category) => category.enabled !== false && baseName(category).toLowerCase() === lowerSlug,
+    );
+    if (insensitive) {
+      return formatCategoryFile(insensitive, candidate.formatter, data);
     }
   }
   return null;

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { formatters, resolveFile } from '../../src/lib/formatters';
+import {
+  formatters,
+  resolveFile,
+  subscriptionFileCandidates,
+  subscriptionFileNamesForSlug,
+} from '../../src/lib/formatters';
+import { slugify } from '../../src/lib/slug';
 import { parseBulkImport, parseRuleInput } from '../../src/lib/parser';
 import { RULE_TYPES } from '../../src/lib/rule-types';
 import { isSourceDue } from '../../src/lib/sync';
@@ -219,5 +225,85 @@ describe('subscription link protocol', () => {
     } as RulesData;
     const links = linksForCategory(category, data, 'https://console.example.com/api/categories');
     expect(links.every((link) => link.publicUrl.startsWith('https://rules.example.com/'))).toBe(true);
+  });
+});
+
+describe('subscription slug case compatibility with 1.0.7', () => {
+  const baseSettings = {
+    policyName: '',
+    baseUrl: 'https://rules.example.com',
+    githubMirrorUrl: '',
+    publicLinksEnabled: true,
+    tokenLinksEnabled: true,
+    customIconPackUrls: [],
+    customIconPackNames: {},
+  };
+
+  it('preserves slug casing in slugify, subscriptionFileCandidates, subscriptionFileNamesForSlug, and linksForCategory', () => {
+    expect(slugify('Drill Added')).toBe('Drill-Added');
+    expect(slugify('Google Services')).toBe('Google-Services');
+    expect(slugify('流媒体')).toBe('rule');
+
+    expect(subscriptionFileCandidates('Drill-Added.list').map((c) => [c.slug, c.formatter.id])).toEqual([
+      ['Drill-Added', 'general'],
+    ]);
+    expect(subscriptionFileCandidates('Drill-Added_Classical.yaml').map((c) => [c.slug, c.formatter.id])).toEqual([
+      ['Drill-Added', 'yaml-classical'],
+      ['Drill-Added_Classical', 'yaml'],
+    ]);
+    expect(subscriptionFileCandidates('DRILL-ADDED_IPCIDR.YAML').map((c) => [c.slug, c.formatter.id])).toEqual([
+      ['DRILL-ADDED', 'yaml-ipcidr'],
+      ['DRILL-ADDED_IPCIDR', 'yaml'],
+    ]);
+
+    const fileNames = subscriptionFileNamesForSlug('Drill-Added');
+    expect(fileNames).toContain('Drill-Added.list');
+    expect(fileNames).toContain('Drill-Added_Classical.yaml');
+    expect(fileNames).toContain('Drill-Added_Domain.yaml');
+    expect(fileNames).toContain('Drill-Added_IPCIDR.yaml');
+    expect(fileNames).not.toContain('drill-added.list');
+
+    const category: RuleCategory = {
+      id: 'cat-drill',
+      name: 'Drill Added',
+      slug: 'Drill-Added',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      tokenLinksEnabled: true,
+      publicLinksEnabled: false,
+      rules: [],
+    };
+    const links = linksForCategory(category, { settings: baseSettings, categories: [category] } as RulesData, 'https://rules.example.com', 'tok');
+    expect(links.find((l) => l.id === 'general')?.tokenUrl).toBe('https://rules.example.com/sub/tok/Drill-Added.list');
+    expect(links.find((l) => l.id === 'yaml-classical')?.tokenUrl).toBe(
+      'https://rules.example.com/sub/tok/Drill-Added_Classical.yaml',
+    );
+  });
+
+  it('matches mixed-case slugs case-insensitively and prioritizes exact matches when two slugs differ only by case', () => {
+    const upper: RuleCategory = {
+      id: 'cat-upper',
+      name: 'Drill Added',
+      slug: 'Drill-Added',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      rules: [{ id: 'r1', value: 'upper.example.com', type: 'DOMAIN', enabled: true, createdAt: '', updatedAt: '' }],
+    };
+    const lower: RuleCategory = {
+      id: 'cat-lower',
+      name: 'drill added',
+      slug: 'drill-added',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      rules: [{ id: 'r2', value: 'lower.example.com', type: 'DOMAIN', enabled: true, createdAt: '', updatedAt: '' }],
+    };
+    const data = { settings: baseSettings, categories: [upper, lower] } as RulesData;
+
+    expect(resolveFile(data, 'Drill-Added.list')?.body).toContain('upper.example.com');
+    expect(resolveFile(data, 'drill-added.list')?.body).toContain('lower.example.com');
+    expect(resolveFile(data, 'DRILL-ADDED.LIST')?.body).toContain('upper.example.com');
+    expect(resolveFile(data, 'drill-added_classical.yaml')?.body).toContain('lower.example.com');
+
+    // Disabled exact match is skipped in favor of enabled case-insensitive match
+    const disabledUpper: RuleCategory = { ...upper, enabled: false };
+    const disabledData = { settings: baseSettings, categories: [disabledUpper, lower] } as RulesData;
+    expect(resolveFile(disabledData, 'Drill-Added.list')?.body).toContain('lower.example.com');
   });
 });

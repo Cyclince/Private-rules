@@ -1,0 +1,9 @@
+# Generated for Google Services by Private Rules
+# UPDATED: 2026-11-15 20:30:00
+# --- Google note ---
+# Gmail
+HOST,mail.google.com,PROXY
+HOST-SUFFIX,googleapis.com,PROXY
+HOST-KEYWORD,gstatic,PROXY
+# Google ASN
+IP-CIDR,142.250.0.0/15,PROXY

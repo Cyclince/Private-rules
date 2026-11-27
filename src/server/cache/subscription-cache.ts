@@ -1,6 +1,11 @@
 import type { PublicationCacheIdentity } from '../../application/publications';
 import { listRulesetSlugs } from '../../application/rulesets';
-import { subscriptionFileNamesForSlug } from '../../domain/formatters';
+import {
+  SUBSCRIPTION_FILE_SUFFIXES,
+  subscriptionFileCandidates,
+  subscriptionFileNamesForSlug,
+} from '../../domain/formatters';
+import { slugify } from '../../domain/rules/slug';
 import type { Env, SubscriptionCacheStore } from '../../types';
 
 const CACHE_ORIGIN = 'https://cache.private-rules.internal';
@@ -13,10 +18,16 @@ type TrackedPublicationKey = {
   templateId: string;
 };
 
+type TrackedSubscriptionKey = {
+  url: string;
+  slugLower: string;
+};
+
 // Tracks recently cached publication keys per store instance so mutations can
 // actively call `cache.delete` on affected entries while composite keys also
 // prevent stale hits across Worker isolates.
 const trackedPublicationKeys = new WeakMap<SubscriptionCacheStore, Map<string, TrackedPublicationKey>>();
+const trackedSubscriptionKeys = new WeakMap<SubscriptionCacheStore, Map<string, TrackedSubscriptionKey>>();
 
 function getTrackedMap(cache: SubscriptionCacheStore): Map<string, TrackedPublicationKey> {
   let map = trackedPublicationKeys.get(cache);
@@ -27,14 +38,39 @@ function getTrackedMap(cache: SubscriptionCacheStore): Map<string, TrackedPublic
   return map;
 }
 
+function getTrackedSubscriptionMap(cache: SubscriptionCacheStore): Map<string, TrackedSubscriptionKey> {
+  let map = trackedSubscriptionKeys.get(cache);
+  if (!map) {
+    map = new Map();
+    trackedSubscriptionKeys.set(cache, map);
+  }
+  return map;
+}
+
 function resolveCacheStore(env: Env): SubscriptionCacheStore | undefined {
   if (env.SUBSCRIPTION_CACHE) return env.SUBSCRIPTION_CACHE;
   const globalCaches = (globalThis as { caches?: { default?: SubscriptionCacheStore } }).caches;
   return globalCaches?.default;
 }
 
+/**
+ * Normalizes only the subscription suffix to lowercase while preserving the
+ * slug portion's case, preventing cache collisions when two rulesets share a
+ * case-insensitive slug (e.g. `Foo` and `foo`).
+ */
+function normalizeSubscriptionCacheFile(file: string): string {
+  const lower = file.toLowerCase();
+  for (const [suffix] of SUBSCRIPTION_FILE_SUFFIXES) {
+    const lowerSuffix = suffix.toLowerCase();
+    if (lower.endsWith(lowerSuffix) && file.length > suffix.length) {
+      return `${file.slice(0, -suffix.length)}${lowerSuffix}`;
+    }
+  }
+  return file;
+}
+
 function cacheKeyUrl(access: 'public' | 'token', file: string, token?: string): string {
-  const normalizedFile = file.toLowerCase();
+  const normalizedFile = normalizeSubscriptionCacheFile(file);
   if (access === 'token') {
     return `${CACHE_ORIGIN}/sub/${encodeURIComponent(token ?? '')}/${normalizedFile}`;
   }
@@ -104,10 +140,17 @@ export async function storeCachedSubscription(
   file: string,
   response: Response,
   token?: string,
+  matchedSlug?: string,
 ): Promise<void> {
   const cache = resolveCacheStore(env);
   if (!cache) return;
-  const putPromise = cache.put(new Request(cacheKeyUrl(access, file, token)), response.clone()).catch(() => undefined);
+  const url = cacheKeyUrl(access, file, token);
+  const trackedSlug = matchedSlug || subscriptionFileCandidates(file)[0]?.slug || file;
+  getTrackedSubscriptionMap(cache).set(url, {
+    url,
+    slugLower: slugify(trackedSlug).toLowerCase(),
+  });
+  const putPromise = cache.put(new Request(url), response.clone()).catch(() => undefined);
   if (env.BACKGROUND_TASKS) {
     env.BACKGROUND_TASKS.schedule(putPromise);
   } else {
@@ -196,16 +239,32 @@ export async function purgeSubscriptionCacheForSlugs(env: Env, slugs: Iterable<s
   const uniqueSlugs = [...new Set([...slugs].filter(Boolean))];
   if (uniqueSlugs.length === 0) return;
 
-  const deletions: Array<Promise<boolean>> = [];
+  const deleteUrls = new Set<string>();
+  const normalizedLowerSlugs = new Set<string>();
   for (const slug of uniqueSlugs) {
-    for (const fileName of subscriptionFileNamesForSlug(slug)) {
-      deletions.push(cache.delete(new Request(cacheKeyUrl('public', fileName))));
-      if (env.RULE_TOKEN) {
-        deletions.push(cache.delete(new Request(cacheKeyUrl('token', fileName, env.RULE_TOKEN))));
+    const base = slugify(slug);
+    const lowerBase = base.toLowerCase();
+    normalizedLowerSlugs.add(lowerBase);
+    const variants = base === lowerBase ? [base] : [base, lowerBase];
+    for (const variant of variants) {
+      for (const fileName of subscriptionFileNamesForSlug(variant)) {
+        deleteUrls.add(cacheKeyUrl('public', fileName));
+        if (env.RULE_TOKEN) {
+          deleteUrls.add(cacheKeyUrl('token', fileName, env.RULE_TOKEN));
+        }
       }
     }
   }
-  await Promise.all(deletions).catch(() => undefined);
+
+  const trackedMap = getTrackedSubscriptionMap(cache);
+  for (const [url, entry] of trackedMap.entries()) {
+    if (normalizedLowerSlugs.has(entry.slugLower)) {
+      deleteUrls.add(url);
+      trackedMap.delete(url);
+    }
+  }
+
+  await Promise.all([...deleteUrls].map((url) => cache.delete(new Request(url)))).catch(() => undefined);
   // Ruleset mutations can also affect publications that reference those rulesets.
   await purgeAllPublicationCaches(env);
 }

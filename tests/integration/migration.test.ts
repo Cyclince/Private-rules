@@ -179,8 +179,8 @@ async function assertUpgradedSchemaAndData(db: Env['DB'], hasTelegramSeed: boole
   expect(indexes.has('idx_sessions_expires')).toBe(true);
 
   // Verify zero data loss across 1.0.x tables and rate_limits migration
-  expect(await db.prepare('SELECT COUNT(*) AS c FROM categories').first<{ c: number }>()).toEqual({ c: 3 });
-  expect(await db.prepare('SELECT COUNT(*) AS c FROM rules').first<{ c: number }>()).toEqual({ c: 16 });
+  expect(await db.prepare('SELECT COUNT(*) AS c FROM categories').first<{ c: number }>()).toEqual({ c: 5 });
+  expect(await db.prepare('SELECT COUNT(*) AS c FROM rules').first<{ c: number }>()).toEqual({ c: 24 });
   expect(await db.prepare('SELECT COUNT(*) AS c FROM category_sources').first<{ c: number }>()).toEqual({ c: 3 });
   expect(
     await db.prepare('SELECT COUNT(*) AS c FROM category_sources WHERE coverage_dedup = 0').first<{ c: number }>(),
@@ -308,7 +308,7 @@ describe('1.1.0 schema and migrations', () => {
           }
           expect(backupTables.has('app_cards')).toBe(false);
           expect(backupTables.has('_schema_migrations')).toBe(false);
-          expect(backupDb.prepare('SELECT COUNT(*) AS c FROM rules').get()).toEqual({ c: 16 });
+          expect(backupDb.prepare('SELECT COUNT(*) AS c FROM rules').get()).toEqual({ c: 24 });
         } finally {
           backupDb.close();
         }

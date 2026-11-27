@@ -1,0 +1,8 @@
+# Generated for 流媒体 by Private Rules
+# UPDATED: 2026-11-15 20:30:00
+# --- Streaming note ---
+# Netflix API
+HOST,api.netflix.com,PROXY
+HOST-SUFFIX,nflxvideo.net,PROXY
+IP-CIDR,23.246.0.0/18,PROXY
+DST-PORT,8443,PROXY

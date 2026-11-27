@@ -1,0 +1,10 @@
+# Generated for Google Services by Private Rules
+# UPDATED: 2026-11-15 20:30:00
+payload:
+  # --- Google note ---
+  # Gmail
+  - DOMAIN,mail.google.com
+  - DOMAIN-SUFFIX,googleapis.com
+  - DOMAIN-KEYWORD,gstatic
+  # Google ASN
+  - IP-CIDR,142.250.0.0/15

@@ -1,0 +1,8 @@
+# Generated for 流媒体 by Private Rules
+# UPDATED: 2026-11-15 20:30:00
+# --- Streaming note ---
+# Netflix API
+DOMAIN,api.netflix.com
+DOMAIN-SUFFIX,nflxvideo.net
+IP-CIDR,23.246.0.0/18
+DEST-PORT,8443

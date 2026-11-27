@@ -66,7 +66,7 @@ async function serveSubscription(c: AppContext, file: string, access: 'public' |
     },
   });
 
-  await storeCachedSubscription(c.env, access, file, response, token);
+  await storeCachedSubscription(c.env, access, file, response, token, result.category.slug);
 
   if (matchesIfNoneMatch(ifNoneMatch, etag)) {
     return notModifiedResponse(etag);
