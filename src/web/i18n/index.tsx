@@ -51,6 +51,16 @@ export async function loadLocaleDictionary(locale: Locale): Promise<Messages> {
   return zhCNMerged as Messages;
 }
 
+/**
+ * Merges dictionary fragments owned by lazy components into the active zh-CN dictionary, so copy that
+ * only one screen needs (for example the software picker) never ships inside the shared pages chunk.
+ * Components call this once at module scope; the i18n context re-renders on the notification.
+ */
+export function extendZhCNDictionary(strings: Partial<Messages>): void {
+  Object.assign(zhCNMerged, strings);
+  notifyDictionaryUpdated();
+}
+
 export function resolveLocale(raw?: string | null): Locale {
   if (!raw) return 'zh-CN';
   const normalized = raw.trim().toLowerCase();

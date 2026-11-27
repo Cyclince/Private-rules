@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { zhCN } from '../../src/web/i18n/zh-CN';
+import { zhCNApps } from '../../src/web/i18n/zh-CN.apps';
 
 const NORMAL_FILES = [
   'src/web/routes/index.tsx',
@@ -79,6 +80,8 @@ function violations(entries: Array<[string, string]>) {
   return entries.filter(([key, value]) => !allowed(key) && FORBIDDEN.test(value));
 }
 
+const dictionary: Record<string, string> = { ...zhCN, ...zhCNApps };
+
 async function usedKeys() {
   const keys = new Set<string>();
   for (const path of NORMAL_FILES) {
@@ -90,14 +93,14 @@ async function usedKeys() {
     // Expand dynamic i18n key families such as `wizard.scenario.${id}`.
     for (const match of source.matchAll(/`([\w.-]+)\$\{/g)) {
       if (NORMAL_PREFIXES.some((prefix) => match[1].startsWith(prefix))) {
-        for (const key of Object.keys(zhCN)) if (key.startsWith(match[1])) keys.add(key);
+        for (const key of Object.keys(dictionary)) if (key.startsWith(match[1])) keys.add(key);
       }
     }
   }
   // API errors may be translated dynamically on every ordinary page.
-  for (const key of Object.keys(zhCN)) if (key.startsWith('error.')) keys.add(key);
+  for (const key of Object.keys(dictionary)) if (key.startsWith('error.')) keys.add(key);
   // Software-catalog guidance is rendered through dynamic keys (`app.howToKey`), so scan the whole family.
-  for (const key of Object.keys(zhCN)) if (key.startsWith('apps.')) keys.add(key);
+  for (const key of Object.keys(dictionary)) if (key.startsWith('apps.')) keys.add(key);
   return [...keys];
 }
 
@@ -105,7 +108,6 @@ describe('F7 ordinary-page Chinese copy', () => {
   it('scans keys used by rules, subscriptions, template list/wizard and ordinary detail tabs', async () => {
     const keys = await usedKeys();
     expect(keys.length).toBeGreaterThan(200);
-    const dictionary: Record<string, string> = zhCN;
     expect(keys.filter((key) => !(key in dictionary))).toEqual([]);
     expect(violations(keys.map((key) => [key, dictionary[key]]))).toEqual([]);
   });

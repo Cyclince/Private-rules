@@ -1,11 +1,10 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { convertToZhTW } from '../../scripts/generate-zh-tw';
+import { convertToZhTW, fullZhCNSource } from '../../scripts/generate-zh-tw';
 import { ERROR_CODES, type ErrorCode } from '../../src/shared/errors';
 import { en } from '../../src/web/i18n/en';
 import { getDictionary, loadLocaleDictionary, resolveLocale, translateErrorCode } from '../../src/web/i18n';
-import { zhCN } from '../../src/web/i18n/zh-CN';
 import { zhTW } from '../../src/web/i18n/zh-TW';
 
 const ROOT = resolve(process.cwd());
@@ -29,7 +28,7 @@ async function listFilesRecursive(dir: string): Promise<string[]> {
 describe('M2.1 build-time i18n, zero runtime OpenCC, and WebP assets', () => {
   it('keeps zh-CN, zh-TW, and en dictionaries in exact key parity and covers all ERROR_CODES', async () => {
     await Promise.all([loadLocaleDictionary('zh-TW'), loadLocaleDictionary('en')]);
-    const cnKeys = Object.keys(zhCN).sort();
+    const cnKeys = Object.keys(fullZhCNSource()).sort();
     const twKeys = Object.keys(zhTW).sort();
     const enKeys = Object.keys(en).sort();
     expect(twKeys).toEqual(cnKeys);
@@ -53,7 +52,7 @@ describe('M2.1 build-time i18n, zero runtime OpenCC, and WebP assets', () => {
   });
 
   it('keeps generated zh-TW.ts in sync with generate-zh-tw.ts and applies manual terminology overrides', () => {
-    expect(zhTW).toEqual(convertToZhTW(zhCN));
+    expect(zhTW).toEqual(convertToZhTW(fullZhCNSource()));
     expect(zhTW['preview.toastDescription']).toContain('快取');
     expect(zhTW['error.INTERNAL']).toContain('伺服器');
     expect(zhTW['auth.logout']).toBe('登出');

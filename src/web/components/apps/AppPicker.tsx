@@ -1,7 +1,12 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { APPS, getApp, type AppDefinition, type AppPlatform, type AppStatus } from '../../../shared/apps';
-import { useI18n, type MessageKey } from '../../i18n';
+import { extendZhCNDictionary, useI18n, type MessageKey } from '../../i18n';
+import { zhCNApps } from '../../i18n/zh-CN.apps';
 import { AppIcon } from './AppIcon';
+
+// The picker copy ships with this component's chunk, not with the shared pages dictionary, so
+// routing to Rules/Templates never parses it. Register it as soon as this module loads (design §1.2).
+extendZhCNDictionary(zhCNApps);
 
 export const APP_PICKER_PLATFORMS = ['iphone', 'mac', 'windows', 'android', 'linux-router'] as const;
 export type AppPickerPlatform = (typeof APP_PICKER_PLATFORMS)[number];

@@ -9,9 +9,18 @@ import { fileURLToPath } from 'node:url';
 import * as OpenCC from 'opencc-js';
 import * as prettier from 'prettier';
 import { zhCN, type MessageKey, type Messages } from '../src/web/i18n/zh-CN';
+import { zhCNApps } from '../src/web/i18n/zh-CN.apps';
 import { ZH_TW_KEY_OVERRIDES, ZH_TW_TERM_OVERRIDES } from '../src/web/i18n/zh-TW.overrides';
 
 const converter = OpenCC.Converter({ from: 'cn', to: 'twp' });
+
+/**
+ * Complete Simplified Chinese catalog: core + pages + component-scoped fragments such as the
+ * software-picker copy (`zh-CN.apps.ts`), which is deliberately absent from the eager/page chunks.
+ */
+export function fullZhCNSource(): Record<string, string> {
+  return { ...zhCN, ...zhCNApps };
+}
 
 export function convertToZhTW(source: Record<string, string>): Messages {
   const result = {} as Record<MessageKey, string>;
@@ -57,7 +66,7 @@ export function renderZhTwModule(messages: Messages): string {
 const isEntrypoint = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isEntrypoint) {
   const outPath = resolve(process.cwd(), 'src/web/i18n/zh-TW.ts');
-  const messages = convertToZhTW(zhCN);
+  const messages = convertToZhTW(fullZhCNSource());
   const raw = renderZhTwModule(messages);
   const prettierConfig = (await prettier.resolveConfig(outPath)) ?? {};
   const formatted = await prettier.format(raw, { ...prettierConfig, filepath: outPath });
