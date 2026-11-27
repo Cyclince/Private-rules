@@ -53,7 +53,7 @@ describe('private Telegram webhook, commands, and Mini App sessions', () => {
       TELEGRAM: {
         enabled: true, botToken, webhookSecret: 'webhook-secret', webhookUrl: 'https://rules.example.com/api/telegram/webhook',
         miniAppUrl: 'https://rules.example.com', userId: '1001', notificationChatId: '1001',
-        updateMaxAgeSeconds: 300, sessionTtlSeconds: 1800, rateLimitPerMinute: 30,
+        updateMaxAgeSeconds: 300, sessionTtlSeconds: 1800, sessionMaxLifetimeSeconds: 604800, rateLimitPerMinute: 30,
         syncNotificationEnabled: true, production: false,
       },
       BACKGROUND_TASKS: { schedule(task) { tasks.push(task); } },
@@ -360,5 +360,147 @@ describe('private Telegram webhook, commands, and Mini App sessions', () => {
       }, env);
       expect(response.status).toBe(401);
     }
+  });
+
+  it('slides Mini App session expiration only below half TTL, caps at 7 days, and never resurrects expired or revoked sessions', async () => {
+    const repository = new TelegramRepository(database);
+    const readSessionRow = async (sessionId: string) =>
+      database
+        .prepare('SELECT id, created_at, expires_at, last_used_at, revoked_at FROM telegram_sessions WHERE id = ?')
+        .bind(sessionId)
+        .first<{
+          id: string;
+          created_at: string;
+          expires_at: string;
+          last_used_at: string | null;
+          revoked_at: string | null;
+        }>();
+    const parseMaxAge = (setCookieHeader: string | null) => {
+      const match = setCookieHeader?.match(/(?:^|;\s*)Max-Age=(\d+)/i);
+      return match ? Number(match[1]) : null;
+    };
+
+    const login = await app.request('/api/telegram/session', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ initData: initData(botToken, 1001, Math.floor(Date.now() / 1000), '-slide-1') }),
+    }, env);
+    expect(login.status).toBe(201);
+    const cookie = login.headers.get('set-cookie')?.split(';')[0] ?? '';
+    expect(cookie).toContain('private_rules_telegram_session=');
+
+    const latestRow = await database
+      .prepare('SELECT id, created_at, expires_at, last_used_at FROM telegram_sessions ORDER BY created_at DESC LIMIT 1')
+      .first<{ id: string; created_at: string; expires_at: string; last_used_at: string | null }>();
+    expect(latestRow).not.toBeNull();
+    const sessionId = latestRow!.id;
+
+    // 1. Remaining > half TTL: no DB write and no Set-Cookie.
+    const freshMe = await app.request('/api/telegram/session/me', { headers: { cookie } }, env);
+    expect(freshMe.status).toBe(200);
+    expect(freshMe.headers.get('set-cookie')).toBeNull();
+    const afterFresh = await readSessionRow(sessionId);
+    expect(afterFresh?.expires_at).toBe(latestRow!.expires_at);
+    expect(afterFresh?.last_used_at).toBeNull();
+
+    // 2. Remaining < half TTL: expires_at extends by sessionTtlSeconds and response carries refreshed Set-Cookie.
+    const lowExpiresAt = new Date(Date.now() + 600 * 1000).toISOString();
+    await database.prepare('UPDATE telegram_sessions SET expires_at = ? WHERE id = ?').bind(lowExpiresAt, sessionId).run();
+    const beforeExtendMs = Date.now();
+    const extendedMe = await app.request('/api/telegram/session/me', { headers: { cookie } }, env);
+    expect(extendedMe.status).toBe(200);
+    const extendedSetCookie = extendedMe.headers.get('set-cookie');
+    expect(extendedSetCookie).toContain(cookie);
+    expect(extendedSetCookie).toContain('HttpOnly');
+    expect(extendedSetCookie).toContain('Secure');
+    expect(extendedSetCookie).toContain('SameSite=Lax');
+    expect(extendedSetCookie).toContain('Path=/');
+    const extendedMaxAge = parseMaxAge(extendedSetCookie);
+    expect(extendedMaxAge).not.toBeNull();
+    expect(extendedMaxAge!).toBeGreaterThanOrEqual(1795);
+    expect(extendedMaxAge!).toBeLessThanOrEqual(1800);
+
+    const afterExtend = await readSessionRow(sessionId);
+    expect(afterExtend?.last_used_at).not.toBeNull();
+    expect(Date.parse(afterExtend!.expires_at)).toBeGreaterThanOrEqual(beforeExtendMs + 1795 * 1000);
+    expect(Date.parse(afterExtend!.expires_at)).toBeLessThanOrEqual(Date.now() + 1805 * 1000);
+    expect(await extendedMe.json()).toMatchObject({ telegramUserId: '1001', expiresAt: afterExtend!.expires_at });
+
+    // Also verify requireAuth routes propagate the sliding Set-Cookie when remaining < half TTL.
+    await database
+      .prepare('UPDATE telegram_sessions SET expires_at = ? WHERE id = ?')
+      .bind(new Date(Date.now() + 500 * 1000).toISOString(), sessionId)
+      .run();
+    const authedRoute = await app.request('/api/rulesets', { headers: { cookie } }, env);
+    expect(authedRoute.status).toBe(200);
+    expect(authedRoute.headers.get('set-cookie')).toContain(cookie);
+
+    // 3. Near 7-day absolute cap: extends only up to created_at + sessionMaxLifetimeSeconds, and Max-Age reflects actual remaining seconds.
+    const nearCapCreatedAt = new Date(Date.now() - (604800 - 300) * 1000).toISOString();
+    const expectedCapIso = new Date(Date.parse(nearCapCreatedAt) + 604800 * 1000).toISOString();
+    const nearCapExpiresAt = new Date(Date.now() + 120 * 1000).toISOString();
+    await database
+      .prepare('UPDATE telegram_sessions SET created_at = ?, expires_at = ? WHERE id = ?')
+      .bind(nearCapCreatedAt, nearCapExpiresAt, sessionId)
+      .run();
+
+    const cappedMe = await app.request('/api/telegram/session/me', { headers: { cookie } }, env);
+    expect(cappedMe.status).toBe(200);
+    const cappedSetCookie = cappedMe.headers.get('set-cookie');
+    expect(cappedSetCookie).toContain(cookie);
+    const cappedMaxAge = parseMaxAge(cappedSetCookie);
+    expect(cappedMaxAge).not.toBeNull();
+    expect(cappedMaxAge!).toBeGreaterThanOrEqual(290);
+    expect(cappedMaxAge!).toBeLessThanOrEqual(300);
+    const afterCap = await readSessionRow(sessionId);
+    expect(afterCap?.expires_at).toBe(expectedCapIso);
+
+    // Already at 7-day cap: subsequent requests do not re-issue Set-Cookie or extend past the cap.
+    const alreadyCappedMe = await app.request('/api/telegram/session/me', { headers: { cookie } }, env);
+    expect(alreadyCappedMe.status).toBe(200);
+    expect(alreadyCappedMe.headers.get('set-cookie')).toBeNull();
+    expect((await readSessionRow(sessionId))?.expires_at).toBe(expectedCapIso);
+
+    // 4. Expired session: returns 401, no Set-Cookie, and is never resurrected even via extendSession directly.
+    const pastExpiresAt = new Date(Date.now() - 60 * 1000).toISOString();
+    await database.prepare('UPDATE telegram_sessions SET expires_at = ? WHERE id = ?').bind(pastExpiresAt, sessionId).run();
+    const expiredMe = await app.request('/api/telegram/session/me', { headers: { cookie } }, env);
+    expect(expiredMe.status).toBe(401);
+    expect(expiredMe.headers.get('set-cookie')).toBeNull();
+    expect(await repository.extendSession(sessionId, 1800, 604800)).toBeNull();
+    expect((await readSessionRow(sessionId))?.expires_at).toBe(pastExpiresAt);
+
+    // 5. Revoked session: returns 401 and does not renew even when remaining < half TTL.
+    const login2 = await app.request('/api/telegram/session', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ initData: initData(botToken, 1001, Math.floor(Date.now() / 1000), '-slide-2') }),
+    }, env);
+    expect(login2.status).toBe(201);
+    const cookie2 = login2.headers.get('set-cookie')?.split(';')[0] ?? '';
+    const session2Row = await database
+      .prepare('SELECT id FROM telegram_sessions WHERE id <> ? ORDER BY created_at DESC LIMIT 1')
+      .bind(sessionId)
+      .first<{ id: string }>();
+    const session2Id = session2Row!.id;
+    const revocableExpiresAt = new Date(Date.now() + 600 * 1000).toISOString();
+    await database
+      .prepare('UPDATE telegram_sessions SET expires_at = ? WHERE id = ?')
+      .bind(revocableExpiresAt, session2Id)
+      .run();
+
+    const logout2 = await app.request('/api/telegram/session/logout', {
+      method: 'POST',
+      headers: { cookie: cookie2, origin: 'https://rules.example.com', 'content-type': 'application/json' },
+    }, env);
+    expect(logout2.status).toBe(200);
+
+    const revokedMe = await app.request('/api/telegram/session/me', { headers: { cookie: cookie2 } }, env);
+    expect(revokedMe.status).toBe(401);
+    expect(revokedMe.headers.get('set-cookie')).toBeNull();
+    expect(await repository.extendSession(session2Id, 1800, 604800)).toBeNull();
+    const afterRevoke = await readSessionRow(session2Id);
+    expect(afterRevoke?.revoked_at).not.toBeNull();
+    expect(afterRevoke?.expires_at).toBe(revocableExpiresAt);
   });
 });

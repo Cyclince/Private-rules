@@ -8,6 +8,7 @@ export type TelegramConfig = {
   notificationChatId: string;
   updateMaxAgeSeconds: number;
   sessionTtlSeconds: number;
+  sessionMaxLifetimeSeconds: number;
   rateLimitPerMinute: number;
   syncNotificationEnabled: boolean;
   production: boolean;
@@ -52,6 +53,7 @@ export function parseTelegramConfig(env: RawEnvironment, production: boolean): T
     notificationChatId: userId,
     updateMaxAgeSeconds: 300,
     sessionTtlSeconds: 1800,
+    sessionMaxLifetimeSeconds: 604800,
     rateLimitPerMinute: 30,
     syncNotificationEnabled: true,
     production,

@@ -60,6 +60,7 @@ describe('M1.4 security hardening (CSRF, CORS, rate-limit identity, /api/links)'
         notificationChatId: '1001',
         updateMaxAgeSeconds: 300,
         sessionTtlSeconds: 1800,
+        sessionMaxLifetimeSeconds: 604800,
         rateLimitPerMinute: 30,
         syncNotificationEnabled: true,
         production: false,

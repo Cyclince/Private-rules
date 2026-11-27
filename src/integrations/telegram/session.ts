@@ -66,6 +66,16 @@ function secureRequest(c: Context<{ Bindings: Env; Variables: AppVariables }>) {
   return new URL(c.req.url).protocol === 'https:';
 }
 
+function telegramCookieOptions(c: Context<{ Bindings: Env; Variables: AppVariables }>, maxAge: number) {
+  return {
+    httpOnly: true,
+    secure: secureRequest(c),
+    sameSite: 'Lax' as const,
+    path: '/',
+    maxAge,
+  };
+}
+
 export async function createTelegramSession(c: Context<{ Bindings: Env; Variables: AppVariables }>, rawInitData: string) {
   const config = c.env.TELEGRAM;
   if (!config?.enabled) throw new AppError('UNAUTHENTICATED', 'Telegram 未启用。');
@@ -90,28 +100,48 @@ export async function createTelegramSession(c: Context<{ Bindings: Env; Variable
   if (!await repository.claimInitData(validated.replayHash, user.telegramUserId, replayExpiresAt)) throw new AppError('UNAUTHENTICATED', 'initData 已被使用。');
   const token = randomToken();
   await repository.createSession(user.telegramUserId, await sha256(token), config.sessionTtlSeconds);
-  setCookie(c, TELEGRAM_SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: secureRequest(c),
-    sameSite: 'Lax',
-    path: '/',
-    maxAge: config.sessionTtlSeconds,
-  });
+  setCookie(c, TELEGRAM_SESSION_COOKIE, token, telegramCookieOptions(c, config.sessionTtlSeconds));
   return { user: { telegramUserId: user.telegramUserId, username: user.username, displayName: user.displayName }, expiresIn: config.sessionTtlSeconds };
 }
 
 export async function currentTelegramSession(c: Context<{ Bindings: Env; Variables: AppVariables }>) {
   const token = getCookie(c, TELEGRAM_SESSION_COOKIE);
-  if (!token) return null;
+  const config = c.env.TELEGRAM;
+  if (!token || !config) return null;
   const repository = new TelegramRepository(c.env.DB);
-  const row = await repository.getSession(await sha256(token));
-  if (!row || row.telegram_user_id !== c.env.TELEGRAM?.userId) return null;
-  await repository.touchSession(row.id);
-  return { id: row.id, telegramUserId: row.telegram_user_id, expiresAt: row.expires_at };
+  const nowDate = new Date();
+  const row = await repository.getSession(await sha256(token), nowDate);
+  if (!row || row.telegram_user_id !== config.userId) return null;
+
+  let expiresAt = row.expires_at;
+  const nowMs = nowDate.getTime();
+  const expiresAtMs = Date.parse(row.expires_at);
+  const createdAtMs = Date.parse(row.created_at);
+  const remainingMs = expiresAtMs - nowMs;
+  const halfTtlMs = (config.sessionTtlSeconds * 1000) / 2;
+  const maxExpiresMs = createdAtMs + config.sessionMaxLifetimeSeconds * 1000;
+
+  if (remainingMs < halfTtlMs && Math.min(nowMs + config.sessionTtlSeconds * 1000, maxExpiresMs) > expiresAtMs) {
+    const extendedExpiresAt = await repository.extendSession(
+      row.id,
+      config.sessionTtlSeconds,
+      config.sessionMaxLifetimeSeconds,
+      nowDate,
+    );
+    if (extendedExpiresAt) {
+      expiresAt = extendedExpiresAt;
+      const maxAge = Math.max(1, Math.floor((Date.parse(extendedExpiresAt) - nowMs) / 1000));
+      setCookie(c, TELEGRAM_SESSION_COOKIE, token, telegramCookieOptions(c, maxAge));
+      // Materialize Hono's response holder so raw Response returns (e.g. json()) inherit Set-Cookie.
+      void c.res;
+    }
+  }
+
+  return { id: row.id, telegramUserId: row.telegram_user_id, expiresAt };
 }
 
 export async function logoutTelegramSession(c: Context<{ Bindings: Env; Variables: AppVariables }>) {
   const token = getCookie(c, TELEGRAM_SESSION_COOKIE);
   if (token) await new TelegramRepository(c.env.DB).revokeSession(await sha256(token));
-  setCookie(c, TELEGRAM_SESSION_COOKIE, '', { httpOnly: true, secure: secureRequest(c), sameSite: 'Lax', path: '/', maxAge: 0 });
+  setCookie(c, TELEGRAM_SESSION_COOKIE, '', telegramCookieOptions(c, 0));
 }

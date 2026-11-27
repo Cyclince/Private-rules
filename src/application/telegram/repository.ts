@@ -238,11 +238,28 @@ export class TelegramRepository {
     return sessionId;
   }
 
-  async getSession(tokenHash: string) {
-    return this.database.prepare(`SELECT s.id, s.telegram_user_id, s.expires_at
+  async getSession(tokenHash: string, currentTime = new Date()) {
+    return this.database.prepare(`SELECT s.id, s.telegram_user_id, s.created_at, s.expires_at
       FROM telegram_sessions s JOIN telegram_users u ON u.telegram_user_id = s.telegram_user_id
       WHERE s.session_token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > ?`)
-      .bind(tokenHash, now()).first<{ id: string; telegram_user_id: string; expires_at: string }>();
+      .bind(tokenHash, currentTime.toISOString()).first<{ id: string; telegram_user_id: string; created_at: string; expires_at: string }>();
+  }
+
+  async extendSession(idValue: string, ttlSeconds: number, maxLifetimeSeconds: number, currentTime = new Date()) {
+    const nowIso = currentTime.toISOString();
+    const proposedExpiresAt = new Date(currentTime.getTime() + ttlSeconds * 1000).toISOString();
+    const maxOffset = `+${Math.max(0, Math.floor(maxLifetimeSeconds))} seconds`;
+    const row = await this.database.prepare(`UPDATE telegram_sessions
+      SET expires_at = MIN(?, strftime('%Y-%m-%dT%H:%M:%fZ', created_at, ?)),
+          last_used_at = ?
+      WHERE id = ?
+        AND revoked_at IS NULL
+        AND expires_at > ?
+        AND expires_at < MIN(?, strftime('%Y-%m-%dT%H:%M:%fZ', created_at, ?))
+      RETURNING expires_at`)
+      .bind(proposedExpiresAt, maxOffset, nowIso, idValue, nowIso, proposedExpiresAt, maxOffset)
+      .first<{ expires_at: string }>();
+    return row?.expires_at ?? null;
   }
 
   async touchSession(idValue: string) {

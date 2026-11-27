@@ -44,6 +44,8 @@ describe('telegram configuration', () => {
       miniAppUrl: 'https://example.com',
       notificationChatId: '123',
       webhookSecret: '',
+      sessionTtlSeconds: 1800,
+      sessionMaxLifetimeSeconds: 604800,
     });
   });
 });

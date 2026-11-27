@@ -101,6 +101,7 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
         notificationChatId: '2026',
         updateMaxAgeSeconds: 300,
         sessionTtlSeconds: 1800,
+        sessionMaxLifetimeSeconds: 604800,
         rateLimitPerMinute: 30,
         syncNotificationEnabled: false,
         production: false,
