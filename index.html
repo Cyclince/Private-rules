@@ -19,6 +19,8 @@
           var el = document.documentElement;
           var tg = window.Telegram && window.Telegram.WebApp;
           var savedTheme = localStorage.getItem('private-rules-theme');
+          var systemTheme =
+            window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
           var theme =
             tg && tg.initData
               ? tg.colorScheme === 'light'
@@ -26,10 +28,12 @@
                 : 'dark'
               : savedTheme === 'light' || savedTheme === 'dark'
                 ? savedTheme
-                : 'dark';
+                : systemTheme;
           el.dataset.theme = theme;
           el.classList.toggle('dark', theme === 'dark');
           el.classList.toggle('light', theme === 'light');
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', theme === 'dark' ? '#0b1418' : '#f5fafa');
           if (tg && tg.initData) el.dataset.telegram = 'true';
           var savedLocale = localStorage.getItem('private-rules-locale');
           if (savedLocale) el.lang = savedLocale;

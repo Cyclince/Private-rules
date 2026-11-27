@@ -24,7 +24,6 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } 
 import {
   describeRuleFriendly,
   formatRawRuleLine,
-  getAllRuleTypeOptions,
   isIpCidrRuleType,
   previewRuleInputFriendly,
 } from '../../domain/rules/friendly';
@@ -45,6 +44,7 @@ import {
   formatSyncTimestamp,
   intervalLabelKey,
 } from '../components/rulesets/rule-library-helpers';
+import { RuleTypeSelectField } from '../components/rulesets/RuleTypeSelectField';
 import { CategoryIcon } from '../components/subscriptions/CategoryIcon';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -108,6 +108,8 @@ function extractConflicts(error: unknown): RuleConflict[] {
 
 function RuleRowMenu({
   rule,
+  typeLabel,
+  typeDescription,
   isTelegram,
   rawExpanded,
   onEdit,
@@ -116,6 +118,8 @@ function RuleRowMenu({
   onDelete,
 }: {
   rule: DomainRule;
+  typeLabel: string;
+  typeDescription: string;
   isTelegram: boolean;
   rawExpanded: boolean;
   onEdit: () => void;
@@ -161,7 +165,7 @@ function RuleRowMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 top-full z-20 mt-1 flex min-w-36 flex-col rounded-[var(--radius-md)] border border-border bg-surface p-1 shadow-lg"
+          className="absolute right-0 top-full z-20 mt-1 flex w-56 flex-col rounded-[var(--radius-md)] border border-border bg-surface p-1 shadow-lg"
         >
           <button
             type="button"
@@ -194,6 +198,7 @@ function RuleRowMenu({
             type="button"
             role="menuitem"
             data-testid={`rule-view-raw-${rule.id}`}
+            title={`${typeLabel}：${typeDescription}`}
             onClick={() => {
               setOpen(false);
               onToggleRaw();
@@ -203,6 +208,9 @@ function RuleRowMenu({
             <Code2 className="h-3.5 w-3.5 text-text-muted" />
             <span>{rawExpanded ? t('ruleDetail.hideRaw') : t('ruleDetail.viewRaw')}</span>
           </button>
+          <div className="mx-1.5 my-1 rounded-[var(--radius-sm)] bg-surface-muted/70 px-2 py-1.5 text-[11px] leading-snug text-text-muted">
+            <span className="font-medium text-text">{typeLabel}</span>：{typeDescription}
+          </div>
           <button
             type="button"
             role="menuitem"
@@ -331,8 +339,6 @@ function RuleDetailPage() {
   const [singleNoResolveTouched, setSingleNoResolveTouched] = useState(false);
   const [singleConflicts, setSingleConflicts] = useState<RuleConflict[]>([]);
   const [singleValueError, setSingleValueError] = useState('');
-
-  const ruleTypeOptions = useMemo(() => getAllRuleTypeOptions(), []);
 
   const singlePreview = useMemo(() => previewRuleInputFriendly(singleValue, singleType), [singleValue, singleType]);
 
@@ -1144,7 +1150,9 @@ function RuleDetailPage() {
                           const rawLine = formatRawRuleLine(rule);
                           return (
                             <div key={rule.id} title={rawLine} className="flex flex-col gap-0.5 px-3 py-2 text-xs">
-                              <div className="break-all font-mono font-medium text-text">{rule.value}</div>
+                              <div className="break-all font-mono font-medium text-text">
+                                {descriptor.params.displayValue}
+                              </div>
                               <div className="text-[11px] text-text-muted">
                                 {typeLabel} · {inlineDesc}
                                 {rule.sourceName ? ` · ${rule.sourceName}` : ''}
@@ -1224,44 +1232,36 @@ function RuleDetailPage() {
                     {singleValueError}
                   </p>
                 ) : singlePreview?.ok ? (
-                  <p
+                  <div
                     data-testid="single-rule-preview"
                     className="rounded-[var(--radius-sm)] bg-surface-muted/80 px-2.5 py-1.5 text-xs text-text-muted"
                   >
-                    <span className="font-medium text-primary">{t('ruleDetail.previewPrefix')}</span>
-                    <span>
-                      {formatFriendlyRuleType(singlePreview.friendly, t)} ·{' '}
-                      {formatFriendlyRuleInline(singlePreview.friendly, t)}
-                    </span>
-                  </p>
+                    <div>
+                      <span className="font-medium text-primary">{t('ruleDetail.previewPrefix')}</span>
+                      <span>
+                        {formatFriendlyRuleType(singlePreview.friendly, t)} ·{' '}
+                        {formatFriendlyRuleInline(singlePreview.friendly, t)}
+                      </span>
+                    </div>
+                    <p data-testid="single-rule-preview-desc" className="mt-0.5 text-[11px] text-text-muted">
+                      {t(singlePreview.friendly.descriptionKey)}
+                    </p>
+                  </div>
                 ) : null}
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="single-rule-type" className="text-xs font-medium text-text">
-                    {t('ruleDetail.fieldType')}
-                  </label>
-                  <select
-                    id="single-rule-type"
-                    data-testid="single-rule-type"
-                    value={singleType}
-                    disabled={isTelegram}
-                    onChange={(event) => {
-                      setSingleType(event.target.value as 'AUTO' | DomainRuleType);
-                      setSingleNoResolveTouched(false);
-                      setSingleConflicts([]);
-                    }}
-                    className="flex h-10 w-full rounded-[var(--radius-sm)] border border-border bg-surface px-3 text-sm text-text focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
-                  >
-                    <option value="AUTO">{t('rules.typeAuto')}</option>
-                    {ruleTypeOptions.map((option) => (
-                      <option key={option.type} value={option.type}>
-                        {t(option.labelKey)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <RuleTypeSelectField
+                  id="single-rule-type"
+                  selectTestId="single-rule-type"
+                  value={singleType}
+                  disabled={isTelegram}
+                  onChange={(next) => {
+                    setSingleType(next);
+                    setSingleNoResolveTouched(false);
+                    setSingleConflicts([]);
+                  }}
+                />
 
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="single-rule-note" className="text-xs font-medium text-text">
@@ -1278,34 +1278,36 @@ function RuleDetailPage() {
                 </div>
               </div>
 
-              {/* Collapsible More Options (no-resolve) */}
-              <details
-                data-testid="single-rule-more-options"
-                className="rounded-[var(--radius-md)] border border-border bg-surface-muted/40"
-              >
-                <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-xs font-medium text-text-muted hover:text-text">
-                  <span className="inline-flex items-center gap-1.5">
-                    <SlidersHorizontal className="h-3.5 w-3.5" />
-                    <span>{t('ruleDetail.moreOptions')}</span>
-                  </span>
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </summary>
-                <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2.5">
-                  <div className="min-w-0">
-                    <div className="text-xs font-medium text-text">{t('rules.fieldNoResolve')}</div>
-                    <p className="text-[11px] text-text-muted">{t('ruleDetail.noResolveHint')}</p>
+              {/* Collapsible More Options (no-resolve, IP rules only) */}
+              {singleIsIpType ? (
+                <details
+                  data-testid="single-rule-more-options"
+                  className="rounded-[var(--radius-md)] border border-border bg-surface-muted/40"
+                >
+                  <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-xs font-medium text-text-muted hover:text-text">
+                    <span className="inline-flex items-center gap-1.5">
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                      <span>{t('ruleDetail.moreOptions')}</span>
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </summary>
+                  <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2.5">
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-text">{t('rules.fieldNoResolve')}</div>
+                      <p className="text-[11px] text-text-muted">{t('ruleDetail.noResolveHint')}</p>
+                    </div>
+                    <Switch
+                      data-testid="single-rule-no-resolve"
+                      checked={singleNoResolve}
+                      disabled={isTelegram}
+                      onCheckedChange={(checked) => {
+                        setSingleNoResolveTouched(true);
+                        setSingleNoResolve(checked);
+                      }}
+                    />
                   </div>
-                  <Switch
-                    data-testid="single-rule-no-resolve"
-                    checked={singleNoResolve}
-                    disabled={isTelegram || !singleIsIpType}
-                    onCheckedChange={(checked) => {
-                      setSingleNoResolveTouched(true);
-                      setSingleNoResolve(checked);
-                    }}
-                  />
-                </div>
-              </details>
+                </details>
+              ) : null}
 
               {singleConflicts.length > 0 ? (
                 <div
@@ -1435,7 +1437,7 @@ function RuleDetailPage() {
                       const desc = describeRuleFriendly(item);
                       return (
                         <li key={`${item.type}:${item.value}:${idx}`} className="px-2.5 py-1.5">
-                          <div className="break-all font-mono font-medium text-text">{item.value}</div>
+                          <div className="break-all font-mono font-medium text-text">{desc.params.displayValue}</div>
                           <div className="text-[11px] text-text-muted">
                             {formatFriendlyRuleType(desc, t)} · {formatFriendlyRuleInline(desc, t)}
                           </div>
@@ -1696,7 +1698,9 @@ function RuleDetailPage() {
                     />
 
                     <div className="min-w-0 flex-1">
-                      <div className="break-all font-mono text-sm font-medium text-text">{rule.value}</div>
+                      <div className="break-all font-mono text-sm font-medium text-text">
+                        {descriptor.params.displayValue}
+                      </div>
                       <div
                         data-testid={`rule-subtitle-${rule.id}`}
                         className="mt-0.5 break-words text-xs text-text-muted"
@@ -1704,17 +1708,21 @@ function RuleDetailPage() {
                         {subtitleParts.join(' · ')}
                       </div>
                       {isRawExpanded ? (
-                        <div
-                          data-testid={`rule-raw-${rule.id}`}
-                          className="mt-1.5 inline-block max-w-full break-all rounded bg-surface-muted px-2 py-1 font-mono text-[11px] text-text"
-                        >
-                          {rawLine}
+                        <div className="mt-1.5 flex max-w-full flex-col gap-1 rounded bg-surface-muted px-2.5 py-1.5 text-[11px]">
+                          <code data-testid={`rule-raw-${rule.id}`} className="break-all font-mono text-text">
+                            {rawLine}
+                          </code>
+                          <p data-testid={`rule-raw-desc-${rule.id}`} className="text-text-muted">
+                            {typeLabel}：{t(descriptor.descriptionKey)}
+                          </p>
                         </div>
                       ) : null}
                     </div>
 
                     <RuleRowMenu
                       rule={rule}
+                      typeLabel={typeLabel}
+                      typeDescription={t(descriptor.descriptionKey)}
                       isTelegram={isTelegram}
                       rawExpanded={isRawExpanded}
                       onEdit={() => setEditRuleDialog({ open: true, rule, conflicts: [] })}

@@ -2,12 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertTriangle, ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import {
-  describeRuleFriendly,
-  getAllRuleTypeOptions,
-  isIpCidrRuleType,
-  previewRuleInputFriendly,
-} from '../../../domain/rules/friendly';
+import { describeRuleFriendly, isIpCidrRuleType, previewRuleInputFriendly } from '../../../domain/rules/friendly';
 import { manualRuleFormSchema, type ManualRuleFormValues } from '../../../shared/schemas/rule';
 import type { DomainRule, RuleConflict } from '../../../types/domain-rules';
 import { useI18n } from '../../i18n';
@@ -16,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '../ui/input';
 import { Switch } from '../ui/switch';
 import { formatFriendlyRuleInline, formatFriendlyRuleType } from './rule-library-helpers';
+import { RuleTypeSelectField } from './RuleTypeSelectField';
 
 type RuleFormDialogProps = {
   open: boolean;
@@ -37,7 +33,6 @@ export function RuleFormDialog({
   onSubmit,
 }: RuleFormDialogProps) {
   const { t } = useI18n();
-  const typeOptions = useMemo(() => getAllRuleTypeOptions(), []);
   const form = useForm<ManualRuleFormValues>({
     resolver: zodResolver(manualRuleFormSchema),
     defaultValues: {
@@ -108,34 +103,35 @@ export function RuleFormDialog({
                 {t('rules.validationValueRequired')}
               </p>
             ) : preview?.ok ? (
-              <p className="rounded-[var(--radius-sm)] bg-surface-muted/80 px-2.5 py-1.5 text-xs text-text-muted">
-                <span className="font-medium text-primary">{t('ruleDetail.previewPrefix')}</span>
-                <span>
-                  {formatFriendlyRuleType(preview.friendly, t)} · {formatFriendlyRuleInline(preview.friendly, t)}
-                </span>
-              </p>
+              <div className="rounded-[var(--radius-sm)] bg-surface-muted/80 px-2.5 py-1.5 text-xs text-text-muted">
+                <div>
+                  <span className="font-medium text-primary">{t('ruleDetail.previewPrefix')}</span>
+                  <span>
+                    {formatFriendlyRuleType(preview.friendly, t)} · {formatFriendlyRuleInline(preview.friendly, t)}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[11px] text-text-muted">{t(preview.friendly.descriptionKey)}</p>
+              </div>
             ) : null}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="rule-type" className="text-xs font-medium text-text">
-                {t('ruleDetail.fieldType')}
-              </label>
-              <select
-                id="rule-type"
-                data-testid="rule-form-type"
-                {...form.register('type')}
-                className="flex h-10 w-full rounded-[var(--radius-sm)] border border-border bg-surface px-3 text-sm text-text focus-visible:outline-2 focus-visible:outline-primary"
-              >
-                {mode === 'create' ? <option value="AUTO">{t('rules.typeAuto')}</option> : null}
-                {typeOptions.map((option) => (
-                  <option key={option.type} value={option.type}>
-                    {t(option.labelKey)}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Controller
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <RuleTypeSelectField
+                  id="rule-type"
+                  selectTestId="rule-form-type"
+                  helpBtnTestId="rule-form-type-help-btn"
+                  helpPanelTestId="rule-form-type-help-panel"
+                  selectedDescTestId="rule-form-type-desc"
+                  includeAuto={mode === 'create'}
+                  value={field.value === 'IP-CIDR6' ? 'IP-CIDR' : field.value}
+                  onChange={(next) => field.onChange(next)}
+                />
+              )}
+            />
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="rule-note" className="text-xs font-medium text-text">

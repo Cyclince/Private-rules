@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { Globe, Lock, Moon, ShieldAlert, Sun } from 'lucide-react';
+import { Globe, Lock, ShieldAlert } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import aboutEmblemUrl from '../assets/miku-about-emblem.webp';
 import loginBgUrl from '../assets/miku-login-bg.webp';
@@ -8,7 +8,6 @@ import { loadPageTranslations, SUPPORTED_LOCALES, useI18n, type Locale } from '.
 import { api, ApiClientError, readApiJson } from '../lib/api';
 import { ensureAuthenticatedSession } from '../lib/auth-guard';
 import { authMeQueryOptions, invalidateAuth } from '../lib/query-core';
-import { useTheme } from '../theme/ThemeProvider';
 
 const LOCKOUT_STORAGE_KEY = 'private-rules-login-lock-until';
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
@@ -85,7 +84,6 @@ export const Route = createFileRoute('/login')({
 
 function LoginPage() {
   const { t, tError, locale, setLocale } = useI18n();
-  const { theme, toggleTheme } = useTheme();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const search = Route.useSearch();
@@ -167,16 +165,6 @@ function LoginPage() {
         >
           <Globe className="h-3.5 w-3.5" />
           <span>{t(`lang.${locale}`)}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={toggleTheme}
-          aria-label={t('theme.toggle')}
-          data-testid="theme-toggle"
-          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-[var(--radius-sm)] border border-border bg-surface/85 text-text transition-colors duration-150 hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-primary"
-        >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
       </header>
 

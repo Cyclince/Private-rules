@@ -78,7 +78,6 @@ describe('M5.2a node snapshot caching, stale fallback, dedup, and redaction', ()
       ASSETS: { fetch: async () => new Response() },
       ADMIN_PASSWORD: 'test-password',
       SESSION_SECRET: SECRET,
-      EXPLICIT_SESSION_SECRET: SECRET,
       RULE_TOKEN: 'test-rule-token',
     };
 
@@ -391,12 +390,36 @@ describe('M5.2a node snapshot caching, stale fallback, dedup, and redaction', ()
     expect(full.nodes[0].server).toBe('hk-secret.airport.internal.test');
   });
 
-  it('rejects missing explicit SESSION_SECRET and sanitizes arbitrary URLs/proxy URIs in error helper', async () => {
-    const noSecretEnv: Env = { ...env, SESSION_SECRET: undefined, EXPLICIT_SESSION_SECRET: undefined };
-    await expect(resolveSlotNodes(noSecretEnv, publicationId, slotId)).rejects.toMatchObject({
-      code: 'SESSION_SECRET_REQUIRED',
-      status: 503,
+  it('auto-generates SESSION_SECRET when unset and sanitizes arbitrary URLs/proxy URIs in error helper', async () => {
+    const autoSecretEnv: Env = { ...env, SESSION_SECRET: '' };
+    const autoTpl = await createTemplate(autoSecretEnv, {
+      name: 'Auto Tpl',
+      slug: 'auto-tpl',
+      starterTier: 'standard',
     });
+    const autoSlotId = autoTpl.resolvedBody.slots[0]?.id ?? slotId;
+    const pubAuto = await createPublication(autoSecretEnv, {
+      slug: 'pub-auto-secret',
+      templateId: autoTpl.template.id,
+      clients: ['sing-box'],
+      access: 'token',
+    });
+    await upsertNodeSlotBinding(autoSecretEnv, pubAuto.publication.id, autoSlotId, {
+      subscriptionUrl: 'https://airport.auto.example/sub?token=auto-secret-xyz',
+    });
+
+    // Fresh env without SESSION_SECRET simulates restart and decrypts via DB-persisted auto secret
+    const restartedEnv: Env = { ...env, SESSION_SECRET: '' };
+    const mockFetch = async () =>
+      new Response(SAMPLE_SUB_YAML_V2, {
+        status: 200,
+        headers: { 'content-type': 'text/yaml' },
+      });
+    const resolved = await resolveSlotNodes(restartedEnv, pubAuto.publication.id, autoSlotId, {
+      fetchImpl: mockFetch,
+      resolveDns: async () => ['93.184.216.34'],
+    });
+    expect(resolved.nodes).toHaveLength(1);
 
     const sanitized = sanitizeNodeFetchErrorMessage(
       `Failed fetching https://sub.example.com/secret/path?token=abc123 and vless://${VALID_UUID}@host:443?pbk=${REALITY_PBK}`,

@@ -30,24 +30,23 @@ function fromBase64Url(value: string): Uint8Array {
 }
 
 /**
- * Ensures an explicit `SESSION_SECRET` environment variable was supplied.
- * Node subscription encryption MUST NOT fall back to a database-stored secret
- * (design §8.4).
+ * Ensures a non-empty `SESSION_SECRET` (explicit env var or runtime-generated)
+ * is supplied before deriving the AES-256-GCM key.
  */
-export function requireExplicitSessionSecret(explicitSessionSecret: string | undefined): string {
-  const secret = explicitSessionSecret?.trim() ?? '';
+export function requireSessionSecret(sessionSecret: string | undefined): string {
+  const secret = sessionSecret?.trim() ?? '';
   if (!secret) {
-    throw new AppError('SESSION_SECRET_REQUIRED', '节点订阅绑定需要显式配置环境变量 SESSION_SECRET。');
+    throw new AppError('SESSION_SECRET_REQUIRED', '节点加密功能需要有效的会话密钥（SESSION_SECRET）。');
   }
   return secret;
 }
 
 /**
- * Derives an AES-256-GCM key from the explicit `SESSION_SECRET` env var using
- * HKDF-SHA256 with `info = "private-rules/node-bindings"` (design §8.4).
+ * Derives an AES-256-GCM key from `SESSION_SECRET` using HKDF-SHA256 with
+ * `info = "private-rules/node-bindings"`.
  */
-export async function deriveNodeBindingKey(explicitSessionSecret: string | undefined): Promise<CryptoKey> {
-  const secret = requireExplicitSessionSecret(explicitSessionSecret);
+export async function deriveNodeBindingKey(sessionSecret: string | undefined): Promise<CryptoKey> {
+  const secret = requireSessionSecret(sessionSecret);
   const baseKey = await crypto.subtle.importKey('raw', encoder.encode(secret), 'HKDF', false, ['deriveKey']);
   return crypto.subtle.deriveKey(
     {

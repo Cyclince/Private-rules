@@ -23,8 +23,7 @@ export const zhCNCore = {
   // Common (only what first-screen dashboard/shell needs)
   'common.disabled': '已停用',
 
-  // Theme & language
-  'theme.toggle': '切换主题',
+  // Language (login & settings)
   'lang.label': '语言',
   'lang.zh-CN': '简体中文',
   'lang.zh-TW': '繁體中文',

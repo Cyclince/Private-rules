@@ -8,14 +8,9 @@ import {
   type CompiledNodeSlotBinding,
   type LintReport,
 } from '../../domain/templates';
-import {
-  decryptNodeSecret,
-  encryptNodeSecret,
-  maskSubscriptionUrl,
-  requireExplicitSessionSecret,
-} from '../../infrastructure/crypto/node-secrets';
+import { decryptNodeSecret, encryptNodeSecret, maskSubscriptionUrl } from '../../infrastructure/crypto/node-secrets';
 import { createLogger } from '../../infrastructure/logging/logger';
-import { resolveExplicitSessionSecret } from '../../lib/runtime-secrets';
+import { resolveSessionSecret } from '../../lib/runtime-secrets';
 import {
   parsePublicationFile,
   SUPPORTED_TEMPLATE_CLIENTS,
@@ -203,23 +198,19 @@ function validateBindingUserAgent(value?: string | null): string | null {
 }
 
 async function maskBindingRow(env: Env, row: NodeBindingRow): Promise<MaskedNodeBinding> {
-  const explicitSecret = resolveExplicitSessionSecret(env);
+  const secret = await resolveSessionSecret(env);
   let maskedUrl = '***';
   let needsRebind = false;
 
-  if (!explicitSecret) {
+  try {
+    const plaintext = await decryptNodeSecret(
+      row.subscriptionUrlEnc,
+      secret,
+      bindingAad(row.publicationId, row.slotId),
+    );
+    maskedUrl = maskSubscriptionUrl(plaintext);
+  } catch {
     needsRebind = true;
-  } else {
-    try {
-      const plaintext = await decryptNodeSecret(
-        row.subscriptionUrlEnc,
-        explicitSecret,
-        bindingAad(row.publicationId, row.slotId),
-      );
-      maskedUrl = maskSubscriptionUrl(plaintext);
-    } catch {
-      needsRebind = true;
-    }
   }
 
   return {
@@ -262,7 +253,7 @@ async function buildPublicationDetail(
     repos.nodeBindings.listByPublication(publication.id),
   ]);
   const bindings = await Promise.all(bindingRows.map((row) => maskBindingRow(env, row)));
-  const sessionSecretConfigured = Boolean(resolveExplicitSessionSecret(env));
+  const sessionSecretConfigured = true;
 
   return {
     ...publication,
@@ -321,7 +312,7 @@ export async function listPublications(
     total,
     nextCursor: hasMore ? String(nextOffset) : null,
     hasMore,
-    sessionSecretConfigured: Boolean(resolveExplicitSessionSecret(env)),
+    sessionSecretConfigured: true,
   };
 }
 
@@ -475,7 +466,7 @@ export async function deletePublication(env: Env, publicationId: string): Promis
 
 /**
  * Encrypts and stores a node slot subscription URL using HKDF + AES-256-GCM
- * derived strictly from the explicit `SESSION_SECRET` env var (design §8.4).
+ * derived from `SESSION_SECRET` (explicit env var or auto-generated key).
  * Write-only: returns ONLY the masked URL, never plaintext or ciphertext.
  */
 export async function upsertNodeSlotBinding(
@@ -495,7 +486,7 @@ export async function upsertNodeSlotBinding(
     );
   }
 
-  const explicitSecret = requireExplicitSessionSecret(resolveExplicitSessionSecret(env));
+  const secret = await resolveSessionSecret(env);
 
   const template = await repos.templates.findById(publication.templateId);
   if (!template) throw new AppError('TEMPLATE_NOT_FOUND', '关联模板不存在。');
@@ -508,7 +499,7 @@ export async function upsertNodeSlotBinding(
 
   const cleanUrl = validateSubscriptionUrl(input.subscriptionUrl);
   const cleanUserAgent = validateBindingUserAgent(input.userAgent);
-  const encrypted = await encryptNodeSecret(cleanUrl, explicitSecret, bindingAad(publication.id, slotId));
+  const encrypted = await encryptNodeSecret(cleanUrl, secret, bindingAad(publication.id, slotId));
   const timestamp = now();
 
   await repos.nodeBindings.upsert(
@@ -729,11 +720,11 @@ export async function compilePublicationDelivery(
         });
       }
     } else if (TEMPLATE_CLIENTS[delivery.client].nodeAccess === 'A') {
-      const explicitSecret = requireExplicitSessionSecret(resolveExplicitSessionSecret(env));
+      const secret = await resolveSessionSecret(env);
       for (const row of delivery.bindingRows) {
         const decryptedUrl = await decryptNodeSecret(
           row.subscriptionUrlEnc,
-          explicitSecret,
+          secret,
           bindingAad(row.publicationId, row.slotId),
         );
         slotBindings.set(row.slotId, {

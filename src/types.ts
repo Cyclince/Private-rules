@@ -17,12 +17,6 @@ export type Env = {
   ADMIN_PASSWORD?: string;
   RULE_TOKEN?: string;
   SESSION_SECRET?: string;
-  /**
-   * Explicit `SESSION_SECRET` supplied via environment variables (empty string
-   * when `ensureRuntimeSecrets` fell back to the DB-generated secret). Node
-   * binding encryption MUST use only this value (design §8.4).
-   */
-  EXPLICIT_SESSION_SECRET?: string;
   BASE_URL?: string;
   RUNTIME?: 'cloudflare' | 'node';
   APP_VERSION?: string;

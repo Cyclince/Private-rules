@@ -4,7 +4,7 @@ import {
   decryptNodeSecret,
   encryptNodeSecret,
   maskSubscriptionUrl,
-  requireExplicitSessionSecret,
+  requireSessionSecret,
 } from '../../src/infrastructure/crypto/node-secrets';
 
 const SECRET_A = 'explicit-session-secret-at-least-32-chars-aaaa';
@@ -25,9 +25,9 @@ describe('HKDF + AES-GCM node secret encryption', () => {
   });
 
   it.each([undefined, '', '   '])('throws SESSION_SECRET_REQUIRED (503) when SESSION_SECRET is %j', async (missing) => {
-    expect(() => requireExplicitSessionSecret(missing)).toThrowError(AppError);
+    expect(() => requireSessionSecret(missing)).toThrowError(AppError);
     try {
-      requireExplicitSessionSecret(missing);
+      requireSessionSecret(missing);
     } catch (error) {
       expect(error).toBeInstanceOf(AppError);
       expect((error as AppError).code).toBe('SESSION_SECRET_REQUIRED');

@@ -17,6 +17,7 @@ import { describeRuleFriendly, formatRawRuleLine } from '../../domain/rules/frie
 import type { DomainRule, RuleCategory } from '../../types/domain-rules';
 import type { CreateRuleCategoryInput } from '../components/rulesets/RuleCategoryDialog';
 import {
+  formatFriendlyRuleInline,
   formatFriendlyRuleType,
   formatSyncTimestamp,
   nextRuleSortDirection,
@@ -178,10 +179,11 @@ function CategoryRuleFolder({
           rows.map((rule) => {
             const friendly = describeRuleFriendly(rule);
             const friendlyType = formatFriendlyRuleType(friendly, t);
+            const friendlyInline = formatFriendlyRuleInline(friendly, t);
             const subtitle =
               groupId === 'manual'
-                ? `${friendlyType} · ${t('ruleLibrary.groupManualTitle')}${rule.note ? ` · ${rule.note}` : ''}`
-                : `${friendlyType}${rule.sourceName ? ` · ${rule.sourceName}` : ''}`;
+                ? `${friendlyType} · ${friendlyInline} · ${t('ruleLibrary.groupManualTitle')}${rule.note ? ` · ${rule.note}` : ''}`
+                : `${friendlyType} · ${friendlyInline}${rule.sourceName ? ` · ${rule.sourceName}` : ''}`;
 
             if (groupId === 'manual') {
               return (
@@ -197,7 +199,7 @@ function CategoryRuleFolder({
                     aria-hidden="true"
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-text">{rule.value}</div>
+                    <div className="truncate text-sm font-medium text-text">{friendly.params.displayValue}</div>
                     <div className="truncate text-xs text-text-muted">{subtitle}</div>
                   </div>
                   <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" />
@@ -212,7 +214,7 @@ function CategoryRuleFolder({
                   aria-hidden="true"
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium text-text">{rule.value}</div>
+                  <div className="truncate text-sm font-medium text-text">{friendly.params.displayValue}</div>
                   <div className="truncate text-xs text-text-muted">{subtitle}</div>
                 </div>
               </div>

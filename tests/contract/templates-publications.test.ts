@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { getBackupData, importRulesData } from '../../src/application/backup';
 import { createCard, deleteCard, forkCard, getCardById, listCards, updateCard } from '../../src/application/cards';
 import { getCatalogEntry, listCatalog } from '../../src/application/catalog';
@@ -52,7 +52,6 @@ function templatesAndPublicationsContract(
         ASSETS: { fetch: async () => new Response() },
         ADMIN_PASSWORD: 'contract-password',
         SESSION_SECRET: '0123456789abcdef0123456789abcdef',
-        EXPLICIT_SESSION_SECRET: '0123456789abcdef0123456789abcdef',
         RULE_TOKEN: 'contract-rule-token',
       };
     });
@@ -193,11 +192,18 @@ function templatesAndPublicationsContract(
       });
     });
 
-    it('encrypts node bindings strictly with explicit SESSION_SECRET, masks reads, and excludes secrets from backups', async () => {
+    it('encrypts node bindings with auto-generated or explicit SESSION_SECRET, survives restart, masks reads, and excludes secrets from backups', async () => {
       const tpl = await createTemplate(env, {
         name: `${name}-pub-tpl`,
         slug: `${name}-pub-tpl`,
         starterTier: 'standard',
+      });
+      const autoPub = await createPublication(env, {
+        slug: `${name}-pub-auto-secret`,
+        templateId: tpl.template.id,
+        clients: ['mihomo'],
+        access: 'token',
+        output: 'full',
       });
       const pub = await createPublication(env, {
         slug: `${name}-pub-secret`,
@@ -208,23 +214,54 @@ function templatesAndPublicationsContract(
       });
       const slotId = tpl.resolvedBody.slots[0].id;
 
-      // Without explicit SESSION_SECRET (even after ensureRuntimeSecrets populates DB fallback), binding must fail with 503
-      const fallbackEnv: Env = {
-        ...env,
-        SESSION_SECRET: '',
-        EXPLICIT_SESSION_SECRET: undefined,
-      };
-      await ensureRuntimeSecrets(fallbackEnv);
-      expect(fallbackEnv.SESSION_SECRET).toMatch(/^[a-f0-9]{64}$/);
-      expect(fallbackEnv.EXPLICIT_SESSION_SECRET).toBe('');
+      // 1) Without explicit SESSION_SECRET: auto-generates 32-byte key once, logs backup reminder, writes & decrypts after restart
+      const infoLogs: string[] = [];
+      const infoSpy = vi.spyOn(console, 'info').mockImplementation((...args: unknown[]) => {
+        infoLogs.push(args.map(String).join(' '));
+      });
+      try {
+        const autoEnv: Env = {
+          ...env,
+          SESSION_SECRET: '',
+        };
+        await ensureRuntimeSecrets(autoEnv);
+        expect(autoEnv.SESSION_SECRET).toMatch(/^[a-f0-9]{64}$/);
+        expect(
+          infoLogs.filter((line) => line.includes('已自动生成加密密钥，备份时请连同数据目录一起备份')),
+        ).toHaveLength(1);
 
-      await expect(
-        upsertNodeSlotBinding(fallbackEnv, pub.publication.id, slotId, {
-          subscriptionUrl: 'https://airport.secret.example/sub?token=super-secret-xyz',
-        }),
-      ).rejects.toMatchObject({ code: 'SESSION_SECRET_REQUIRED', status: 503 });
+        const autoBound = await upsertNodeSlotBinding(autoEnv, autoPub.publication.id, slotId, {
+          subscriptionUrl: 'https://airport.auto.example/sub?token=auto-secret-xyz',
+          userAgent: 'mihomo/1.19',
+        });
+        expect(autoBound.binding.maskedUrl).toBe('https://airport.auto.example/***');
+        expect(autoBound.binding.needsRebind).toBe(false);
 
-      // With explicit SESSION_SECRET, binding succeeds and stores AES-256-GCM ciphertext
+        // Simulate restart with fresh Env (SESSION_SECRET unset) on the same DB adapter
+        const restartedAutoEnv: Env = {
+          ...env,
+          SESSION_SECRET: '',
+        };
+        await ensureRuntimeSecrets(restartedAutoEnv);
+        expect(restartedAutoEnv.SESSION_SECRET).toBe(autoEnv.SESSION_SECRET);
+        // Reminder is logged only once on initial generation, not on subsequent startups
+        expect(
+          infoLogs.filter((line) => line.includes('已自动生成加密密钥，备份时请连同数据目录一起备份')),
+        ).toHaveLength(1);
+
+        const autoDetailAfterRestart = await getPublicationById(restartedAutoEnv, autoPub.publication.id);
+        expect(autoDetailAfterRestart.bindings).toHaveLength(1);
+        expect(autoDetailAfterRestart.bindings[0]).toMatchObject({
+          slotId,
+          maskedUrl: 'https://airport.auto.example/***',
+          needsRebind: false,
+          userAgent: 'mihomo/1.19',
+        });
+      } finally {
+        infoSpy.mockRestore();
+      }
+
+      // 2) With explicit SESSION_SECRET, behavior is unchanged and stores AES-256-GCM ciphertext
       const secretUrl = 'https://airport.secret.example/api/v1/subscribe?token=super-secret-xyz&flag=clash';
       const bound = await upsertNodeSlotBinding(env, pub.publication.id, slotId, {
         subscriptionUrl: secretUrl,
@@ -299,6 +336,7 @@ function templatesAndPublicationsContract(
       await deleteNodeSlotBinding(env, pub.publication.id, slotId);
       const unlockedPublic = await updatePublication(env, pub.publication.id, { access: 'public' });
       expect(unlockedPublic.publication.access).toBe('public');
+      await deletePublication(env, autoPub.publication.id);
       await deletePublication(env, pub.publication.id);
       await deleteTemplate(env, tpl.template.id);
 

@@ -25,6 +25,10 @@ test.describe('M2.2 /admin 3-viewport layout, URL search state, and query dedupl
     await expect(page.getByTestId('sidebar-section-templates')).toContainText('配置模板');
     await expect(page.getByTestId('desktop-sidebar').getByRole('navigation').getByRole('link')).toHaveCount(5);
     await expect(page.getByTestId('app-topbar')).toBeVisible();
+    await expect(page.getByTestId('app-topbar').getByTestId('locale-toggle')).toHaveCount(0);
+    await expect(page.getByTestId('app-topbar').getByTestId('theme-toggle')).toHaveCount(0);
+    await expect(page.getByTestId('session-status-badge')).toBeVisible();
+    await expect(page.getByTestId('logout-button')).toBeVisible();
     await expect(page.getByTestId('mobile-bottom-nav')).toBeHidden();
     await expect(page.getByTestId('tablet-sidebar-toggle')).toBeHidden();
 
@@ -94,6 +98,10 @@ test.describe('M2.2 /admin 3-viewport layout, URL search state, and query dedupl
 
       await expect(page.getByTestId('desktop-sidebar')).toBeHidden();
       await expect(page.getByTestId('tablet-sidebar-toggle')).toBeHidden();
+      await expect(page.getByTestId('app-topbar').getByTestId('locale-toggle')).toHaveCount(0);
+      await expect(page.getByTestId('app-topbar').getByTestId('theme-toggle')).toHaveCount(0);
+      await expect(page.getByTestId('session-status-badge')).toBeVisible();
+      await expect(page.getByTestId('logout-button')).toBeVisible();
       const bottomNav = page.getByTestId('mobile-bottom-nav');
       await expect(bottomNav).toBeVisible();
       await expect(bottomNav.getByRole('link')).toHaveCount(5);

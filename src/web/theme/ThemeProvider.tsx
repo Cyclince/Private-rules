@@ -2,22 +2,27 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { isTelegramMiniApp } from '../lib/telegram/webapp';
 
 export type Theme = 'dark' | 'light';
+export type ThemePreference = 'system' | 'light' | 'dark';
 
 const STORAGE_KEY = 'private-rules-theme';
 
-function readInitialTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark';
-  if (typeof document !== 'undefined') {
-    const preset = document.documentElement.dataset.theme;
-    if (preset === 'dark' || preset === 'light') return preset;
+function getSystemTheme(): Theme {
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    if (window.matchMedia('(prefers-color-scheme: light)').matches) return 'light';
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
   }
+  return 'dark';
+}
+
+function readInitialThemePreference(): ThemePreference {
+  if (typeof window === 'undefined') return 'system';
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (saved === 'dark' || saved === 'light') return saved;
+    if (saved === 'system' || saved === 'light' || saved === 'dark') return saved;
   } catch {
     // Ignore storage errors.
   }
-  return 'dark';
+  return 'system';
 }
 
 function applyThemeToDocument(theme: Theme, animate: boolean) {
@@ -37,19 +42,27 @@ function applyThemeToDocument(theme: Theme, animate: boolean) {
 
 type ThemeContextValue = {
   theme: Theme;
+  themePreference: ThemePreference;
+  setThemePreference: (preference: ThemePreference) => void;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-export function ThemeProvider({ children, initialTheme }: { children: ReactNode; initialTheme?: Theme }) {
-  const [theme, setThemeState] = useState<Theme>(() => initialTheme ?? readInitialTheme());
+export function ThemeProvider({ children, initialTheme }: { children: ReactNode; initialTheme?: ThemePreference }) {
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>(
+    () => initialTheme ?? readInitialThemePreference(),
+  );
+  const [systemTheme, setSystemTheme] = useState<Theme>(() => getSystemTheme());
+  const [telegramTheme, setTelegramTheme] = useState<Theme | null>(null);
   const transitionTimer = useRef<number | null>(null);
   const mounted = useRef(false);
 
-  const setTheme = useCallback((next: Theme) => {
-    setThemeState(next);
+  const theme: Theme = telegramTheme ?? (themePreference === 'system' ? systemTheme : themePreference);
+
+  const setThemePreference = useCallback((next: ThemePreference) => {
+    setThemePreferenceState(next);
     try {
       window.localStorage.setItem(STORAGE_KEY, next);
     } catch {
@@ -57,9 +70,31 @@ export function ThemeProvider({ children, initialTheme }: { children: ReactNode;
     }
   }, []);
 
+  const setTheme = useCallback(
+    (next: Theme) => {
+      setThemePreference(next);
+    },
+    [setThemePreference],
+  );
+
   const toggleTheme = useCallback(() => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  }, [theme, setTheme]);
+    setThemePreference(theme === 'dark' ? 'light' : 'dark');
+  }, [theme, setThemePreference]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const media = window.matchMedia('(prefers-color-scheme: light)');
+    const handleChange = () => {
+      setSystemTheme(getSystemTheme());
+    };
+    handleChange();
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', handleChange);
+      return () => media.removeEventListener('change', handleChange);
+    }
+    media.addListener(handleChange);
+    return () => media.removeListener(handleChange);
+  }, []);
 
   useEffect(() => {
     if (isTelegramMiniApp()) {
@@ -68,7 +103,7 @@ export function ThemeProvider({ children, initialTheme }: { children: ReactNode;
         if (!active) return;
         const applied = applyTelegramTheme();
         if (applied) {
-          setThemeState(applied);
+          setTelegramTheme(applied);
           mounted.current = true;
         }
       });
@@ -95,7 +130,10 @@ export function ThemeProvider({ children, initialTheme }: { children: ReactNode;
     };
   }, []);
 
-  const value = useMemo(() => ({ theme, setTheme, toggleTheme }), [theme, setTheme, toggleTheme]);
+  const value = useMemo(
+    () => ({ theme, themePreference, setThemePreference, setTheme, toggleTheme }),
+    [theme, themePreference, setThemePreference, setTheme, toggleTheme],
+  );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

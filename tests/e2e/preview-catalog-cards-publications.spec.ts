@@ -391,9 +391,7 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
     });
   }
 
-  test('displays disabled prompt and disables node slot binding when SESSION_SECRET is not configured', async ({
-    page,
-  }) => {
+  test('keeps node slot binding enabled without requiring manual SESSION_SECRET banner', async ({ page }) => {
     await signInAdmin(page);
     await page.setViewportSize({ width: 1280, height: 800 });
 
@@ -403,7 +401,7 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
 
     try {
       const tplRes = await page.request.post('/api/templates', {
-        data: { name: `NoSecret Tpl ${suffix}`, slug: `nosecret-${suffix}`, starterTier: 'standard' },
+        data: { name: `AutoSecret Tpl ${suffix}`, slug: `autosecret-${suffix}`, starterTier: 'standard' },
         headers: JSON_HEADERS,
       });
       const tplPayload = (await tplRes.json()) as {
@@ -414,49 +412,16 @@ test.describe('M4.4a Rule Catalog, App Cards Library, and Publications', () => {
       const slotId = tplPayload.resolvedBody.slots[0]?.id ?? 'slot-main';
 
       const pubRes = await page.request.post('/api/publications', {
-        data: { slug: `nosecret-pub-${suffix}`, templateId, clients: ['mihomo'], access: 'token' },
+        data: { slug: `autosecret-pub-${suffix}`, templateId, clients: ['mihomo'], access: 'token' },
         headers: JSON_HEADERS,
       });
       publicationId = ((await pubRes.json()) as { publication: { id: string } }).publication.id;
 
-      // Simulate server without explicit SESSION_SECRET
-      await page.route('**/api/auth/me', async (route) => {
-        const res = await route.fetch();
-        const body = (await res.json()) as Record<string, unknown>;
-        await route.fulfill({
-          status: res.status(),
-          contentType: 'application/json',
-          body: JSON.stringify({ ...body, sessionSecretConfigured: false }),
-        });
-      });
-      await page.route('**/api/publications*', async (route) => {
-        if (route.request().method() !== 'GET') {
-          await route.continue();
-          return;
-        }
-        const res = await route.fetch();
-        const body = (await res.json()) as {
-          publications?: Array<Record<string, unknown>>;
-          publication?: Record<string, unknown>;
-        };
-        if (Array.isArray(body.publications)) {
-          body.publications = body.publications.map((item) => ({ ...item, sessionSecretConfigured: false }));
-        }
-        if (body.publication) {
-          body.publication = { ...body.publication, sessionSecretConfigured: false };
-        }
-        await route.fulfill({
-          status: res.status(),
-          contentType: 'application/json',
-          body: JSON.stringify(body),
-        });
-      });
-
       await page.goto(`/admin/publications?selected=${publicationId}&tab=nodes`);
-      await expect(page.getByTestId('publications-session-secret-banner')).toBeVisible();
-      await expect(page.getByTestId('session-secret-missing-alert')).toBeVisible();
-      await expect(page.getByTestId(`node-slot-url-${slotId}`)).toBeDisabled();
-      await expect(page.getByTestId(`node-slot-save-${slotId}`)).toBeDisabled();
+      await expect(page.getByTestId('publications-session-secret-banner')).toHaveCount(0);
+      await expect(page.getByTestId('session-secret-missing-alert')).toHaveCount(0);
+      await expect(page.getByTestId(`node-slot-url-${slotId}`)).toBeEnabled();
+      await expect(page.getByTestId(`node-slot-save-${slotId}`)).toBeEnabled();
     } finally {
       if (publicationId) {
         await page.request.delete(`/api/publications/${publicationId}`, { headers: JSON_HEADERS });

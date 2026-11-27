@@ -22,7 +22,7 @@ Private Rules 是一个私有、自托管的规则管理、模板编排与订阅
 
 它把自定义规则、远程订阅、GeoSite 与 GeoIP 数据源集中到同一个 Miku 主题后台：既能按规则集输出 YAML、LIST、TXT 与 sing-box JSON 订阅，也能通过**规则目录、应用组件库、可视化模板编辑器与多客户端编译器**，直接发布面向 mihomo、Stash、Surge、sing-box、Loon、Quantumult X 与 Shadowrocket 的分流配置。
 
-所有规则、模板、登录会话与访问策略都保存在你自己的 Cloudflare D1 或 SQLite 数据库中。每个规则集与模板发布都可以独立控制访问权限，节点订阅地址经显式 `SESSION_SECRET` 加密保存，不外发第三方在线转换服务。
+所有规则、模板、登录会话与访问策略都保存在你自己的 Cloudflare D1 或 SQLite 数据库中。每个规则集与模板发布都可以独立控制访问权限，节点订阅地址经 AES-256-GCM 加密保存，不外发第三方在线转换服务。
 
 ## 为什么需要它
 
@@ -86,11 +86,10 @@ curl -fsSLO https://raw.githubusercontent.com/Cyclince/Private-rules/main/docker
 curl -fsSL https://raw.githubusercontent.com/Cyclince/Private-rules/main/.env.example -o .env
 ```
 
-编辑 `.env`（推荐用 `openssl rand -hex 32` 生成 `SESSION_SECRET` 与 `RULE_TOKEN`）：
+编辑 `.env`（推荐用 `openssl rand -hex 32` 生成 `RULE_TOKEN`）：
 
 ```dotenv
 ADMIN_PASSWORD=请设置独立的高强度后台密码
-SESSION_SECRET=请设置至少32位随机密钥（模板节点绑定必需）
 RULE_TOKEN=请设置随机且不可猜测的订阅令牌
 BASE_URL=https://rules.example.com
 ```
@@ -106,8 +105,8 @@ docker compose ps
 容器显示 `healthy` 后，访问 `http://服务器地址:5173/admin/login`。
 
 > [!IMPORTANT]
-> - `SESSION_SECRET` 必须通过环境变量显式配置（生产环境至少 32 个字符）才能启用「模板节点订阅绑定」功能；配置后切勿随意变更，否则已加密的节点绑定需要重新填写。
 > - `RULE_TOKEN` 用来隐藏私密订阅路径，不代表内容加密。不要提交 `.env`、Cookie、数据库文件或完整私密订阅地址。
+> - `SESSION_SECRET` 默认会自动生成并随数据目录持久化（备份时请连同数据目录一起备份）；如需手动指定，见下文「可选环境变量」。
 
 ## 部署到 Cloudflare
 
@@ -133,7 +132,7 @@ Cron Trigger 每 5 分钟扫描一次需要执行的任务；每个来源真正�
 | 变量或 Secret | 用途 | 必需 |
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | 登录管理后台 | 是 |
-| `SESSION_SECRET` | 会话签名与节点订阅 AES-256-GCM 加密密钥（推荐 ≥ 32 字符） | 使用节点绑定时必需，强烈建议始终显式配置 |
+| `SESSION_SECRET` | 会话签名与节点订阅 AES-256-GCM 加密密钥（留空时自动持久化生成；自定义时推荐 ≥ 32 字符） | 否 |
 | `RULE_TOKEN` | 生成私密订阅地址（`/sub/:token/...` 与 `/t/:token/...`） | 使用私密访问或含节点发布时必需 |
 | `BASE_URL` | 站点的公网 HTTPS 地址（用于生成链接、CSRF 校验与 Telegram） | 自定义域名或 Telegram 时必需 |
 | `TELEGRAM_BOT_TOKEN` | BotFather 提供的 Bot Token | 否 |
@@ -158,19 +157,20 @@ Bot 只接受配置用户的私聊。部署完成后发送 `/start` 即可使用
 
 Docker 部署使用 Docker Hub 上的多架构镜像（`linux/amd64`、`linux/arm64`），适合 VPS、NAS 与本地服务器。完整的从零部署、数据卷、升级和故障排查见 [Docker Compose 部署指南](./docs/wiki/Docker-Compose-Deployment.md) 与 [1.1.0 升级指南](./docs/upgrade-1.1.0.md)。
 
-### Docker 环境变量一览
+### 可选环境变量
 
-除上表与 Cloudflare 相同的变量外，Node / Docker 运行时还支持以下环境变量（已在 `docker-compose.yml` 中预置默认值）：
+以下环境变量均在代码中提供默认值，未写进默认 `docker-compose.yml`（保持与 1.0.x 一致，升级时只需改镜像标签）。如需自定义，可在 `docker-compose.yml` 的 `environment` 或 Cloudflare Worker 的 Variables / Secrets 中按需添加：
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `SESSION_SECRET` | 空（强烈建议显式配置） | 显式配置时生产环境必须 ≥ 32 字符；启用模板节点绑定必需 |
-| `TRUST_PROXY` | `true`（Compose） / `false`（裸跑） | 仅在受信任反向代理后设为 `true`，以识别 `X-Forwarded-For` |
+| `SESSION_SECRET` | 留空时自动生成并持久化 | 会话签名与节点订阅加密密钥；自定义时生产环境需 ≥ 32 字符，更改会使现有会话失效并让已保存的节点订阅需要重填 |
 | `LOG_LEVEL` | `info` | 日志级别：`debug` / `info` / `warn` / `error` |
-| `SCHEDULER_ENABLED` | `true` | 是否启用内置定时同步与会话清理调度器 |
-| `SCHEDULER_INTERVAL_SECONDS` | `60` | 调度器轮询间隔（秒，范围 `1`–`86400`） |
-| `DATABASE_PATH` | `/app/data/private-rules.db` | SQLite 数据库文件路径 |
-| `HOST` / `PORT` | `0.0.0.0` / `5173` | 监听地址与端口 |
+| `SCHEDULER_ENABLED` | `true` | Node / Docker 是否启用内置定时同步与会话清理调度器 |
+| `SCHEDULER_INTERVAL_SECONDS` | `60` | Node / Docker 调度器轮询间隔（秒，范围 `1`–`86400`） |
+| `TELEGRAM_WEBHOOK_SECRET` | 留空时自动生成并持久化 | 自定义 Telegram Webhook 校验密钥 |
+| `DATABASE_PATH` | `/app/data/private-rules.db` | Node / Docker SQLite 数据库文件路径 |
+| `HOST` / `PORT` | `0.0.0.0` / `5173` | Node / Docker 监听地址与端口 |
+| `TRUST_PROXY` | `true`（Compose） / `false`（裸跑） | 仅在受信任反向代理后设为 `true`，以识别 `X-Forwarded-For` |
 
 ### 数据保存与升级
 
@@ -266,13 +266,13 @@ Compose 已启用 `TRUST_PROXY`。不要允许不受信任的上游覆盖 `Host`
 - **会话与 CSRF**：后台会话使用 HMAC 签名 `HttpOnly` Cookie；Cookie 会话的写操作强制校验 `Content-Type: application/json` 与同源 `Origin`（API Key 请求豁免 `Origin` 校验）。
 - **CORS 隔离**：`/api/*` 仅允许同源访问；仅公开订阅路由（`/rules/*`、`/sub/*`、`/p/*`、`/t/*`）返回 `Access-Control-Allow-Origin: *`。
 - **登录限流**：同一身份 15 分钟内失败 10 次将锁定 15 分钟；密码、Token 与会话签名均采用常量时间比较。
-- **节点订阅加密**：节点订阅地址使用显式 `SESSION_SECRET` 派生的 AES-256-GCM 加密存储，界面仅显示脱敏值，不进日志、URL 参数与备份；凡含节点绑定的发布禁止设为公开访问。
+- **节点订阅加密**：节点订阅地址使用 `SESSION_SECRET`（未配置时自动生成并随数据持久化）派生的 AES-256-GCM 加密存储，界面仅显示脱敏值，不进日志、URL 参数与备份；凡含节点绑定的发布禁止设为公开访问。
 - **Telegram 权限边界**：Bot 只接受 `TELEGRAM_USER_ID` 指定用户的私聊；Mini App 会话禁止访问备份、API Key 与基础设施设置（服务端 `403`）。
 - **凭据保护**：不要提交 `.dev.vars`、`.env`、密码、密钥、Token 或生产数据库内容。
 
 ## 更新与备份
 
-- **从 1.0.x 升级至 1.1.0**：请务必先阅读 [1.0.x → 1.1.0 升级指南](./docs/upgrade-1.1.0.md)（包含 Docker 自动 `.bak-1.0.x` 备份、Cloudflare D1 升级前 `wrangler d1 export` 必做步骤、`SESSION_SECRET` 配置与完整回滚方案）。
+- **从 1.0.x 升级至 1.1.0**：请先阅读 [1.0.x → 1.1.0 升级指南](./docs/upgrade-1.1.0.md)（Docker 只需修改镜像标签并自动生成 `.bak-1.0.x` 备份；Cloudflare D1 升级前需执行 `wrangler d1 export`，并附完整回滚方案）。
 - **版本变更记录**：详见 [1.1.0 发布说明](./docs/1.1.0.md)。
 - `/health` 返回结果中的 `version` 可以用来确认当前运行版本。
 

@@ -101,7 +101,15 @@ export function formatFriendlyRuleType(descriptor: FriendlyRuleDescriptor, t: (k
 export function formatFriendlyRuleInline(descriptor: FriendlyRuleDescriptor, t: (key: MessageKey) => string): string {
   const typeLabel = t(descriptor.typeKey);
   const template = t(descriptor.inlineKey);
-  return template.replace('{type}', typeLabel).replace('{value}', descriptor.params.displayValue);
+  return template
+    .replace('{type}', typeLabel)
+    .replace('{value}', descriptor.params.displayValue)
+    .replace('{start}', descriptor.params.start ?? '')
+    .replace('{end}', descriptor.params.end ?? '')
+    .replace('{count}', descriptor.params.count ?? '')
+    .replace('{zhCount}', descriptor.params.zhCount ?? '')
+    .replace('{enCount}', descriptor.params.enCount ?? '')
+    .replace('{prefix}', descriptor.params.prefix ?? '');
 }
 
 export function splitNonEmptyLines(value: string): string[] {

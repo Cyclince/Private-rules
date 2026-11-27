@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { AlertTriangle, KeyRound, Lock, RefreshCw, Server, ShieldAlert, Trash2 } from 'lucide-react';
+import { KeyRound, Lock, RefreshCw, Server, ShieldAlert, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { MaskedNodeBinding } from '../../../application/publications';
 import type { PublicationWithLinks } from '../../../server/routes/publications';
@@ -39,9 +39,8 @@ function NodeSlotCard({
   const [urlError, setUrlError] = useState<string | null>(null);
   const [fetchedNames, setFetchedNames] = useState<string[] | null>(null);
 
-  const secretReady = publication.sessionSecretConfigured;
   const isPublic = publication.access === 'public';
-  const bindDisabled = readOnly || !secretReady || isPublic;
+  const bindDisabled = readOnly || isPublic;
 
   const upsertMutation = useMutation({
     mutationFn: async (payload: { subscriptionUrl: string; userAgent?: string | null }) =>
@@ -200,7 +199,7 @@ function NodeSlotCard({
             <Button
               size="sm"
               variant="outline"
-              disabled={readOnly || !secretReady || fetchNamesMutation.isPending}
+              disabled={readOnly || fetchNamesMutation.isPending}
               data-testid={`node-slot-fetch-names-${slot.id}`}
               onClick={() => fetchNamesMutation.mutate()}
             >
@@ -316,20 +315,6 @@ export function NodeSlotBindingsPanel({ publication, readOnly, onChanged }: Node
         <h3 className="text-sm font-semibold text-text">{t('publications.nodesTitle')}</h3>
         <p className="text-xs text-text-muted">{t('publications.nodesDesc')}</p>
       </div>
-
-      {!publication.sessionSecretConfigured ? (
-        <div
-          data-testid="session-secret-missing-alert"
-          role="alert"
-          className="flex items-start gap-2.5 rounded-[var(--radius-md)] border border-danger/50 bg-danger/10 p-3.5 text-xs"
-        >
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
-          <div className="flex flex-col gap-1">
-            <span className="font-semibold text-text">{t('publications.sessionSecretMissingTitle')}</span>
-            <p className="text-text-muted">{t('publications.sessionSecretMissingDesc')}</p>
-          </div>
-        </div>
-      ) : null}
 
       {publication.access === 'public' ? (
         <div

@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { AlertTriangle, Code2, Link2, Lock, Pencil, Plus, Search, ShieldAlert, Trash2 } from 'lucide-react';
+import { Code2, Link2, Lock, Pencil, Plus, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import type { PublicationWithLinks } from '../../server/routes/publications';
 import {
@@ -119,8 +119,6 @@ function PublicationsPage() {
   });
 
   const allPublications = useMemo(() => listQuery.data?.publications ?? [], [listQuery.data]);
-  const sessionSecretConfigured =
-    listQuery.data?.sessionSecretConfigured ?? authQuery.data?.sessionSecretConfigured ?? true;
   const ruleTokenConfigured = listQuery.data?.ruleTokenConfigured ?? authQuery.data?.ruleTokenConfigured ?? false;
 
   const filteredPublications = useMemo(() => {
@@ -227,20 +225,6 @@ function PublicationsPage() {
         >
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <span>{t('taxonomy.telegramReadOnly')}</span>
-        </div>
-      ) : null}
-
-      {!sessionSecretConfigured ? (
-        <div
-          data-testid="publications-session-secret-banner"
-          role="alert"
-          className="flex items-start gap-2.5 rounded-[var(--radius-md)] border border-danger/50 bg-danger/10 px-3.5 py-3 text-xs"
-        >
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
-          <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-text">{t('publications.sessionSecretMissingTitle')}</span>
-            <p className="text-text-muted">{t('publications.sessionSecretMissingDesc')}</p>
-          </div>
         </div>
       ) : null}
 

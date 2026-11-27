@@ -1,19 +1,17 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { Globe, LogOut, Menu, Moon, Sun } from 'lucide-react';
+import { LogOut, Menu } from 'lucide-react';
 import { useState } from 'react';
-import { SUPPORTED_LOCALES, useI18n, type Locale } from '../../i18n';
+import { useI18n } from '../../i18n';
 import { isTelegramSession, performLogout } from '../../lib/auth-guard';
 import { authMeQueryOptions } from '../../lib/query-core';
-import { useTheme } from '../../theme/ThemeProvider';
 import { ROUTE_TITLE_ENTRIES } from './nav-items';
 
 const topbarBtn =
   'items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-transparent text-text transition-colors duration-150 hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-primary cursor-pointer';
 
 export function Topbar({ onOpenTabletSidebar }: { onOpenTabletSidebar: () => void }) {
-  const { t, locale, setLocale } = useI18n();
-  const { theme, toggleTheme } = useTheme();
+  const { t } = useI18n();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -27,12 +25,6 @@ export function Topbar({ onOpenTabletSidebar }: { onOpenTabletSidebar: () => voi
       const normalized = pathname.replace(/^\/admin/, '') || '/';
       return item.path === '/' ? normalized === '/' : normalized.startsWith(item.path);
     }) ?? ROUTE_TITLE_ENTRIES[0];
-
-  const cycleLocale = () => {
-    const idx = SUPPORTED_LOCALES.indexOf(locale);
-    const next: Locale = SUPPORTED_LOCALES[(idx + 1) % SUPPORTED_LOCALES.length];
-    setLocale(next);
-  };
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -68,33 +60,10 @@ export function Topbar({ onOpenTabletSidebar }: { onOpenTabletSidebar: () => voi
         {authQuery.data?.authenticated ? (
           <span
             data-testid="session-status-badge"
-            className="hidden items-center rounded-full border border-transparent bg-success px-2.5 py-0.5 text-xs font-medium text-success-foreground sm:inline-flex"
+            className="inline-flex items-center rounded-full border border-transparent bg-success px-2.5 py-0.5 text-xs font-medium text-success-foreground"
           >
             {inTelegram ? t('auth.telegramBadge') : t('dashboard.authenticated')}
           </span>
-        ) : null}
-
-        <button
-          type="button"
-          onClick={cycleLocale}
-          aria-label={t('lang.label')}
-          data-testid="locale-toggle"
-          className={`inline-flex ${topbarBtn} h-8 px-2.5 text-xs font-medium`}
-        >
-          <Globe className="h-3.5 w-3.5" />
-          <span>{t(`lang.${locale}`)}</span>
-        </button>
-
-        {!inTelegram ? (
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label={t('theme.toggle')}
-            data-testid="theme-toggle"
-            className={`inline-flex ${topbarBtn} h-9 w-9`}
-          >
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
         ) : null}
 
         {authQuery.data?.authenticated ? (

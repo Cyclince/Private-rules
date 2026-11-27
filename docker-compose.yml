@@ -7,17 +7,11 @@ services:
       - "5173:5173"
     environment:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
-      # 显式配置至少 32 位随机密钥（openssl rand -hex 32）；启用模板节点绑定时必需
-      SESSION_SECRET: ${SESSION_SECRET:-}
       RULE_TOKEN: ${RULE_TOKEN:?Set RULE_TOKEN in .env}
-      TRUST_PROXY: ${TRUST_PROXY:-true}
+      TRUST_PROXY: "true"
       BASE_URL: ${BASE_URL:-}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
-      SCHEDULER_INTERVAL_SECONDS: ${SCHEDULER_INTERVAL_SECONDS:-60}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_USER_ID: ${TELEGRAM_USER_ID:-}
-      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
     volumes:
       - private-rules-data:/app/data
     healthcheck:

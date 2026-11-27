@@ -2,7 +2,7 @@
 
 本指南适用于从 **1.0.0–1.0.7** 升级至 **1.1.0**（包括 `1.1.0-beta.1` 公开测试版）的 Docker Compose 与 Cloudflare Workers 部署。
 
-升级后，原有 1.0.x 的全部规则集数据、来源配置与订阅地址（`/rules/:file`、`/sub/:token/:file`）均保持兼容，规则集订阅输出与 1.0.7 逐字节一致。
+升级后，原有 1.0.x 的全部规则集数据、来源配置与订阅地址（`/rules/:file`、`/sub/:token/:file`）均保持兼容，规则集订阅输出与 1.0.7 逐字节一致。`docker-compose.yml` 配置结构也与 1.0.x 完全兼容，Docker 用户只需修改镜像标签即可直接升级。
 
 ---
 
@@ -10,17 +10,9 @@
 
 1. **在 1.0.x 后台导出 JSON 备份**：登录当前 1.0.x 管理后台 →「设置」→ 导出完整 `.json` 备份并妥善保存到本地。
 2. **确认行为变化**（详见 [1.1.0 发布说明](./1.1.0.md)）：
-   - **节点绑定必须显式配置 `SESSION_SECRET`**：1.1.0 的模板发布支持绑定节点订阅地址（AES-256-GCM 加密存储），但强制要求在环境变量中显式提供 `SESSION_SECRET`，不再回退使用数据库内自动生成的密钥。
+   - **`SESSION_SECRET` 可选配置**：未显式设置 `SESSION_SECRET` 时，1.1.0 会自动生成并持久化 32 字节加密密钥（供会话签名与模板节点订阅绑定 AES-256-GCM 加密共用），首次生成时日志会提示将密钥随数据目录一起备份；如希望自行托管密钥，可按需通过环境变量显式配置（见下文「可选环境变量」）。
    - **`/api/*` CORS 收紧与 CSRF 校验**：`/api/*` 仅允许同源访问；Cookie 会话写操作必须携带 `Content-Type: application/json` 与同源 `Origin`；自动化脚本请使用 API Key（`Authorization: Bearer prk_...`）。
    - **Telegram Mini App 权限收紧**：Mini App 会话不再允许访问备份、API Key 与高风险基础设施设置（服务端返回 `403`）。
-3. **准备显式 `SESSION_SECRET`**（建议提前生成，长度 ≥ 32 字符）：
-
-```bash
-openssl rand -hex 32
-```
-
-> [!IMPORTANT]
-> 请妥善保存生成的 `SESSION_SECRET` 且升级后**不要随意更改**。更改 `SESSION_SECRET` 会使现有登录会话立即失效，并导致已加密存储的节点订阅绑定无法解密（需要在发布页重新填写订阅地址）。
 
 ---
 
@@ -41,31 +33,22 @@ ${DATABASE_PATH}.bak-1.0.x
 [private-rules] upgraded 1.0.x database; pre-upgrade backup saved to /app/data/private-rules.db.bak-1.0.x
 ```
 
-### 升级步骤
+### 升级步骤（只改镜像标签）
 
-1. **在 `.env` 中补充 `SESSION_SECRET`**（如计划使用模板节点绑定，此项为必需；生产环境必须 ≥ 32 字符）：
+现有的 1.0.x `docker-compose.yml` 与 `.env` **无需修改其他字段**，所有 1.1.0 新增的可选环境变量均已在代码中提供合理默认值。
 
-```dotenv
-ADMIN_PASSWORD=你的后台密码
-SESSION_SECRET=用_openssl_rand_-hex_32_生成的至少32位随机密钥
-RULE_TOKEN=你的私密订阅令牌
-BASE_URL=https://rules.example.com
-```
+1. **只修改 `docker-compose.yml` 中的 `image` 标签**：
+   - 公开测试版：`cyclince/private-rules:1.1.0-beta.1`（或 `cyclince/private-rules:beta`）
+   - 正式版发布后：`cyclince/private-rules:1.1.0`
 
-2. **更新 `docker-compose.yml`**：
-   - 将仓库最新的 `docker-compose.yml` 中的 `environment` 项同步到你的部署文件（确保透传 `SESSION_SECRET`，并可按需设置 `LOG_LEVEL`、`SCHEDULER_ENABLED`、`SCHEDULER_INTERVAL_SECONDS`、`TELEGRAM_WEBHOOK_SECRET`）。
-   - 修改 `image` 标签为目标版本：
-     - 公开测试版：`cyclince/private-rules:1.1.0-beta.1`（或 `cyclince/private-rules:beta`）
-     - 正式版发布后：`cyclince/private-rules:1.1.0`
-
-3. **拉取镜像并重建容器**（切勿使用 `docker compose down -v`，否则会删除数据卷）：
+2. **拉取镜像并重建容器**（切勿使用 `docker compose down -v`，否则会删除数据卷）：
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-4. **检查升级日志与健康状态**：
+3. **检查升级日志与健康状态**：
 
 ```bash
 docker compose ps
@@ -73,7 +56,7 @@ docker compose logs --tail=100 private-rules
 curl -s http://127.0.0.1:5173/health
 ```
 
-确认 `/health` 返回 `"ok": true`、`"database": "ok"` 且 `version` 为目标版本，同时日志中确认 `.bak-1.0.x` 已生成且无报错。
+确认 `/health` 返回 `"ok": true`、`"database": "ok"` 且 `version` 为目标版本，同时日志中确认 `.bak-1.0.x` 已生成且无报错。如果未显式设置 `SESSION_SECRET`，首次启动日志还会打印一次自动生成密钥的备份提醒。
 
 ---
 
@@ -91,17 +74,7 @@ pnpm exec wrangler d1 export private-rules-db --remote --output=./backup-1.0.x.s
 
 > 如你的 `wrangler.toml` 中自定义了 `database_name`，请将命令中的 `private-rules-db` 替换为实际数据库名。请检查生成的 `backup-1.0.x.sql` 非空后再继续。
 
-### 2. 配置显式 `SESSION_SECRET`
-
-在 Cloudflare Dashboard 打开 Worker → **Settings → Variables and Secrets**，添加名为 `SESSION_SECRET` 的 **Secret**（推荐用 `openssl rand -hex 32` 生成，≥ 32 字符）；或通过命令行设置：
-
-```bash
-pnpm exec wrangler secret put SESSION_SECRET
-```
-
-> 如果暂时不配置 `SESSION_SECRET`，Worker 仍可正常启动与提供规则集订阅，但创建或使用「模板发布节点绑定」时会返回 `503 SESSION_SECRET_REQUIRED`。
-
-### 3. 同步代码并部署 1.1.0
+### 2. 同步代码并部署 1.1.0
 
 - **Workers Builds（Fork 自动部署）**：同步仓库到目标发布分支或 Tag，等待构建部署完成（构建命令 `pnpm build`，部署命令 `pnpm deploy`）。
 - **本地 Wrangler 部署**：
@@ -112,7 +85,9 @@ pnpm build
 pnpm deploy
 ```
 
-### 4. 数据库自动升级与验证
+> 如需自行管理加密密钥，可按需在 Cloudflare Dashboard → **Settings → Variables and Secrets** 中添加 `SESSION_SECRET`（或运行 `pnpm exec wrangler secret put SESSION_SECRET`），留空时会自动生成并保存在 D1 数据库中。
+
+### 3. 数据库自动升级与验证
 
 - 1.1.0 将迁移文件目录统一为 `src/data/migrations`（已在 `wrangler.toml` 配置 `migrations_dir = "src/data/migrations"`）。
 - Worker 在部署后的**首次 HTTP 请求或 Cron 触发**时，会自动检测 1.0.x 历史表结构（兼容已使用 `d1_migrations` 与仅靠运行时建表两种状态），通过迁移锁幂等补齐基线并执行 1.1.0 新增迁移。
@@ -121,13 +96,20 @@ pnpm deploy
 
 ---
 
-## 三、如何确认 `SESSION_SECRET` 配置生效
+## 三、可选环境变量
 
-1. 升级完成后登录 `/admin`，进入 **发布管理**（`/admin/publications`）。
-2. 新建或编辑发布，尝试给节点槽位绑定订阅地址：
-   - 若 `SESSION_SECRET` 已显式配置，保存后界面仅显示脱敏地址（订阅明文加密存储，不出现在 API 响应、日志与备份中）；
-   - 若未显式配置 `SESSION_SECRET`，界面与服务端会返回 `503 SESSION_SECRET_REQUIRED` 提示。
-3. 如使用 Docker 部署且 `NODE_ENV=production`，填写少于 32 个字符的 `SESSION_SECRET` 会在容器启动阶段直接报错退出，请更换为至少 32 字符的随机密钥后重启。
+以下 1.1.0 新增或可微调的环境变量均在代码中有默认值，因此**不需要写进 `docker-compose.yml`**（保持与 1.0.x 一致）。如需自定义，可在 `docker-compose.yml` 的 `environment` 或 Cloudflare Worker 的 Variables / Secrets 中按需添加：
+
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `SESSION_SECRET` | 留空时自动生成并持久化 | 会话签名与节点订阅 AES-256-GCM 加密密钥。自定义时生产环境需至少 **32 字符**（推荐 `openssl rand -hex 32`）。**设置或更换该值会使现有登录会话失效，并让已保存的节点订阅绑定需要重新填写**；未显式配置时备份请连同数据目录（或 D1）一起备份。 |
+| `LOG_LEVEL` | `info` | 日志级别：`debug` / `info` / `warn` / `error` |
+| `SCHEDULER_ENABLED` | `true` | Node / Docker 部署是否启用内置定时同步与会话清理调度器 |
+| `SCHEDULER_INTERVAL_SECONDS` | `60` | Node / Docker 调度器轮询间隔（秒，范围 `1`–`86400`） |
+| `TELEGRAM_WEBHOOK_SECRET` | 留空时自动生成并持久化 | 自定义 Telegram Webhook 校验密钥 |
+| `DATABASE_PATH` | `/app/data/private-rules.db` | Node / Docker SQLite 数据库文件路径 |
+| `HOST` / `PORT` | `0.0.0.0` / `5173` | Node / Docker 监听地址与端口 |
+| `TRUST_PROXY` | `true`（Compose） / `false`（裸跑） | 仅在受信任反向代理后设为 `true`，以识别 `X-Forwarded-For` |
 
 ---
 

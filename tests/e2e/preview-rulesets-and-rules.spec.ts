@@ -167,23 +167,31 @@ test.describe('M3.1 & M1b Rules Library, Rule Detail, Friendly Rules, Bulk Add, 
 
       // 7. Manual Rule CRUD (Single add IP-CIDR with default no-resolve, friendly subtitle, view raw, edit, toggle)
       await page.getByTestId('single-rule-value').fill('198.51.100.0/24');
-      await expect(page.getByTestId('single-rule-preview')).toContainText('IP / IP 段');
+      await expect(page.getByTestId('single-rule-preview')).toContainText(
+        'IP 段 · 198.51.100.0 – 198.51.100.255（共 256 个地址）',
+      );
+      await expect(page.getByTestId('single-rule-preview-desc')).toContainText('匹配要访问的服务器 IP');
       await page.getByTestId('single-rule-more-options').locator('summary').click();
+      await expect(page.getByTestId('single-rule-more-options')).toContainText('不为这条规则解析域名（推荐开启）');
       await expect(page.getByTestId('single-rule-no-resolve')).toHaveAttribute('data-state', 'checked');
       await page.getByTestId('single-rule-note').fill('CIDR note');
       await page.getByTestId('single-rule-submit').click();
 
       await expect(page.getByTestId('rules-list')).toContainText('198.51.100.0/24');
+      await expect(page.getByTestId('rules-list')).toContainText(
+        'IP 段 · 198.51.100.0 – 198.51.100.255（共 256 个地址）',
+      );
       await expect(page.getByTestId('rules-list')).toContainText('no-resolve');
       await expect(page.getByTestId('rules-list')).toContainText('CIDR note');
       await expect(page.getByTestId('rules-list')).not.toContainText('IP-CIDR,');
 
-      // Inspect raw rule syntax via ⋯ menu -> 查看原文
+      // Inspect raw rule syntax & type explanation via ⋯ menu -> 查看原文
       const cidrRow = page.getByTestId('rules-list').locator('[data-testid^="rule-row-"]').first();
       const cidrRuleId = (await cidrRow.getAttribute('data-testid'))!.replace('rule-row-', '');
       await page.getByTestId(`rule-menu-${cidrRuleId}`).click();
       await page.getByTestId(`rule-view-raw-${cidrRuleId}`).click();
       await expect(page.getByTestId(`rule-raw-${cidrRuleId}`)).toHaveText('IP-CIDR,198.51.100.0/24,no-resolve');
+      await expect(page.getByTestId(`rule-raw-desc-${cidrRuleId}`)).toContainText('匹配要访问的服务器 IP');
 
       // Edit rule note via ⋯ menu -> 编辑
       await page.getByTestId(`rule-menu-${cidrRuleId}`).click();
@@ -320,6 +328,59 @@ test.describe('M3.1 & M1b Rules Library, Rule Detail, Friendly Rules, Bulk Add, 
       await expect(row).not.toContainText('DOMAIN-SUFFIX');
     } finally {
       if (createdId) await deleteRulesetViaApi(page, createdId);
+    }
+  });
+
+  test('M1c: single bare IP preview & row display (no /32) and rule type "?" help panel', async ({ page }) => {
+    await signInAdmin(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    const seeded = await createRulesetViaApi(page, `M1cIpHelp-${Date.now().toString(36)}`);
+
+    try {
+      await page.goto(`/admin/rules/${seeded.id}`);
+      await expect(page.getByTestId('rule-detail-title')).toHaveText(seeded.name);
+
+      // 1. Selected type explanation shown below dropdown; "?" button opens full type guide panel
+      await expect(page.getByTestId('rule-type-selected-desc')).toContainText('根据你输入的内容自动判断类型');
+      await page.getByTestId('rule-type-help-btn').click();
+      const helpPanel = page.getByTestId('rule-type-help-panel');
+      await expect(helpPanel).toBeVisible();
+      await expect(helpPanel).toContainText('常用');
+      await expect(helpPanel).toContainText('高级');
+      await expect(helpPanel).toContainText('域名后缀（最常用）');
+      await expect(helpPanel).toContainText('IP 地址 / 地址段');
+      await expect(helpPanel).toContainText('只填一个 IP 就行，不需要懂网段');
+      await expect(helpPanel).toContainText('设备 IP');
+      await expect(helpPanel).toContainText('程序名');
+      await page.getByTestId('rule-type-help-panel-close').click();
+      await expect(helpPanel).toBeHidden();
+
+      // 2. Non-IP input hides no-resolve "更多选项"
+      await page.getByTestId('single-rule-value').fill('example.com');
+      await expect(page.getByTestId('single-rule-more-options')).toBeHidden();
+
+      // 3. Single bare IP input shows plain-language preview + type explanation, and row hides /32
+      await page.getByTestId('single-rule-value').fill('1.2.3.4');
+      await expect(page.getByTestId('single-rule-preview')).toContainText('将添加为：IP 地址 · 1.2.3.4');
+      await expect(page.getByTestId('single-rule-preview')).not.toContainText('/32');
+      await expect(page.getByTestId('single-rule-preview-desc')).toContainText('只填一个 IP 就行，不需要懂网段');
+      await expect(page.getByTestId('single-rule-more-options')).toBeVisible();
+      await page.getByTestId('single-rule-submit').click();
+
+      const ipRow = page.getByTestId('rules-list').locator('[data-testid^="rule-row-"]').first();
+      const ipRuleId = (await ipRow.getAttribute('data-testid'))!.replace('rule-row-', '');
+      await expect(ipRow).toContainText('1.2.3.4');
+      await expect(ipRow).toContainText('IP 地址 · 1.2.3.4');
+      await expect(ipRow).not.toContainText('/32');
+
+      // Raw view still stores canonical /32 and shows type explanation
+      await page.getByTestId(`rule-menu-${ipRuleId}`).click();
+      await page.getByTestId(`rule-view-raw-${ipRuleId}`).click();
+      await expect(page.getByTestId(`rule-raw-${ipRuleId}`)).toHaveText('IP-CIDR,1.2.3.4/32,no-resolve');
+      await expect(page.getByTestId(`rule-raw-desc-${ipRuleId}`)).toContainText('匹配要访问的服务器 IP');
+    } finally {
+      await deleteRulesetViaApi(page, seeded.id);
     }
   });
 

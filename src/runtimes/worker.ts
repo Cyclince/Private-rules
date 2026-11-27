@@ -34,7 +34,6 @@ function dependencies(bindings: CloudflareBindings, context?: ExecutionContext):
     ADMIN_PASSWORD: config.adminPassword,
     RULE_TOKEN: config.ruleToken,
     SESSION_SECRET: config.sessionSecret,
-    EXPLICIT_SESSION_SECRET: config.sessionSecret,
     BASE_URL: config.baseUrl,
     TELEGRAM: config.telegram,
     TELEGRAM_CLIENT: config.telegram.enabled ? telegramClient : undefined,

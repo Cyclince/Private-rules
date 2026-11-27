@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, ShieldAlert, Sparkles } from 'lucide-react';
+import { Globe, Monitor, Moon, RefreshCw, ShieldAlert, Sparkles, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
@@ -10,7 +10,7 @@ import {
   type TelegramNotificationFormValues,
 } from '../../../shared/schemas/settings';
 import type { ManualRuleOptimizationPreview } from '../../../types/domain-rules';
-import { useI18n } from '../../i18n';
+import { SUPPORTED_LOCALES, useI18n } from '../../i18n';
 import { api, formatApiError, readApiJson } from '../../lib/api';
 import {
   invalidateRulesets,
@@ -20,6 +20,7 @@ import {
   telegramNotificationsQueryOptions,
 } from '../../lib/query';
 import { useToast } from '../../lib/toast';
+import { useTheme, type ThemePreference } from '../../theme/ThemeProvider';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
@@ -37,7 +38,8 @@ function formatTime(iso?: string | null): string {
 }
 
 export function GeneralSettingsTab({ inTelegram }: GeneralSettingsTabProps) {
-  const { t, locale } = useI18n();
+  const { t, locale, setLocale } = useI18n();
+  const { themePreference, setThemePreference } = useTheme();
   const { notify } = useToast();
   const queryClient = useQueryClient();
 
@@ -202,8 +204,100 @@ export function GeneralSettingsTab({ inTelegram }: GeneralSettingsTabProps) {
     },
   });
 
+  const themeOptions: ReadonlyArray<{ id: ThemePreference; label: string; Icon: typeof Monitor }> = [
+    { id: 'system', label: t('theme.system'), Icon: Monitor },
+    { id: 'light', label: t('theme.light'), Icon: Sun },
+    { id: 'dark', label: t('theme.dark'), Icon: Moon },
+  ];
+
   return (
     <div className="flex flex-col gap-4" data-testid="settings-general-tab">
+      <Card data-testid="settings-appearance-card">
+        <CardHeader>
+          <CardTitle>{t('settings.appearanceCardTitle')}</CardTitle>
+          <CardDescription>{t('settings.appearanceCardDesc')}</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-text">
+              <Globe className="h-3.5 w-3.5 text-text-muted" />
+              {t('lang.label')}
+            </span>
+            <div
+              role="radiogroup"
+              aria-label={t('lang.label')}
+              data-testid="settings-locale-group"
+              className="grid grid-cols-3 gap-1.5 rounded-[var(--radius-md)] border border-border bg-surface-muted/60 p-1"
+            >
+              {SUPPORTED_LOCALES.map((item) => {
+                const active = locale === item;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    data-testid={`settings-locale-${item}`}
+                    onClick={() => setLocale(item)}
+                    className={`cursor-pointer rounded-[var(--radius-sm)] px-2.5 py-1.5 text-xs font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-primary ${
+                      active
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-text-muted hover:bg-surface hover:text-text'
+                    }`}
+                  >
+                    {t(`lang.${item}`)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-text">
+              <Monitor className="h-3.5 w-3.5 text-text-muted" />
+              {t('theme.label')}
+            </span>
+            {inTelegram ? (
+              <div
+                data-testid="settings-theme-telegram-note"
+                className="flex min-h-[38px] items-center rounded-[var(--radius-md)] border border-border bg-surface-muted/60 px-3 py-2 text-xs text-text-muted"
+              >
+                {t('theme.telegramManaged')}
+              </div>
+            ) : (
+              <div
+                role="radiogroup"
+                aria-label={t('theme.label')}
+                data-testid="settings-theme-group"
+                className="grid grid-cols-3 gap-1.5 rounded-[var(--radius-md)] border border-border bg-surface-muted/60 p-1"
+              >
+                {themeOptions.map(({ id, label, Icon }) => {
+                  const active = themePreference === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      data-testid={`settings-theme-${id}`}
+                      onClick={() => setThemePreference(id)}
+                      className={`inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-xs font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-primary ${
+                        active
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-text-muted hover:bg-surface hover:text-text'
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>{t('settings.generalCardTitle')}</CardTitle>

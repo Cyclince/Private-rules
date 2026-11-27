@@ -85,7 +85,6 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
       ASSETS: { fetch: async () => new Response('<html></html>') },
       ADMIN_PASSWORD: 'admin-password',
       SESSION_SECRET: '0123456789abcdef0123456789abcdef',
-      EXPLICIT_SESSION_SECRET: '0123456789abcdef0123456789abcdef',
       RULE_TOKEN: 'pub-secret-token',
       BASE_URL: 'https://rules.example.com',
       RUNTIME: 'cloudflare',
@@ -435,11 +434,10 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     expect(queryLeakAttempt.status).toBe(400);
     expect(await queryLeakAttempt.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
 
-    // Reject missing explicit SESSION_SECRET even when DB fallback secret is populated
+    // Without explicit SESSION_SECRET: auto-generated DB secret enables binding and survives restart
     const noExplicitEnv: Env = {
       ...env,
       SESSION_SECRET: '',
-      EXPLICIT_SESSION_SECRET: undefined,
     };
     await ensureRuntimeSecrets(noExplicitEnv);
     const loginNoSecret = await app.request(
@@ -453,7 +451,7 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     );
     const noSecretCookie = loginNoSecret.headers.get('set-cookie')!.split(';')[0];
 
-    const missingSecretRes = await app.request(
+    const autoBindRes = await app.request(
       `/api/publications/${publication.id}/slots/${slotId}`,
       {
         method: 'PUT',
@@ -462,12 +460,38 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
           origin: 'https://rules.example.com',
           'content-type': 'application/json',
         },
-        body: JSON.stringify({ subscriptionUrl: 'https://airport.private.example/link/abc123SECRET' }),
+        body: JSON.stringify({ subscriptionUrl: 'https://airport.auto.example/link/abc123SECRET' }),
       },
       noExplicitEnv,
     );
-    expect(missingSecretRes.status).toBe(503);
-    expect(await missingSecretRes.json()).toMatchObject({ code: 'SESSION_SECRET_REQUIRED' });
+    expect(autoBindRes.status).toBe(200);
+    const autoBindBody = (await autoBindRes.json()) as {
+      binding: { maskedUrl: string; needsRebind: boolean };
+    };
+    expect(autoBindBody.binding).toMatchObject({
+      maskedUrl: 'https://airport.auto.example/***',
+      needsRebind: false,
+    });
+
+    // Simulate restart with fresh Env (SESSION_SECRET unset) on same DB -> decrypts cleanly
+    const restartedNoExplicitEnv: Env = {
+      ...env,
+      SESSION_SECRET: '',
+    };
+    await ensureRuntimeSecrets(restartedNoExplicitEnv);
+    const afterRestartRes = await app.request(
+      `/api/publications/${publication.id}`,
+      { headers: { cookie: noSecretCookie } },
+      restartedNoExplicitEnv,
+    );
+    expect(afterRestartRes.status).toBe(200);
+    const afterRestartBody = (await afterRestartRes.json()) as {
+      publication: { bindings: Array<{ maskedUrl: string; needsRebind: boolean }> };
+    };
+    expect(afterRestartBody.publication.bindings[0]).toMatchObject({
+      maskedUrl: 'https://airport.auto.example/***',
+      needsRebind: false,
+    });
 
     // Spy on console output to verify plaintext URL never appears in logs
     const logLines: string[] = [];
@@ -606,7 +630,6 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     const rotatedEnv: Env = {
       ...env,
       SESSION_SECRET: 'fedcba9876543210fedcba9876543210',
-      EXPLICIT_SESSION_SECRET: 'fedcba9876543210fedcba9876543210',
     };
     const rotatedLogin = await app.request(
       '/api/auth/login',
@@ -899,7 +922,7 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     const leakedSecretUrl = `https://forced-db.example.com/sub?token=${leakedSecretToken}`;
     const encryptedUrl = await encryptNodeSecret(
       leakedSecretUrl,
-      env.EXPLICIT_SESSION_SECRET!,
+      env.SESSION_SECRET!,
       `publication:${publicPub.id}:slot:${slotId}`,
     );
     await createRepositories(database).nodeBindings.upsert(

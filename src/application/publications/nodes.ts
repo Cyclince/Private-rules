@@ -7,12 +7,7 @@ import {
   type NodePreviewItem,
   type ParsedNode,
 } from '../../domain/nodes';
-import {
-  decryptNodeSecret,
-  encryptNodeSecret,
-  maskSubscriptionUrl,
-  requireExplicitSessionSecret,
-} from '../../infrastructure/crypto/node-secrets';
+import { decryptNodeSecret, encryptNodeSecret, maskSubscriptionUrl } from '../../infrastructure/crypto/node-secrets';
 import {
   DEFAULT_FETCH_MAX_BYTES,
   DEFAULT_FETCH_TIMEOUT_MS,
@@ -20,7 +15,7 @@ import {
   type DnsResolver,
 } from '../../infrastructure/http/fetch';
 import { createLogger, redactString } from '../../infrastructure/logging/logger';
-import { resolveExplicitSessionSecret } from '../../lib/runtime-secrets';
+import { resolveSessionSecret } from '../../lib/runtime-secrets';
 import { TEMPLATE_CLIENTS } from '../../shared/clients';
 import { AppError } from '../../shared/errors';
 import type { Env } from '../../types';
@@ -550,7 +545,7 @@ async function executeFetchPreviewSlotNodes(
 
 /**
  * Resolves parsed B-class proxy nodes for a single bound publication slot:
- * - Decrypts the bound subscription URL with explicit `SESSION_SECRET`
+ * - Decrypts the bound subscription URL with configured or auto-generated `SESSION_SECRET`
  * - Uses 30-minute encrypted `node_snapshots` cache
  * - Deduplicates concurrent fetches for the same `(db, publicationId, slotId)`
  * - Falls back to the previous encrypted snapshot with `stale: true` on upstream failure
@@ -561,14 +556,14 @@ export async function resolveSlotNodes(
   slotId: string,
   options: ResolveSlotNodesOptions = {},
 ): Promise<ResolvedSlotNodesResult> {
-  const explicitSecret = requireExplicitSessionSecret(resolveExplicitSessionSecret(env));
+  const secret = await resolveSessionSecret(env);
   const key = makeFlightKey(env.DB, publicationId, slotId, 'full');
   const existing = inFlightFetches.get(key);
   if (existing && existing.kind === 'full') {
     return existing.promise;
   }
 
-  const promise = executeResolveFullSlotNodes(env, explicitSecret, publicationId, slotId, options).finally(() => {
+  const promise = executeResolveFullSlotNodes(env, secret, publicationId, slotId, options).finally(() => {
     const current = inFlightFetches.get(key);
     if (current?.promise === promise) {
       inFlightFetches.delete(key);
@@ -610,7 +605,7 @@ export async function fetchNodeSlotNames(
   slotId: string,
   options: ResolveSlotNodesOptions = {},
 ): Promise<NodeSlotPreviewResult> {
-  const explicitSecret = requireExplicitSessionSecret(resolveExplicitSessionSecret(env));
+  const secret = await resolveSessionSecret(env);
 
   // If a full B-class fetch for the same slot is already in flight, coalesce onto it
   const fullKey = makeFlightKey(env.DB, publicationId, slotId, 'full');
@@ -636,7 +631,7 @@ export async function fetchNodeSlotNames(
     return existing.promise;
   }
 
-  const promise = executeFetchPreviewSlotNodes(env, explicitSecret, publicationId, slotId, options).finally(() => {
+  const promise = executeFetchPreviewSlotNodes(env, secret, publicationId, slotId, options).finally(() => {
     const current = inFlightFetches.get(previewKey);
     if (current?.promise === promise) {
       inFlightFetches.delete(previewKey);
