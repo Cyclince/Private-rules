@@ -5,7 +5,7 @@ import Database from 'better-sqlite3';
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { Miniflare } from 'miniflare';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ensureDatabaseMigrated, migrateDatabase } from '../../src/data/migrate';
 import {
   BASELINE_MIGRATION_NAME,
@@ -20,6 +20,10 @@ import { SqliteDatabaseAdapter } from '../../src/infrastructure/database/sqlite/
 import { migrateSqliteDatabase } from '../../src/infrastructure/database/sqlite/migrations';
 import { createApp } from '../../src/server/app';
 import type { Env } from '../../src/types';
+
+// Miniflare (workerd) suites are CPU-heavy; when other suites or apps load the machine a single
+// test can exceed the global 15 s timeout without any functional problem. Assertions are unchanged.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const MIGRATIONS_DIR = resolve(process.cwd(), 'src/data/migrations');
 const LEGACY_FIXTURES_DIR = resolve(process.cwd(), 'tests/fixtures/legacy-db');

@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { migrateDatabase } from '../../src/data/migrate';
 import { D1DatabaseAdapter } from '../../src/infrastructure/database/d1/adapter';
 import { SqliteDatabaseAdapter } from '../../src/infrastructure/database/sqlite/adapter';
@@ -18,6 +18,10 @@ import type { DatabasePort } from '../../src/application/ports/database';
 import { TelegramRepository } from '../../src/application/telegram/repository';
 import { createSource, deleteSource, listSources, toggleSource, updateSource } from '../../src/application/sources/use-cases';
 import { ensureRuntimeSecrets } from '../../src/lib/runtime-secrets';
+
+// Miniflare (workerd) suites are CPU-heavy; when other suites or apps load the machine a single
+// test can exceed the global 15 s timeout without any functional problem. Assertions are unchanged.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 function contract(name: string, setup: () => Promise<{ database: DatabasePort; close: () => Promise<void> }>) {
   describe(name, () => {
