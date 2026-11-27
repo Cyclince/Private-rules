@@ -236,7 +236,7 @@ function CatalogPage() {
 
   return (
     <div data-testid="catalog-page" className="flex flex-col gap-4">
-      <SectionSubNav section="rules" />
+      <SectionSubNav section="templates" />
 
       <Card>
         <CardHeader className="pb-3">

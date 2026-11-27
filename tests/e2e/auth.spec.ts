@@ -112,7 +112,7 @@ test('private Telegram session, theme, deep links, and write access', async ({ p
     });
 
     await page.goto(`/admin?view=sources&category=${category.id}`);
-    await expect(page).toHaveURL(new RegExp(`/admin/rulesets.*selected=${category.id}.*tab=sources`));
+    await expect(page).toHaveURL(new RegExp(`/admin/rules.*selected=${category.id}.*tab=sources`));
     await expect(page.getByTestId('sources-panel')).toBeVisible();
     expect(await page.locator('html').getAttribute('data-telegram')).toBe('true');
     expect(await page.locator('html').getAttribute('data-theme')).toBe('dark');
@@ -127,7 +127,8 @@ test('private Telegram session, theme, deep links, and write access', async ({ p
 
     errors.length = 0;
     await page.goto('/admin?view=links&category=missing-category');
-    await expect(page.getByTestId('subscription-links-drawer')).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/subscriptions\/missing-category/);
+    await expect(page.getByTestId('subscription-not-found')).toBeVisible();
     expect(errors).toEqual([]);
   } finally {
     await request.post('/api/auth/login', { data: { password: 'e2e-password' }, headers: originHeaders });

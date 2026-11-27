@@ -21,6 +21,9 @@ test.describe('M2.2 /admin 3-viewport layout, URL search state, and query dedupl
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/admin');
     await expect(page.getByTestId('desktop-sidebar')).toBeVisible();
+    await expect(page.getByTestId('sidebar-section-rules')).toContainText('分流规则');
+    await expect(page.getByTestId('sidebar-section-templates')).toContainText('配置模板');
+    await expect(page.getByTestId('desktop-sidebar').getByRole('navigation').getByRole('link')).toHaveCount(5);
     await expect(page.getByTestId('app-topbar')).toBeVisible();
     await expect(page.getByTestId('mobile-bottom-nav')).toBeHidden();
     await expect(page.getByTestId('tablet-sidebar-toggle')).toBeHidden();
@@ -70,7 +73,7 @@ test.describe('M2.2 /admin 3-viewport layout, URL search state, and query dedupl
     expect(overflow).toBeLessThanOrEqual(0);
   });
 
-  test('mobile (390x844): 4-tab bottom nav, zero horizontal overflow, and URL search params survive reload', async ({
+  test('mobile (390x844): 5-tab bottom nav, zero horizontal overflow, and URL search params survive reload', async ({
     page,
   }) => {
     await signInPreview(page);
@@ -93,16 +96,19 @@ test.describe('M2.2 /admin 3-viewport layout, URL search state, and query dedupl
       await expect(page.getByTestId('tablet-sidebar-toggle')).toBeHidden();
       const bottomNav = page.getByTestId('mobile-bottom-nav');
       await expect(bottomNav).toBeVisible();
-      await expect(bottomNav.getByRole('link')).toHaveCount(4);
+      await expect(bottomNav.getByRole('link')).toHaveCount(5);
+      for (const label of ['概览', '规则', '订阅', '模板', '设置']) {
+        await expect(bottomNav.getByRole('link', { name: label })).toBeVisible();
+      }
 
       const navBox = await bottomNav.boundingBox();
       expect(navBox).not.toBeNull();
       expect(navBox!.y + navBox!.height).toBeLessThanOrEqual(845);
       expect(navBox!.width).toBeLessThanOrEqual(390);
 
-      // Navigate to rulesets, set search filter + selection, reload and verify persistence
-      await bottomNav.getByRole('link', { name: '规则集' }).click();
-      await expect(page).toHaveURL(/\/admin\/rulesets/);
+      // Navigate to rules, set search filter + selection, reload and verify persistence
+      await bottomNav.getByRole('link', { name: '规则' }).click();
+      await expect(page).toHaveURL(/\/admin\/rules/);
       await page.getByTestId('rulesets-search-input').fill(seededName);
       await page.getByTestId(`ruleset-item-${seeded.id}`).click();
       await expect(page).toHaveURL(/q=AI/);

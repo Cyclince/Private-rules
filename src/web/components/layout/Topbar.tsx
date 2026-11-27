@@ -6,7 +6,7 @@ import { SUPPORTED_LOCALES, useI18n, type Locale } from '../../i18n';
 import { isTelegramSession, performLogout } from '../../lib/auth-guard';
 import { authMeQueryOptions } from '../../lib/query-core';
 import { useTheme } from '../../theme/ThemeProvider';
-import { SIDEBAR_NAV_ITEMS } from './nav-items';
+import { ROUTE_TITLE_ENTRIES } from './nav-items';
 
 const topbarBtn =
   'items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-transparent text-text transition-colors duration-150 hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-primary cursor-pointer';
@@ -23,10 +23,10 @@ export function Topbar({ onOpenTabletSidebar }: { onOpenTabletSidebar: () => voi
   const inTelegram = isTelegramSession(authQuery.data);
 
   const activeNav =
-    SIDEBAR_NAV_ITEMS.find((item) => {
+    ROUTE_TITLE_ENTRIES.find((item) => {
       const normalized = pathname.replace(/^\/admin/, '') || '/';
-      return item.to === '/' ? normalized === '/' : normalized.startsWith(item.to);
-    }) ?? SIDEBAR_NAV_ITEMS[0];
+      return item.path === '/' ? normalized === '/' : normalized.startsWith(item.path);
+    }) ?? ROUTE_TITLE_ENTRIES[0];
 
   const cycleLocale = () => {
     const idx = SUPPORTED_LOCALES.indexOf(locale);

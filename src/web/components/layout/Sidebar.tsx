@@ -3,7 +3,7 @@ import { ArrowUpRight, X } from 'lucide-react';
 import { useEffect } from 'react';
 import aboutEmblemUrl from '../../assets/miku-about-emblem.webp';
 import { useI18n } from '../../i18n';
-import { SIDEBAR_NAV_ITEMS } from './nav-items';
+import { SIDEBAR_NAV_SECTIONS } from './nav-items';
 
 function SidebarBrand() {
   const { t } = useI18n();
@@ -31,24 +31,39 @@ function SidebarNavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const { t } = useI18n();
   return (
     <nav aria-label={t('layout.navigation')} className="flex flex-1 flex-col gap-1 px-3 py-2">
-      {SIDEBAR_NAV_ITEMS.map((item) => {
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.to}
-            to={item.to}
-            activeOptions={{ exact: item.to === '/' }}
-            onClick={onNavigate}
-            className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm font-medium text-text-muted transition-colors duration-150 hover:bg-surface-muted hover:text-text"
-            activeProps={{
-              className: 'bg-surface-muted text-primary shadow-sm',
-            }}
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{t(item.labelKey)}</span>
-          </Link>
-        );
-      })}
+      {SIDEBAR_NAV_SECTIONS.map((section, sectionIndex) => (
+        <div
+          key={section.id}
+          data-testid={`sidebar-section-${section.id}`}
+          className={sectionIndex > 0 ? 'mt-2 flex flex-col gap-1' : 'flex flex-col gap-1'}
+        >
+          {section.groupLabelKey ? (
+            <div className="px-3 pb-1 pt-1.5 text-[11px] font-semibold tracking-wider text-text-muted">
+              {t(section.groupLabelKey)}
+            </div>
+          ) : sectionIndex > 0 ? (
+            <div className="mx-1 mb-1.5 h-px bg-border" />
+          ) : null}
+          {section.items.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                activeOptions={{ exact: item.to === '/' }}
+                onClick={onNavigate}
+                className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm font-medium text-text-muted transition-colors duration-150 hover:bg-surface-muted hover:text-text"
+                activeProps={{
+                  className: 'bg-surface-muted text-primary shadow-sm',
+                }}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{t(item.labelKey)}</span>
+              </Link>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }

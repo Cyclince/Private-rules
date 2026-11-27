@@ -14,8 +14,11 @@ import { Route as CardsRouteImport } from './routes/cards'
 import { Route as CatalogRouteImport } from './routes/catalog'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PublicationsRouteImport } from './routes/publications'
+import { Route as RulesRouteImport } from './routes/rules'
 import { Route as RulesetsRouteImport } from './routes/rulesets'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SubscriptionsIndexRouteImport } from './routes/subscriptions.index'
+import { Route as SubscriptionsIdRouteImport } from './routes/subscriptions.$id'
 import { Route as TemplatesIndexRouteImport } from './routes/templates.index'
 import { Route as TemplatesIdRouteImport } from './routes/templates.$id'
 
@@ -44,6 +47,11 @@ const PublicationsRoute = PublicationsRouteImport.update({
   path: '/publications',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RulesRoute = RulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RulesetsRoute = RulesetsRouteImport.update({
   id: '/rulesets',
   path: '/rulesets',
@@ -52,6 +60,16 @@ const RulesetsRoute = RulesetsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubscriptionsIndexRoute = SubscriptionsIndexRouteImport.update({
+  id: '/subscriptions/',
+  path: '/subscriptions/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubscriptionsIdRoute = SubscriptionsIdRouteImport.update({
+  id: '/subscriptions/$id',
+  path: '/subscriptions/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TemplatesIndexRoute = TemplatesIndexRouteImport.update({
@@ -71,9 +89,12 @@ export interface FileRoutesByFullPath {
   '/catalog': typeof CatalogRoute
   '/login': typeof LoginRoute
   '/publications': typeof PublicationsRoute
+  '/rules': typeof RulesRoute
   '/rulesets': typeof RulesetsRoute
   '/settings': typeof SettingsRoute
+  '/subscriptions/$id': typeof SubscriptionsIdRoute
   '/templates/$id': typeof TemplatesIdRoute
+  '/subscriptions/': typeof SubscriptionsIndexRoute
   '/templates/': typeof TemplatesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -82,9 +103,12 @@ export interface FileRoutesByTo {
   '/catalog': typeof CatalogRoute
   '/login': typeof LoginRoute
   '/publications': typeof PublicationsRoute
+  '/rules': typeof RulesRoute
   '/rulesets': typeof RulesetsRoute
   '/settings': typeof SettingsRoute
+  '/subscriptions/$id': typeof SubscriptionsIdRoute
   '/templates/$id': typeof TemplatesIdRoute
+  '/subscriptions': typeof SubscriptionsIndexRoute
   '/templates': typeof TemplatesIndexRoute
 }
 export interface FileRoutesById {
@@ -94,9 +118,12 @@ export interface FileRoutesById {
   '/catalog': typeof CatalogRoute
   '/login': typeof LoginRoute
   '/publications': typeof PublicationsRoute
+  '/rules': typeof RulesRoute
   '/rulesets': typeof RulesetsRoute
   '/settings': typeof SettingsRoute
+  '/subscriptions/$id': typeof SubscriptionsIdRoute
   '/templates/$id': typeof TemplatesIdRoute
+  '/subscriptions/': typeof SubscriptionsIndexRoute
   '/templates/': typeof TemplatesIndexRoute
 }
 export interface FileRouteTypes {
@@ -107,9 +134,12 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/login'
     | '/publications'
+    | '/rules'
     | '/rulesets'
     | '/settings'
+    | '/subscriptions/$id'
     | '/templates/$id'
+    | '/subscriptions/'
     | '/templates/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -118,9 +148,12 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/login'
     | '/publications'
+    | '/rules'
     | '/rulesets'
     | '/settings'
+    | '/subscriptions/$id'
     | '/templates/$id'
+    | '/subscriptions'
     | '/templates'
   id:
     | '__root__'
@@ -129,9 +162,12 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/login'
     | '/publications'
+    | '/rules'
     | '/rulesets'
     | '/settings'
+    | '/subscriptions/$id'
     | '/templates/$id'
+    | '/subscriptions/'
     | '/templates/'
   fileRoutesById: FileRoutesById
 }
@@ -141,9 +177,12 @@ export interface RootRouteChildren {
   CatalogRoute: typeof CatalogRoute
   LoginRoute: typeof LoginRoute
   PublicationsRoute: typeof PublicationsRoute
+  RulesRoute: typeof RulesRoute
   RulesetsRoute: typeof RulesetsRoute
   SettingsRoute: typeof SettingsRoute
+  SubscriptionsIdRoute: typeof SubscriptionsIdRoute
   TemplatesIdRoute: typeof TemplatesIdRoute
+  SubscriptionsIndexRoute: typeof SubscriptionsIndexRoute
   TemplatesIndexRoute: typeof TemplatesIndexRoute
 }
 
@@ -184,6 +223,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PublicationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rules': {
+      id: '/rules'
+      path: '/rules'
+      fullPath: '/rules'
+      preLoaderRoute: typeof RulesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rulesets': {
       id: '/rulesets'
       path: '/rulesets'
@@ -196,6 +242,20 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subscriptions/': {
+      id: '/subscriptions/'
+      path: '/subscriptions'
+      fullPath: '/subscriptions/'
+      preLoaderRoute: typeof SubscriptionsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subscriptions/$id': {
+      id: '/subscriptions/$id'
+      path: '/subscriptions/$id'
+      fullPath: '/subscriptions/$id'
+      preLoaderRoute: typeof SubscriptionsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/templates/': {
@@ -221,9 +281,12 @@ const rootRouteChildren: RootRouteChildren = {
   CatalogRoute: CatalogRoute,
   LoginRoute: LoginRoute,
   PublicationsRoute: PublicationsRoute,
+  RulesRoute: RulesRoute,
   RulesetsRoute: RulesetsRoute,
   SettingsRoute: SettingsRoute,
+  SubscriptionsIdRoute: SubscriptionsIdRoute,
   TemplatesIdRoute: TemplatesIdRoute,
+  SubscriptionsIndexRoute: SubscriptionsIndexRoute,
   TemplatesIndexRoute: TemplatesIndexRoute,
 }
 export const routeTree = rootRouteImport

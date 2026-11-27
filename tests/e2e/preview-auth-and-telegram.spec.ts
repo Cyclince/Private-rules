@@ -45,7 +45,7 @@ test.describe('M2.3 /admin login, auth guard, theme/language persistence, and Te
       // Correct password signs in and redirects back to requested protected route
       await page.getByTestId('login-password-input').fill('e2e-password');
       await page.getByTestId('login-submit').click();
-      await expect(page).toHaveURL(/\/admin\/rulesets/);
+      await expect(page).toHaveURL(/\/admin\/rules/);
       await expect(page.getByTestId('app-topbar')).toBeVisible();
 
       // Logout clears session & Query cache and returns to /admin/login

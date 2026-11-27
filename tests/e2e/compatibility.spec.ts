@@ -38,23 +38,24 @@ test.describe('M3.3 1.0.x parity checklist compatibility suite', () => {
       await expect(page.getByTestId('dashboard-page')).toBeVisible();
 
       await page.goto(`/admin?view=rules&category=${category.id}`);
-      await expect(page).toHaveURL(new RegExp(`/admin/rulesets.*selected=${category.id}`));
+      await expect(page).toHaveURL(new RegExp(`/admin/rules.*selected=${category.id}`));
       await expect(page.getByTestId('ruleset-detail-name')).toHaveText(category.name);
 
       await page.goto(`/admin?view=sources&category=${category.id}`);
-      await expect(page).toHaveURL(new RegExp(`/admin/rulesets.*selected=${category.id}.*tab=sources`));
+      await expect(page).toHaveURL(new RegExp(`/admin/rules.*selected=${category.id}.*tab=sources`));
       await expect(page.getByTestId('sources-panel')).toBeVisible();
 
       await page.goto(`/admin?view=links&category=${category.id}`);
-      await expect(page.getByTestId('subscription-links-drawer')).toBeVisible();
+      await expect(page).toHaveURL(new RegExp(`/admin/subscriptions/${category.id}`));
+      await expect(page.getByTestId('subscription-detail-page')).toBeVisible();
 
       await page.goto('/admin?view=settings');
       await expect(page).toHaveURL(/\/admin\/settings/);
       await expect(page.getByTestId('settings-general-tab')).toBeVisible();
 
-      // Transition /preview URLs redirect cleanly to /admin
+      // Transition /preview and /admin/rulesets URLs redirect cleanly to /admin/rules preserving search params
       await page.goto(`/preview/rulesets?selected=${category.id}`);
-      await expect(page).toHaveURL(new RegExp(`/admin/rulesets\\?selected=${category.id}`));
+      await expect(page).toHaveURL(new RegExp(`/admin/rules\\?selected=${category.id}`));
     } finally {
       await page.request.delete(`/api/categories/${category.id}`, { headers: CSRF_HEADERS });
     }
@@ -70,8 +71,11 @@ test.describe('M3.3 1.0.x parity checklist compatibility suite', () => {
         await page.setViewportSize({ width: 390, height: 844 });
         await page.goto(`/admin?view=links&category=${category.id}`);
 
-        const drawer = page.getByTestId('subscription-links-drawer');
-        await expect(drawer).toBeVisible();
+        const detailPage = page.getByTestId('subscription-detail-page');
+        await expect(detailPage).toBeVisible();
+        for (const groupId of ['yaml', 'list', 'json', 'txt']) {
+          await page.getByTestId(`subscription-group-toggle-${groupId}`).click();
+        }
         await expect(page.getByTestId('subscription-link-yaml-classical')).toContainText('.yaml');
         await expect(page.getByTestId('subscription-link-yaml-domain')).toContainText('_Domain.yaml');
         await expect(page.getByTestId('subscription-link-yaml-ipcidr')).toContainText('_IPCIDR.yaml');
@@ -81,7 +85,7 @@ test.describe('M3.3 1.0.x parity checklist compatibility suite', () => {
         await expect(page.getByTestId('subscription-link-sing-box')).toContainText('.json');
 
         if (locale === 'en') {
-          expect(await drawer.textContent()).not.toMatch(/[\u3400-\u9fff]/u);
+          expect(await detailPage.textContent()).not.toMatch(/[\u3400-\u9fff]/u);
         }
         expect(errors).toEqual([]);
       } finally {

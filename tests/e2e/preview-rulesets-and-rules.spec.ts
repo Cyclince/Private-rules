@@ -63,9 +63,9 @@ test.describe('M3.1 Overview, Rulesets CRUD, Manual Rules, Bulk Import, Links Dr
       await expect(page.getByTestId('stat-card-sources')).toBeVisible();
       await expect(page.getByTestId('dashboard-recent-errors')).toBeVisible();
 
-      // 2. Navigate to Rulesets and create two rulesets via react-hook-form dialog
+      // 2. Navigate to Rules and create two rulesets via react-hook-form dialog
       await page.getByTestId('dashboard-manage-rulesets').click();
-      await expect(page).toHaveURL(/\/admin\/rulesets/);
+      await expect(page).toHaveURL(/\/admin\/rules/);
 
       await page.getByTestId('create-ruleset-btn').click();
       await expect(page.getByTestId('ruleset-form-dialog')).toBeVisible();
@@ -128,26 +128,28 @@ test.describe('M3.1 Overview, Rulesets CRUD, Manual Rules, Bulk Import, Links Dr
       await expect(page.getByTestId('ruleset-switch-enabled')).toHaveAttribute('data-state', 'checked');
       await page.unroute(`**/api/rulesets/${setBId}`);
 
-      // 6. Access policy toggle & Subscription Links Drawer (shows only valid links)
+      // 6. Access policy toggle & Subscription links navigation (shows only valid links)
       await page.getByTestId('ruleset-switch-public').click();
       await expect(page.getByTestId('ruleset-switch-public')).toHaveAttribute('data-state', 'checked');
       await expect(page.getByTestId('ruleset-switch-token')).toHaveAttribute('data-state', 'unchecked');
 
       await page.getByTestId('open-links-drawer-btn').click();
-      await expect(page.getByTestId('subscription-links-drawer')).toBeVisible();
+      await expect(page).toHaveURL(new RegExp(`/admin/subscriptions/${setBId}`));
+      await expect(page.getByTestId('subscription-detail-page')).toBeVisible();
+      await page.getByTestId('subscription-group-toggle-yaml').click();
       const mihomoLink = page.getByTestId('subscription-link-mihomo');
       await expect(mihomoLink).toBeVisible();
       await expect(mihomoLink).toContainText('/rules/');
       await expect(mihomoLink).not.toContainText('/sub/');
-      await page.keyboard.press('Escape');
-      await expect(page.getByTestId('subscription-links-drawer')).toBeHidden();
 
-      // Disable public too -> drawer must show empty state (zero invalid links)
+      // Disable public too -> subscription page must show disabled notice (zero invalid links)
+      await page.goto(`/admin/rules?selected=${setBId}`);
       await page.getByTestId('ruleset-switch-public').click();
       await expect(page.getByTestId('ruleset-switch-public')).toHaveAttribute('data-state', 'unchecked');
       await page.getByTestId('open-links-drawer-btn').click();
-      await expect(page.getByTestId('subscription-links-empty')).toBeVisible();
-      await page.keyboard.press('Escape');
+      await expect(page).toHaveURL(new RegExp(`/admin/subscriptions/${setBId}`));
+      await expect(page.getByTestId('subscription-links-disabled')).toBeVisible();
+      await page.goto(`/admin/rules?selected=${setBId}`);
 
       // 7. Manual Rule CRUD (Add + Edit + Toggle + Delete)
       await page.getByTestId('add-rule-btn').click();
@@ -249,10 +251,10 @@ test.describe('M3.1 Overview, Rulesets CRUD, Manual Rules, Bulk Import, Links Dr
         await page.getByTestId('rules-search-input').fill('viewport-check');
         await expect(page.getByTestId('rules-total-badge')).toHaveText('1');
 
-        // Open links drawer
+        // Open subscription center detail page for this ruleset
         await page.getByTestId('open-links-drawer-btn').click();
-        await expect(page.getByTestId('subscription-links-drawer')).toBeVisible();
-        await page.keyboard.press('Escape');
+        await expect(page).toHaveURL(new RegExp(`/admin/subscriptions/${seeded.id}`));
+        await expect(page.getByTestId('subscription-detail-page')).toBeVisible();
 
         const overflow = await page.evaluate(
           () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -323,8 +325,8 @@ test.describe('M3.1 Overview, Rulesets CRUD, Manual Rules, Bulk Import, Links Dr
       await expect(page.getByTestId('dashboard-page')).toBeVisible();
 
       // Warm lazy route chunk once so measurement isolates steady-state route transition with 10,000 rules
-      await page.getByTestId('desktop-sidebar').getByRole('link', { name: '规则集' }).click();
-      await expect(page).toHaveURL(/\/admin\/rulesets/);
+      await page.getByTestId('desktop-sidebar').getByRole('link', { name: '规则' }).click();
+      await expect(page).toHaveURL(/\/admin\/rules/);
       await page.getByTestId(`ruleset-item-${seeded.id}`).click();
       await expect(page.getByTestId('rules-total-badge')).toHaveText('10,000');
 

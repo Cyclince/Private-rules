@@ -39,22 +39,28 @@ export const Route = createFileRoute('/')({
     await Promise.all([requireAuthBeforeLoad(context.queryClient, location.href), loadPageTranslations()]);
     if (search.view === 'rules') {
       throw redirect({
-        to: '/rulesets',
+        to: '/rules',
         search: search.category ? { selected: search.category } : {},
         replace: true,
       });
     }
     if (search.view === 'sources') {
       throw redirect({
-        to: '/rulesets',
+        to: '/rules',
         search: { ...(search.category ? { selected: search.category } : {}), tab: 'sources' },
         replace: true,
       });
     }
     if (search.view === 'links') {
+      if (search.category) {
+        throw redirect({
+          to: '/subscriptions/$id',
+          params: { id: search.category },
+          replace: true,
+        });
+      }
       throw redirect({
-        to: '/rulesets',
-        search: { ...(search.category ? { selected: search.category } : {}), links: '1' },
+        to: '/subscriptions',
         replace: true,
       });
     }
@@ -170,7 +176,7 @@ function DashboardPage() {
               {syncing ? t('dashboard.syncing') : t('dashboard.syncAll')}
             </button>
             <Link
-              to="/rulesets"
+              to="/rules"
               data-testid="dashboard-manage-rulesets"
               className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] bg-primary px-3 text-xs font-medium text-primary-foreground shadow-sm transition-shadow hover:shadow-glow"
             >
@@ -314,7 +320,7 @@ function DashboardPage() {
                       {source.categoryName} · {source.name}
                     </span>
                     <Link
-                      to="/rulesets"
+                      to="/rules"
                       search={{ selected: source.categoryId }}
                       className="shrink-0 text-xs font-medium text-primary hover:underline"
                     >
@@ -337,7 +343,7 @@ function DashboardPage() {
         >
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-base font-semibold tracking-tight">{t('dashboard.rulesetSnapshot')}</h3>
-            <Link to="/rulesets" className="text-xs font-medium text-primary hover:underline">
+            <Link to="/rules" className="text-xs font-medium text-primary hover:underline">
               {t('dashboard.manageRulesets')}
             </Link>
           </div>
@@ -355,7 +361,7 @@ function DashboardPage() {
               {categories.map((category) => (
                 <Link
                   key={category.id}
-                  to="/rulesets"
+                  to="/rules"
                   search={{ selected: category.id }}
                   className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-surface-muted/60 px-3.5 py-2.5 transition-colors hover:bg-surface-muted"
                 >

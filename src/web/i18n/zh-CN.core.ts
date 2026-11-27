@@ -10,9 +10,12 @@ export const zhCNCore = {
 
   // Navigation
   'nav.dashboard': '概览',
-  'nav.rulesets': '规则集',
+  'nav.groupRules': '分流规则',
+  'nav.rules': '规则',
+  'nav.subscriptions': '订阅',
+  'nav.groupTemplates': '配置模板',
   'nav.catalog': '规则目录',
-  'nav.cards': '应用组件',
+  'nav.cards': '场景库',
   'nav.templates': '模板',
   'nav.publications': '发布',
   'nav.settings': '设置',
