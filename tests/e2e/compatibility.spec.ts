@@ -38,12 +38,16 @@ test.describe('M3.3 1.0.x parity checklist compatibility suite', () => {
       await expect(page.getByTestId('dashboard-page')).toBeVisible();
 
       await page.goto(`/admin?view=rules&category=${category.id}`);
-      await expect(page).toHaveURL(new RegExp(`/admin/rules.*selected=${category.id}`));
-      await expect(page.getByTestId('ruleset-detail-name')).toHaveText(category.name);
+      await expect(page).toHaveURL(new RegExp(`/admin/rules/${category.id}$`));
+      await expect(page.getByTestId('rule-detail-title')).toHaveText(category.name);
 
       await page.goto(`/admin?view=sources&category=${category.id}`);
-      await expect(page).toHaveURL(new RegExp(`/admin/rules.*selected=${category.id}.*tab=sources`));
+      await expect(page).toHaveURL(new RegExp(`/admin/rules/${category.id}$`));
       await expect(page.getByTestId('sources-panel')).toBeVisible();
+
+      await page.goto(`/admin/rules?selected=${category.id}`);
+      await expect(page).toHaveURL(new RegExp(`/admin/rules/${category.id}$`));
+      await expect(page.getByTestId('rule-detail-title')).toHaveText(category.name);
 
       await page.goto(`/admin?view=links&category=${category.id}`);
       await expect(page).toHaveURL(new RegExp(`/admin/subscriptions/${category.id}`));
@@ -53,9 +57,9 @@ test.describe('M3.3 1.0.x parity checklist compatibility suite', () => {
       await expect(page).toHaveURL(/\/admin\/settings/);
       await expect(page.getByTestId('settings-general-tab')).toBeVisible();
 
-      // Transition /preview and /admin/rulesets URLs redirect cleanly to /admin/rules preserving search params
+      // Transition /preview and /admin/rulesets URLs redirect cleanly to /admin/rules/$id
       await page.goto(`/preview/rulesets?selected=${category.id}`);
-      await expect(page).toHaveURL(new RegExp(`/admin/rules\\?selected=${category.id}`));
+      await expect(page).toHaveURL(new RegExp(`/admin/rules/${category.id}$`));
     } finally {
       await page.request.delete(`/api/categories/${category.id}`, { headers: CSRF_HEADERS });
     }
@@ -107,9 +111,8 @@ test.describe('M3.3 1.0.x parity checklist compatibility suite', () => {
         await page.addInitScript(() => localStorage.setItem('private-rules-locale', 'zh-CN'));
         await page.setViewportSize(viewport);
         await page.goto(`/admin/rulesets?selected=${category.id}`);
+        await expect(page).toHaveURL(new RegExp(`/admin/rules/${category.id}$`));
 
-        await page.getByTestId('bulk-import-open-btn').click();
-        await expect(page.getByTestId('bulk-import-dialog')).toBeVisible();
         await page
           .getByTestId('bulk-import-textarea')
           .fill(Array.from({ length: 100 }, (_, i) => `mobile-${i}.example.com`).join('\n'));

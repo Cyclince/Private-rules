@@ -112,7 +112,7 @@ test('private Telegram session, theme, deep links, and write access', async ({ p
     });
 
     await page.goto(`/admin?view=sources&category=${category.id}`);
-    await expect(page).toHaveURL(new RegExp(`/admin/rules.*selected=${category.id}.*tab=sources`));
+    await expect(page).toHaveURL(new RegExp(`/admin/rules/${category.id}$`));
     await expect(page.getByTestId('sources-panel')).toBeVisible();
     expect(await page.locator('html').getAttribute('data-telegram')).toBe('true');
     expect(await page.locator('html').getAttribute('data-theme')).toBe('dark');

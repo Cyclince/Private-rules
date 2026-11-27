@@ -96,6 +96,9 @@ function findRouteChunks(entryJsFiles: Set<string>): Array<{ route: string; file
   const knownRoutes = [
     'index',
     'login',
+    'rules.index',
+    'rules.$id',
+    'rules._id',
     'rules',
     'rulesets',
     'subscriptions.index',
@@ -205,15 +208,19 @@ function main() {
         ? '/admin/'
         : route === 'PwaInstallPage'
           ? '/pwa-install'
-          : route === 'templates.index'
-            ? '/admin/templates'
-            : route === 'templates._id' || route === 'templates.$id'
-              ? '/admin/templates/$id'
-              : route === 'subscriptions.index'
-                ? '/admin/subscriptions'
-                : route === 'subscriptions._id' || route === 'subscriptions.$id'
-                  ? '/admin/subscriptions/$id'
-                  : `/admin/${route}`;
+          : route === 'rules.index'
+            ? '/admin/rules'
+            : route === 'rules._id' || route === 'rules.$id'
+              ? '/admin/rules/$id'
+              : route === 'templates.index'
+                ? '/admin/templates'
+                : route === 'templates._id' || route === 'templates.$id'
+                  ? '/admin/templates/$id'
+                  : route === 'subscriptions.index'
+                    ? '/admin/subscriptions'
+                    : route === 'subscriptions._id' || route === 'subscriptions.$id'
+                      ? '/admin/subscriptions/$id'
+                      : `/admin/${route}`;
     const routeBudgetKb = ROUTE_BUDGET_OVERRIDES_KB[route] ?? SINGLE_ROUTE_JS_BUDGET_KB;
     console.info(
       `  ${routeLabel.padEnd(24)} +${incrementKb.toFixed(2).padStart(6)} kB gzip (budget <= ${routeBudgetKb} kB, ${incrementFiles.length} chunk${incrementFiles.length === 1 ? '' : 's'}: ${incrementFiles.join(', ')})`,

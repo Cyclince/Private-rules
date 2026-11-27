@@ -37,17 +37,17 @@ export const Route = createFileRoute('/')({
   },
   beforeLoad: async ({ context, location, search }) => {
     await Promise.all([requireAuthBeforeLoad(context.queryClient, location.href), loadPageTranslations()]);
-    if (search.view === 'rules') {
+    if (search.view === 'rules' || search.view === 'sources') {
+      if (search.category) {
+        throw redirect({
+          to: '/rules/$id',
+          params: { id: search.category },
+          replace: true,
+        });
+      }
       throw redirect({
         to: '/rules',
-        search: search.category ? { selected: search.category } : {},
-        replace: true,
-      });
-    }
-    if (search.view === 'sources') {
-      throw redirect({
-        to: '/rules',
-        search: { ...(search.category ? { selected: search.category } : {}), tab: 'sources' },
+        search: {},
         replace: true,
       });
     }
@@ -320,8 +320,8 @@ function DashboardPage() {
                       {source.categoryName} · {source.name}
                     </span>
                     <Link
-                      to="/rules"
-                      search={{ selected: source.categoryId }}
+                      to="/rules/$id"
+                      params={{ id: source.categoryId }}
                       className="shrink-0 text-xs font-medium text-primary hover:underline"
                     >
                       {t('dashboard.viewRuleset')}
@@ -361,8 +361,8 @@ function DashboardPage() {
               {categories.map((category) => (
                 <Link
                   key={category.id}
-                  to="/rules"
-                  search={{ selected: category.id }}
+                  to="/rules/$id"
+                  params={{ id: category.id }}
                   className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-surface-muted/60 px-3.5 py-2.5 transition-colors hover:bg-surface-muted"
                 >
                   <div className="min-w-0">

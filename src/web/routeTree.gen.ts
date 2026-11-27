@@ -14,9 +14,10 @@ import { Route as CardsRouteImport } from './routes/cards'
 import { Route as CatalogRouteImport } from './routes/catalog'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PublicationsRouteImport } from './routes/publications'
-import { Route as RulesRouteImport } from './routes/rules'
 import { Route as RulesetsRouteImport } from './routes/rulesets'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as RulesIndexRouteImport } from './routes/rules.index'
+import { Route as RulesIdRouteImport } from './routes/rules.$id'
 import { Route as SubscriptionsIndexRouteImport } from './routes/subscriptions.index'
 import { Route as SubscriptionsIdRouteImport } from './routes/subscriptions.$id'
 import { Route as TemplatesIndexRouteImport } from './routes/templates.index'
@@ -47,11 +48,6 @@ const PublicationsRoute = PublicationsRouteImport.update({
   path: '/publications',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RulesRoute = RulesRouteImport.update({
-  id: '/rules',
-  path: '/rules',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RulesetsRoute = RulesetsRouteImport.update({
   id: '/rulesets',
   path: '/rulesets',
@@ -60,6 +56,16 @@ const RulesetsRoute = RulesetsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RulesIndexRoute = RulesIndexRouteImport.update({
+  id: '/rules/',
+  path: '/rules/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RulesIdRoute = RulesIdRouteImport.update({
+  id: '/rules/$id',
+  path: '/rules/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SubscriptionsIndexRoute = SubscriptionsIndexRouteImport.update({
@@ -89,11 +95,12 @@ export interface FileRoutesByFullPath {
   '/catalog': typeof CatalogRoute
   '/login': typeof LoginRoute
   '/publications': typeof PublicationsRoute
-  '/rules': typeof RulesRoute
   '/rulesets': typeof RulesetsRoute
   '/settings': typeof SettingsRoute
+  '/rules/$id': typeof RulesIdRoute
   '/subscriptions/$id': typeof SubscriptionsIdRoute
   '/templates/$id': typeof TemplatesIdRoute
+  '/rules/': typeof RulesIndexRoute
   '/subscriptions/': typeof SubscriptionsIndexRoute
   '/templates/': typeof TemplatesIndexRoute
 }
@@ -103,11 +110,12 @@ export interface FileRoutesByTo {
   '/catalog': typeof CatalogRoute
   '/login': typeof LoginRoute
   '/publications': typeof PublicationsRoute
-  '/rules': typeof RulesRoute
   '/rulesets': typeof RulesetsRoute
   '/settings': typeof SettingsRoute
+  '/rules/$id': typeof RulesIdRoute
   '/subscriptions/$id': typeof SubscriptionsIdRoute
   '/templates/$id': typeof TemplatesIdRoute
+  '/rules': typeof RulesIndexRoute
   '/subscriptions': typeof SubscriptionsIndexRoute
   '/templates': typeof TemplatesIndexRoute
 }
@@ -118,11 +126,12 @@ export interface FileRoutesById {
   '/catalog': typeof CatalogRoute
   '/login': typeof LoginRoute
   '/publications': typeof PublicationsRoute
-  '/rules': typeof RulesRoute
   '/rulesets': typeof RulesetsRoute
   '/settings': typeof SettingsRoute
+  '/rules/$id': typeof RulesIdRoute
   '/subscriptions/$id': typeof SubscriptionsIdRoute
   '/templates/$id': typeof TemplatesIdRoute
+  '/rules/': typeof RulesIndexRoute
   '/subscriptions/': typeof SubscriptionsIndexRoute
   '/templates/': typeof TemplatesIndexRoute
 }
@@ -134,11 +143,12 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/login'
     | '/publications'
-    | '/rules'
     | '/rulesets'
     | '/settings'
+    | '/rules/$id'
     | '/subscriptions/$id'
     | '/templates/$id'
+    | '/rules/'
     | '/subscriptions/'
     | '/templates/'
   fileRoutesByTo: FileRoutesByTo
@@ -148,11 +158,12 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/login'
     | '/publications'
-    | '/rules'
     | '/rulesets'
     | '/settings'
+    | '/rules/$id'
     | '/subscriptions/$id'
     | '/templates/$id'
+    | '/rules'
     | '/subscriptions'
     | '/templates'
   id:
@@ -162,11 +173,12 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/login'
     | '/publications'
-    | '/rules'
     | '/rulesets'
     | '/settings'
+    | '/rules/$id'
     | '/subscriptions/$id'
     | '/templates/$id'
+    | '/rules/'
     | '/subscriptions/'
     | '/templates/'
   fileRoutesById: FileRoutesById
@@ -177,11 +189,12 @@ export interface RootRouteChildren {
   CatalogRoute: typeof CatalogRoute
   LoginRoute: typeof LoginRoute
   PublicationsRoute: typeof PublicationsRoute
-  RulesRoute: typeof RulesRoute
   RulesetsRoute: typeof RulesetsRoute
   SettingsRoute: typeof SettingsRoute
+  RulesIdRoute: typeof RulesIdRoute
   SubscriptionsIdRoute: typeof SubscriptionsIdRoute
   TemplatesIdRoute: typeof TemplatesIdRoute
+  RulesIndexRoute: typeof RulesIndexRoute
   SubscriptionsIndexRoute: typeof SubscriptionsIndexRoute
   TemplatesIndexRoute: typeof TemplatesIndexRoute
 }
@@ -223,13 +236,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PublicationsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/rules': {
-      id: '/rules'
-      path: '/rules'
-      fullPath: '/rules'
-      preLoaderRoute: typeof RulesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/rulesets': {
       id: '/rulesets'
       path: '/rulesets'
@@ -242,6 +248,20 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rules/': {
+      id: '/rules/'
+      path: '/rules'
+      fullPath: '/rules/'
+      preLoaderRoute: typeof RulesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rules/$id': {
+      id: '/rules/$id'
+      path: '/rules/$id'
+      fullPath: '/rules/$id'
+      preLoaderRoute: typeof RulesIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/subscriptions/': {
@@ -281,11 +301,12 @@ const rootRouteChildren: RootRouteChildren = {
   CatalogRoute: CatalogRoute,
   LoginRoute: LoginRoute,
   PublicationsRoute: PublicationsRoute,
-  RulesRoute: RulesRoute,
   RulesetsRoute: RulesetsRoute,
   SettingsRoute: SettingsRoute,
+  RulesIdRoute: RulesIdRoute,
   SubscriptionsIdRoute: SubscriptionsIdRoute,
   TemplatesIdRoute: TemplatesIdRoute,
+  RulesIndexRoute: RulesIndexRoute,
   SubscriptionsIndexRoute: SubscriptionsIndexRoute,
   TemplatesIndexRoute: TemplatesIndexRoute,
 }

@@ -106,17 +106,21 @@ test.describe('M2.2 /admin 3-viewport layout, URL search state, and query dedupl
       expect(navBox!.y + navBox!.height).toBeLessThanOrEqual(845);
       expect(navBox!.width).toBeLessThanOrEqual(390);
 
-      // Navigate to rules, set search filter + selection, reload and verify persistence
+      // Navigate to rules, set search filter, reload and verify URL param persistence, then open detail
       await bottomNav.getByRole('link', { name: '规则' }).click();
-      await expect(page).toHaveURL(/\/admin\/rules/);
-      await page.getByTestId('rulesets-search-input').fill(seededName);
-      await page.getByTestId(`ruleset-item-${seeded.id}`).click();
+      await expect(page).toHaveURL(/\/admin\/rules$/);
+      await page.getByTestId('all-rules-search-input').fill('AI');
       await expect(page).toHaveURL(/q=AI/);
-      await expect(page).toHaveURL(new RegExp(`selected=${seeded.id}`));
 
       await page.reload();
-      await expect(page.getByTestId('rulesets-search-input')).toHaveValue(seededName);
-      await expect(page.getByTestId('rulesets-selected-value')).toHaveText(seeded.id);
+      await expect(page.getByTestId('all-rules-search-input')).toHaveValue('AI');
+
+      await page.getByTestId(`ruleset-item-${seeded.id}`).click();
+      await expect(page).toHaveURL(new RegExp(`/admin/rules/${seeded.id}$`));
+      await expect(page.getByTestId('rule-detail-title')).toHaveText(seededName);
+
+      await page.reload();
+      await expect(page.getByTestId('rule-detail-title')).toHaveText(seededName);
 
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
