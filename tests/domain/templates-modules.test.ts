@@ -28,11 +28,12 @@ function toCardLookup(resolved: ReturnType<typeof buildResolvedStandard>): AppCa
 }
 
 describe('5 template enhancement modules (individual, combined, and conflicting)', () => {
-  it('registers the 5 original enhancement modules plus the 6 §5.2 additions', () => {
+  it('registers the 5 original enhancement modules plus the 7 §5.2 additions', () => {
     expect(ENHANCEMENT_MODULES.map((m) => m.id).sort()).toEqual([
       'apple-push-direct',
       'block-encrypted-dns',
       'bt-direct',
+      'disable-quic',
       'dns-leak-guard',
       'domestic-apps-direct',
       'game-download-direct',
@@ -341,7 +342,7 @@ describe('5 template enhancement modules (individual, combined, and conflicting)
     });
     expect(byId.get('tun-mode')).toMatchObject({
       group: 'runtime',
-      tierDefaults: { simple: false, advanced: false, pro: true },
+      tierDefaults: { simple: false, advanced: false, pro: false },
       supportedClients: ['mihomo'],
       affects: ['runtime'],
     });
@@ -353,7 +354,7 @@ describe('5 template enhancement modules (individual, combined, and conflicting)
       'block-encrypted-dns',
       'dns-leak-guard',
     ]);
-    expect(grouped[1].modules.map((m) => m.id)).toEqual(['sniffer', 'ip-no-resolve']);
+    expect(grouped[1].modules.map((m) => m.id)).toEqual(['sniffer', 'disable-quic', 'ip-no-resolve']);
     expect(grouped[2].modules.map((m) => m.id)).toEqual([
       'game-download-direct',
       'apple-push-direct',

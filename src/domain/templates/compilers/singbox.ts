@@ -729,6 +729,7 @@ function addRuleEntryToHeadless(
     source_port: number[];
     source_port_range: string[];
     process_name: string[];
+    network: string[];
   },
   type: string,
   value: string,
@@ -776,6 +777,9 @@ function addRuleEntryToHeadless(
     case 'PROCESS-NAME':
       bucket.process_name.push(cleanValue);
       return true;
+    case 'NETWORK':
+      bucket.network.push(cleanValue.toLowerCase());
+      return true;
     default:
       return false;
   }
@@ -797,6 +801,7 @@ function compileInlineRulePayloadToHeadlessRules(
     source_port: [] as number[],
     source_port_range: [] as string[],
     process_name: [] as string[],
+    network: [] as string[],
   };
 
   for (const rawLine of lines) {
@@ -852,6 +857,7 @@ function compileInlineRulePayloadToHeadlessRules(
   addNum('source_port');
   addStr('source_port_range');
   addStr('process_name');
+  addStr('network');
 
   return Object.keys(rule).length > 0 ? [rule] : [];
 }
@@ -906,6 +912,8 @@ function compileInlineRuleToCondition(
     }
     case 'PROCESS-NAME':
       return { process_name: [value] };
+    case 'NETWORK':
+      return { network: [value.toLowerCase()] };
     case 'GEOSITE': {
       const resolved = ensureGeoRuleSet('geosite', value.toLowerCase());
       return resolved.tag ? { rule_set: [resolved.tag] } : null;

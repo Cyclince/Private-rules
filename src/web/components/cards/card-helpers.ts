@@ -71,6 +71,7 @@ const RULE_TYPES: readonly RuleType[] = [
   'PROCESS-NAME',
   'USER-AGENT',
   'URL-REGEX',
+  'NETWORK',
 ];
 const BUILTIN_SET = new Set<string>(BUILTIN_POLICIES);
 const RULE_TYPE_SET = new Set<string>(RULE_TYPES);

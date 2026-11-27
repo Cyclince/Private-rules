@@ -64,12 +64,13 @@ describe('client capability matrix (Stash official docs audit)', () => {
     expect(stash.supportsProxyProviderExcludeFilter).toBe(false);
     expect(stash.supportsProxyProviderOverrideUdp).toBe(false);
 
-    // All 14 canonical rule types supported
-    expect(stash.supportedRuleTypes.size).toBe(14);
+    // All 15 canonical rule types supported
+    expect(stash.supportedRuleTypes.size).toBe(15);
     expect(isRuleTypeSupported('stash', 'USER-AGENT')).toBe(true);
     expect(isRuleTypeSupported('stash', 'URL-REGEX')).toBe(true);
     expect(isRuleTypeSupported('stash', 'SRC-IP-CIDR')).toBe(true);
     expect(isRuleTypeSupported('stash', 'SRC-PORT')).toBe(true);
+    expect(isRuleTypeSupported('stash', 'NETWORK')).toBe(true);
     expect(isGroupTypeSupported('stash', 'select')).toBe(true);
     expect(isGroupTypeSupported('stash', 'url-test')).toBe(true);
     expect(isGroupTypeSupported('stash', 'fallback')).toBe(true);

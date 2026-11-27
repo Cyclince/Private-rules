@@ -30,6 +30,7 @@ export type ProbeRequestMeta = {
   srcIp?: string;
   dstPort?: number;
   srcPort?: number;
+  network?: string;
   processName?: string;
   userAgent?: string;
   /** Optional caller-supplied DNS resolution IP for a domain/URL probe. */
@@ -424,6 +425,11 @@ function evalSingleRule(
         ? { status: 'matched', rule }
         : { status: 'not-matched' };
     }
+
+    case 'NETWORK':
+      return meta?.network && meta.network.trim().toLowerCase() === lowerValue
+        ? { status: 'matched', rule }
+        : { status: 'not-matched' };
   }
 }
 

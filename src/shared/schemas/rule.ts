@@ -21,6 +21,7 @@ export const RULE_TYPE_VALUES = [
   'PROCESS-NAME',
   'USER-AGENT',
   'URL-REGEX',
+  'NETWORK',
 ] as const;
 
 /** Input rule types accepted on import; `IP-CIDR6` normalizes to `IP-CIDR`. */

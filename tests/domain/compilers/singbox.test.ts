@@ -190,8 +190,8 @@ describe('client capability matrix (sing-box 1.12 official docs audit)', () => {
     expect(sb.supportsRespectRules).toBe(true);
     expect(sb.supportsDnsRedirHost).toBe(true);
 
-    // 11 of 14 canonical rule types supported (USER-AGENT, URL-REGEX, IP-ASN unsupported)
-    expect(sb.supportedRuleTypes.size).toBe(11);
+    // 12 of 15 canonical rule types supported (USER-AGENT, URL-REGEX, IP-ASN unsupported)
+    expect(sb.supportedRuleTypes.size).toBe(12);
     expect(isRuleTypeSupported('sing-box', 'USER-AGENT')).toBe(false);
     expect(isRuleTypeSupported('sing-box', 'URL-REGEX')).toBe(false);
     expect(isRuleTypeSupported('sing-box', 'IP-ASN')).toBe(false);
@@ -199,6 +199,7 @@ describe('client capability matrix (sing-box 1.12 official docs audit)', () => {
     expect(isRuleTypeSupported('sing-box', 'SRC-IP-CIDR')).toBe(true);
     expect(isRuleTypeSupported('sing-box', 'DST-PORT')).toBe(true);
     expect(isRuleTypeSupported('sing-box', 'SRC-PORT')).toBe(true);
+    expect(isRuleTypeSupported('sing-box', 'NETWORK')).toBe(true);
     expect(isRuleTypeSupported('sing-box', 'PROCESS-NAME')).toBe(true);
 
     expect(isGroupTypeSupported('sing-box', 'select')).toBe(true);

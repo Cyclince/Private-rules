@@ -50,7 +50,7 @@ export type Formatter = {
 };
 
 const NO_RESOLVE_RULE_TYPES = new Set<DomainRule['type']>(['IP-CIDR', 'SRC-IP-CIDR', 'IP-ASN', 'GEOIP']);
-const QX_UNSUPPORTED_TYPES = new Set<DomainRule['type']>(['DOMAIN-REGEX', 'PROCESS-NAME', 'URL-REGEX']);
+const QX_UNSUPPORTED_TYPES = new Set<DomainRule['type']>(['DOMAIN-REGEX', 'PROCESS-NAME', 'URL-REGEX', 'NETWORK']);
 const LOON_UNSUPPORTED_TYPES = new Set<DomainRule['type']>(['PROCESS-NAME']);
 /**
  * iOS clients (Loon, Quantumult X) cannot match by process, so PROCESS-NAME rules
@@ -170,7 +170,13 @@ export function listWithReport(category: RuleCategory, loonCompatible = false): 
       continue;
     }
     lines.push(...ruleNote(rule.note));
-    lines.push(loonCompatible && rule.type === 'DST-PORT' ? `DEST-PORT,${rule.value}` : ruleLine(rule));
+    if (loonCompatible && rule.type === 'DST-PORT') {
+      lines.push(`DEST-PORT,${rule.value}`);
+    } else if (loonCompatible && rule.type === 'NETWORK') {
+      lines.push(`PROTOCOL,${rule.value.toUpperCase()}`);
+    } else {
+      lines.push(ruleLine(rule));
+    }
   }
   return { body: `${lines.join('\n')}\n`, skipped };
 }
@@ -226,6 +232,7 @@ export function singBoxJsonWithReport(category: RuleCategory): FormatResult {
     else if (rule.type === 'DOMAIN-REGEX') append(destination, 'domain_regex', rule.value);
     else if (rule.type === 'IP-CIDR') append(destination, 'ip_cidr', rule.value);
     else if (rule.type === 'PROCESS-NAME') append(destination, 'process_name', rule.value);
+    else if (rule.type === 'NETWORK') append(destination, 'network', rule.value.toLowerCase());
     else if (rule.type === 'SRC-IP-CIDR') append(source, 'source_ip_cidr', rule.value);
     else if (rule.type === 'SRC-PORT' && rule.value.includes('-')) {
       append(source, 'source_port_range', rule.value.replace('-', ':'));

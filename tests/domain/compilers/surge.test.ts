@@ -80,8 +80,8 @@ describe('client capability matrix (Surge official docs audit)', () => {
     expect(surge.supportsDnsRedirHost).toBe(false);
     expect(surge.proxyProviderHeadersField).toBeNull();
 
-    // 12 of 14 canonical rule types supported (GEOSITE and DOMAIN-REGEX unsupported)
-    expect(surge.supportedRuleTypes.size).toBe(12);
+    // 13 of 15 canonical rule types supported (GEOSITE and DOMAIN-REGEX unsupported; NETWORK maps to PROTOCOL)
+    expect(surge.supportedRuleTypes.size).toBe(13);
     expect(isRuleTypeSupported('surge', 'DOMAIN-REGEX')).toBe(false);
     expect(isRuleTypeSupported('surge', 'GEOSITE')).toBe(false);
     expect(isRuleTypeSupported('surge', 'USER-AGENT')).toBe(true);
@@ -89,6 +89,7 @@ describe('client capability matrix (Surge official docs audit)', () => {
     expect(isRuleTypeSupported('surge', 'DST-PORT')).toBe(true);
     expect(isRuleTypeSupported('surge', 'SRC-PORT')).toBe(true);
     expect(isRuleTypeSupported('surge', 'SRC-IP-CIDR')).toBe(true);
+    expect(isRuleTypeSupported('surge', 'NETWORK')).toBe(true);
     expect(isGroupTypeSupported('surge', 'select')).toBe(true);
     expect(isGroupTypeSupported('surge', 'url-test')).toBe(true);
     expect(isGroupTypeSupported('surge', 'fallback')).toBe(true);

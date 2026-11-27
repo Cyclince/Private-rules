@@ -154,7 +154,7 @@ function formatShadowrocketRuleValue(type: string, rawValue: string): string {
     return sanitizeShadowrocketScalar(rawValue).replace(/,/g, '');
   }
   const value = sanitizeShadowrocketRuleValue(rawValue);
-  if (type === 'GEOIP') return value.toUpperCase();
+  if (type === 'GEOIP' || type === 'NETWORK') return value.toUpperCase();
   return value;
 }
 
@@ -190,6 +190,17 @@ function compileShadowrocketConditionExpr(
         code: 'UNSUPPORTED_RULE_TYPE',
         severity: 'warning',
         message: `Shadowrocket 不支持规则类型 ${type}（值：${sanitizeShadowrocketScalar(value)}），已跳过该条规则。`,
+        location: { cardId },
+      });
+      return null;
+    }
+
+    // Official Shadowrocket docs state `PROTOCOL` cannot stand alone; it is only valid nested inside AND/OR/NOT.
+    if (type === 'NETWORK' && depth === 0) {
+      items.push({
+        code: 'UNSUPPORTED_RULE_TYPE',
+        severity: 'warning',
+        message: `Shadowrocket 的 PROTOCOL 规则不支持单独使用，只能嵌套在逻辑规则（AND/OR/NOT）中（值：${sanitizeShadowrocketScalar(value)}），已跳过该条规则。`,
         location: { cardId },
       });
       return null;

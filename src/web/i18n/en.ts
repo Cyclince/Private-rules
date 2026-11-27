@@ -770,6 +770,9 @@ export const en: Messages = {
   'module.sniffer.name': 'Traffic Sniffing',
   'module.sniffer.description':
     'Recovers domain names from TLS / QUIC handshakes so shared ports and in-app traffic still match domain rules.',
+  'module.disable-quic.name': 'Disable QUIC',
+  'module.disable-quic.description':
+    'Rejects UDP port 443 QUIC traffic so browsers and apps fall back to TCP / TLS for more reliable rule matching.',
   'module.ip-no-resolve.name': 'no-resolve on IP Rules',
   'module.ip-no-resolve.description': 'IP rules skip DNS resolution: faster and less likely to leak.',
   'module.tunnel-direct.name': 'LAN & Overlay Network Direct',
@@ -1219,7 +1222,7 @@ export const en: Messages = {
   'ruleDetail.emptyCustomTitle': 'No custom rules yet',
   'ruleDetail.emptyCustomDesc': 'Upstream rules are collapsed in the sources section above',
 
-  // Plain-language rule types (14 types + inline IP variants)
+  // Plain-language rule types (15 types + inline IP variants)
   'ruleType.DOMAIN': 'Exact domain',
   'ruleType.DOMAIN-SUFFIX': 'Domain suffix',
   'ruleType.DOMAIN-SUFFIX-OPTION': 'Domain suffix (most common)',
@@ -1233,6 +1236,7 @@ export const en: Messages = {
   'ruleType.IP-ASN': 'ISP / Network (ASN)',
   'ruleType.DST-PORT': 'Destination port',
   'ruleType.SRC-PORT': 'Source port',
+  'ruleType.NETWORK': 'Transport protocol',
   'ruleType.GEOSITE': 'Domain category (GeoSite)',
   'ruleType.GEOIP': 'Country / region IP (GeoIP)',
   'ruleType.PROCESS-NAME': 'App / process name',
@@ -1253,6 +1257,7 @@ export const en: Messages = {
   'ruleTypeDesc.IP-ASN': 'Matches all IP addresses owned by a company or ISP. e.g. AS13335 is Cloudflare',
   'ruleTypeDesc.DST-PORT': 'Matches by destination port. e.g. 22 for SSH, 443 for HTTPS',
   'ruleTypeDesc.SRC-PORT': 'Matches by the local outgoing port; rarely needed',
+  'ruleTypeDesc.NETWORK': 'Matches by transport protocol, such as TCP or UDP',
   'ruleTypeDesc.GEOSITE': 'Uses community-maintained domain groups. e.g. netflix',
   'ruleTypeDesc.GEOIP': 'Matches IPs by country or region. e.g. CN for Mainland China',
   'ruleTypeDesc.PROCESS-NAME':

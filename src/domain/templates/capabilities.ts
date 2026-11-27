@@ -216,6 +216,7 @@ const ALL_RULE_TYPES: readonly RuleType[] = [
   'PROCESS-NAME',
   'USER-AGENT',
   'URL-REGEX',
+  'NETWORK',
 ];
 
 const EMPTY_BEHAVIORS: ReadonlySet<RulesetBehavior> = new Set<RulesetBehavior>();
@@ -314,6 +315,7 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
     ruleTypeAliases: {
       'DST-PORT': 'DEST-PORT',
       'SRC-IP-CIDR': 'SRC-IP',
+      NETWORK: 'PROTOCOL',
     },
     supportedGroupTypes: new Set<GroupType>(['select', 'url-test', 'fallback', 'load-balance']),
     supportedRemoteFormats: new Set<RemoteRuleFormat>(['text']),
@@ -364,6 +366,7 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
       'PROCESS-NAME': 'process_name',
       GEOSITE: 'rule_set',
       GEOIP: 'rule_set',
+      NETWORK: 'network',
     },
     supportedGroupTypes: new Set<GroupType>(['select', 'url-test']),
     supportedRemoteFormats: new Set<RemoteRuleFormat>(['text']),
@@ -411,9 +414,11 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
       'DST-PORT',
       'SRC-PORT',
       'PROCESS-NAME',
+      'NETWORK',
     ]),
     ruleTypeAliases: {
       'DST-PORT': 'DEST-PORT',
+      NETWORK: 'PROTOCOL',
     },
     supportedGroupTypes: new Set<GroupType>(['select', 'url-test', 'fallback', 'load-balance']),
     supportedRemoteFormats: new Set<RemoteRuleFormat>(['text']),
@@ -511,8 +516,11 @@ export const CLIENT_CAPABILITIES: Readonly<Record<TemplateClientId, ClientCapabi
       'USER-AGENT',
       'URL-REGEX',
       'DST-PORT',
+      'NETWORK',
     ]),
-    ruleTypeAliases: {},
+    ruleTypeAliases: {
+      NETWORK: 'PROTOCOL',
+    },
     supportedGroupTypes: new Set<GroupType>(['select', 'url-test', 'fallback', 'load-balance']),
     supportedRemoteFormats: new Set<RemoteRuleFormat>(['text']),
     remoteRulesetField: 'RULE-SET',

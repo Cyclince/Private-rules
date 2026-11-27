@@ -66,7 +66,7 @@ function normalizeUpstreamText(text: string): string {
       );
       const parts = value.split(',').map((part) => part.trim());
       if (
-        /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|SRC-IP-CIDR|IP-ASN|DST-PORT|SRC-PORT|GEOSITE|GEOIP|PROCESS-NAME|USER-AGENT|URL-REGEX)$/i.test(
+        /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|SRC-IP-CIDR|IP-ASN|DST-PORT|SRC-PORT|GEOSITE|GEOIP|PROCESS-NAME|USER-AGENT|URL-REGEX|NETWORK)$/i.test(
           parts[0],
         ) &&
         parts.length > 2

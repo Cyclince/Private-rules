@@ -31,7 +31,7 @@ export const tunModeModule: EnhancementModule = {
   description:
     '为 OpenClash 等虚拟网关写入 mihomo 的 tun 段（auto-route、DNS 劫持）。图形客户端请用自带的 TUN 开关，默认不写。',
   defaultEnabled: false,
-  tierDefaults: { simple: false, advanced: false, pro: true },
+  tierDefaults: { simple: false, advanced: false, pro: false },
   order: 60,
   affects: ['runtime'],
   conflictsWith: [],

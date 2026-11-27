@@ -9500,6 +9500,15 @@ exports[`compileSingbox — simple complexity starter × (full/minimal) × (sele
     },
     {
       "type": "selector",
+      "tag": "📱 国内应用直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
       "tag": "🇨🇳 国内直连",
       "outbounds": [
         "direct",
@@ -9678,6 +9687,162 @@ exports[`compileSingbox — simple complexity starter × (full/minimal) × (sele
           "geosite-category-ads-all"
         ],
         "action": "reject"
+      },
+      {
+        "domain_suffix": [
+          "weixin.qq.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "wx.qq.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "weixinbridge.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "servicewechat.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "wechat.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "qpic.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "qlogo.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "tenpay.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "alipay.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "alipayobjects.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "alipay.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "icbc.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "ccb.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "abchina.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "boc.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "bankofchina.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "bankcomm.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cmbchina.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "spdb.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cib.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cmbc.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cebbank.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "psbc.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "citicbank.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "95516.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "unionpay.com"
+        ],
+        "outbound": "📱 国内应用直连"
       },
       {
         "rule_set": [
@@ -9830,6 +9995,15 @@ exports[`compileSingbox — simple complexity starter × (full/minimal) × (sele
     },
     {
       "type": "selector",
+      "tag": "📱 国内应用直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
       "tag": "🇨🇳 国内直连",
       "outbounds": [
         "direct",
@@ -10010,6 +10184,162 @@ exports[`compileSingbox — simple complexity starter × (full/minimal) × (sele
         "action": "reject"
       },
       {
+        "domain_suffix": [
+          "weixin.qq.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "wx.qq.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "weixinbridge.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "servicewechat.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "wechat.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "qpic.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "qlogo.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "tenpay.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "alipay.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "alipayobjects.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "alipay.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "icbc.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "ccb.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "abchina.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "boc.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "bankofchina.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "bankcomm.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cmbchina.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "spdb.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cib.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cmbc.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cebbank.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "psbc.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "citicbank.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "95516.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "unionpay.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
         "rule_set": [
           "geosite-cn"
         ],
@@ -10104,6 +10434,15 @@ exports[`compileSingbox — simple complexity starter × (full/minimal) × (sele
     },
     {
       "type": "selector",
+      "tag": "📱 国内应用直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
       "tag": "🇨🇳 国内直连",
       "outbounds": [
         "direct",
@@ -10275,6 +10614,162 @@ exports[`compileSingbox — simple complexity starter × (full/minimal) × (sele
           "geosite-category-ads-all"
         ],
         "action": "reject"
+      },
+      {
+        "domain_suffix": [
+          "weixin.qq.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "wx.qq.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "weixinbridge.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "servicewechat.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "wechat.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "qpic.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "qlogo.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "tenpay.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "alipay.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "alipayobjects.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "alipay.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "icbc.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "ccb.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "abchina.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "boc.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "bankofchina.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "bankcomm.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cmbchina.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "spdb.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cib.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cmbc.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cebbank.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "psbc.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "citicbank.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "95516.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "unionpay.com"
+        ],
+        "outbound": "📱 国内应用直连"
       },
       {
         "rule_set": [
@@ -10363,6 +10858,15 @@ exports[`compileSingbox — simple complexity starter × (full/minimal) × (sele
     },
     {
       "type": "selector",
+      "tag": "📱 国内应用直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
       "tag": "🇨🇳 国内直连",
       "outbounds": [
         "direct",
@@ -10534,6 +11038,162 @@ exports[`compileSingbox — simple complexity starter × (full/minimal) × (sele
           "geosite-category-ads-all"
         ],
         "action": "reject"
+      },
+      {
+        "domain_suffix": [
+          "weixin.qq.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "wx.qq.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "weixinbridge.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "servicewechat.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "wechat.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "qpic.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "qlogo.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "tenpay.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "alipay.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "alipayobjects.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "alipay.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "icbc.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "ccb.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "abchina.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "boc.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "bankofchina.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "bankcomm.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cmbchina.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "spdb.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cib.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cmbc.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "cebbank.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "psbc.com.cn"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "citicbank.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "95516.com"
+        ],
+        "outbound": "📱 国内应用直连"
+      },
+      {
+        "domain_suffix": [
+          "unionpay.com"
+        ],
+        "outbound": "📱 国内应用直连"
       },
       {
         "rule_set": [

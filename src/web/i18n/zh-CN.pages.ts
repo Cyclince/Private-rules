@@ -643,6 +643,8 @@ export const zhCNPages = {
   'module.privacy-tracker-block.description': '拦截常见统计、归因与崩溃上报域名（不含系统与厂商推送通道）。',
   'module.sniffer.name': '流量嗅探',
   'module.sniffer.description': '从 TLS / QUIC 握手还原域名，让复用端口与应用内流量也能命中域名规则。',
+  'module.disable-quic.name': '禁用 QUIC',
+  'module.disable-quic.description': '拦截 UDP 443 的 QUIC 流量，让浏览器与应用回退到 TCP / TLS，提升规则识别准确度。',
   'module.ip-no-resolve.name': 'IP 规则补 no-resolve',
   'module.ip-no-resolve.description': 'IP 规则不触发 DNS 解析，更快，也更不容易泄露。',
   'module.tunnel-direct.name': '局域网与内网穿透直连',
@@ -1071,7 +1073,7 @@ export const zhCNPages = {
   'ruleDetail.emptyCustomTitle': '暂无自定义规则',
   'ruleDetail.emptyCustomDesc': '上游规则已在来源区域收起展示',
 
-  // Plain-language rule types (14 types + inline IP variants)
+  // Plain-language rule types (15 types + inline IP variants)
   'ruleType.DOMAIN': '完整域名',
   'ruleType.DOMAIN-SUFFIX': '域名后缀',
   'ruleType.DOMAIN-SUFFIX-OPTION': '域名后缀（最常用）',
@@ -1085,6 +1087,7 @@ export const zhCNPages = {
   'ruleType.IP-ASN': '运营商网络（ASN）',
   'ruleType.DST-PORT': '目标端口',
   'ruleType.SRC-PORT': '来源端口',
+  'ruleType.NETWORK': '传输协议',
   'ruleType.GEOSITE': '域名分类库（GeoSite）',
   'ruleType.GEOIP': '国家 / 地区 IP（GeoIP）',
   'ruleType.PROCESS-NAME': '程序名',
@@ -1101,6 +1104,7 @@ export const zhCNPages = {
   'ruleTypeDesc.IP-ASN': '匹配某家公司或运营商的全部 IP。例：AS13335 是 Cloudflare',
   'ruleTypeDesc.DST-PORT': '按要访问的端口匹配。例：22 是 SSH，443 是 HTTPS',
   'ruleTypeDesc.SRC-PORT': '按本机发出连接的端口匹配，很少用到',
+  'ruleTypeDesc.NETWORK': '按传输层协议匹配，例如 TCP 或 UDP',
   'ruleTypeDesc.GEOSITE': '引用社区整理好的网站分组。例：netflix',
   'ruleTypeDesc.GEOIP': '按 IP 所属国家或地区匹配。例：CN 表示中国大陆',
   'ruleTypeDesc.PROCESS-NAME': '按电脑上的程序匹配，手机客户端不生效。例：Telegram.exe',

@@ -195,10 +195,10 @@ describe('domain/rules/friendly', () => {
     );
   });
 
-  it('covers all 14 rule types plus AUTO with grouped options and localized descriptions', () => {
-    expect(RULE_TYPES).toHaveLength(14);
+  it('covers all 15 rule types plus AUTO with grouped options and localized descriptions', () => {
+    expect(RULE_TYPES).toHaveLength(15);
     const options = getAllRuleTypeOptions();
-    expect(options).toHaveLength(14);
+    expect(options).toHaveLength(15);
     expect(options.map((item) => item.type)).toEqual(RULE_TYPES);
 
     const grouped = getGroupedRuleTypeOptions();
@@ -209,8 +209,8 @@ describe('domain/rules/friendly', () => {
       'IP-CIDR',
       'PROCESS-NAME',
     ]);
-    expect(grouped.advanced).toHaveLength(9);
-    expect(new Set([...grouped.common, ...grouped.advanced].map((item) => item.type)).size).toBe(14);
+    expect(grouped.advanced).toHaveLength(10);
+    expect(new Set([...grouped.common, ...grouped.advanced].map((item) => item.type)).size).toBe(15);
 
     // AUTO description key exists in all 3 locales
     const autoDescKey = getRuleTypeDescriptionKey('AUTO');
@@ -229,6 +229,7 @@ describe('domain/rules/friendly', () => {
       'IP-ASN': '13335',
       'DST-PORT': '443',
       'SRC-PORT': '41641',
+      NETWORK: 'UDP',
       GEOSITE: 'telegram',
       GEOIP: 'cn',
       'PROCESS-NAME': 'curl',

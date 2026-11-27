@@ -13,7 +13,7 @@ import { buildExcludeInfoRegex, buildRegionRegex, detectRegexDialectIssues } fro
 import { CLIENT_CAPABILITIES, isRemoteFormatSupported, isRuleTypeSupported } from '../capabilities';
 import { buildDefaultIconPack, recognizeGroupIcon } from '../icons';
 import { DEFAULT_HEALTH_CHECK, resolveTemplateCards, type ResolvedTemplateCard } from '../model';
-import { applyEnhancementModules } from '../modules';
+import { MODULE_AUXILIARY_CARD_IDS, applyEnhancementModules, shouldEmitSniffer } from '../modules';
 import { planRulesetReferences, type PlannedMatcherBinding, type PlannedProvider } from '../planner';
 import { getNormalizedBodyPools } from '../pools';
 import { evaluatePoolEmptyProtection, poolCompatibilityLocation, resolveStabilityPoolMembers } from './pool-helpers';
@@ -91,9 +91,7 @@ const HIDDEN_AUXILIARY_CARD_IDS = new Set([
   'domestic-direct',
   'non-standard-ports',
   'speedtest',
-  'module-block-encrypted-dns',
-  'module-game-download-direct',
-  'module-tunnel-direct',
+  ...MODULE_AUXILIARY_CARD_IDS,
 ]);
 
 function applyGithubMirror(url: string, mirrorUrl?: string): string {
@@ -574,14 +572,15 @@ function compileConditionExpr(
     const cleanValue = sanitizeMihomoRuleValue(value);
     if (!cleanValue) return null;
 
-    const emittedType = type === 'IP-CIDR' && cleanValue.includes(':') ? MIHOMO_CAPS.ipV6RuleType : type;
+    const formattedValue = type === 'NETWORK' ? cleanValue.toUpperCase() : cleanValue;
+    const emittedType = type === 'IP-CIDR' && formattedValue.includes(':') ? MIHOMO_CAPS.ipV6RuleType : type;
     const noResolve = Boolean(options?.noResolve && MIHOMO_CAPS.noResolveRuleTypes.has(type));
-    const inner = noResolve ? `${emittedType},${cleanValue},no-resolve` : `${emittedType},${cleanValue}`;
+    const inner = noResolve ? `${emittedType},${formattedValue},no-resolve` : `${emittedType},${formattedValue}`;
     return {
       inner,
       leafParts: {
         type: emittedType,
-        value: cleanValue,
+        value: formattedValue,
         noResolve,
       },
     };
@@ -1647,7 +1646,9 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
     document['find-process-mode'] = 'strict';
     document.profile = compileProfileSection();
     document.dns = compileDnsSection(body.dns, body.general, items);
-    document.sniffer = compileSnifferSection();
+    if (input.applyModules === false || shouldEmitSniffer(body.modules ?? [])) {
+      document.sniffer = compileSnifferSection();
+    }
   }
 
   if (Object.keys(proxyProviders).length > 0) {

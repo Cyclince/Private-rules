@@ -62,6 +62,7 @@ const CLASSICAL_TYPE_ORDER: Readonly<Record<string, number>> = {
   'SRC-IP-CIDR': 9,
   'IP-ASN': 10,
   GEOIP: 11,
+  NETWORK: 12,
 };
 
 function compareAscii(a: string, b: string): number {

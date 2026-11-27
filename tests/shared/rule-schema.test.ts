@@ -4,6 +4,7 @@ import { RULE_INPUT_TYPE_VALUES, RULE_TYPE_VALUES, ruleSchema, ruleTypeSchema } 
 describe('rule schema', () => {
   it('keeps SRC-PORT and includes all 1.1.0 canonical rule types', () => {
     expect(RULE_TYPE_VALUES).toContain('SRC-PORT');
+    expect(RULE_TYPE_VALUES).toContain('NETWORK');
     expect(RULE_TYPE_VALUES).toContain('DOMAIN-REGEX');
     expect(RULE_TYPE_VALUES).toContain('PROCESS-NAME');
     expect(RULE_TYPE_VALUES).toContain('USER-AGENT');

@@ -6163,30 +6163,6 @@ dns:
     geosite:private:
       - https://dns.alidns.com/dns-query
       - https://doh.pub/dns-query
-sniffer:
-  enable: true
-  force-dns-mapping: true
-  parse-pure-ip: true
-  override-destination: true
-  sniff:
-    HTTP:
-      ports:
-        - 80
-        - 8080-8880
-      override-destination: true
-    TLS:
-      ports:
-        - 443
-        - 8443
-    QUIC:
-      ports:
-        - 443
-        - 8443
-  skip-domain:
-    - Mijia Cloud
-    - +.push.apple.com
-    - +.lan
-    - +.local
 proxy-providers:
   slot-main:
     type: http
@@ -6236,6 +6212,13 @@ proxy-groups:
       - REJECT-DROP
       - DIRECT
     icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+  - name: 📱 国内应用直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
   - name: 🇨🇳 国内直连
     type: select
     proxies:
@@ -6302,6 +6285,32 @@ rules:
   - RULE-SET,geosite-private,🏠 局域网直连
   - RULE-SET,geoip-private,🏠 局域网直连,no-resolve
   - RULE-SET,geosite-category-ads-all,🚫 拦截
+  - DOMAIN-SUFFIX,weixin.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wx.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,weixinbridge.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,servicewechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,qpic.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,qlogo.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,tenpay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipayobjects.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,icbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,ccb.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,abchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,boc.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankofchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankcomm.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,spdb.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cib.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cebbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,psbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,citicbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,95516.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,unionpay.com,📱 国内应用直连
   - RULE-SET,geosite-cn,🇨🇳 国内直连
   - RULE-SET,geoip-cn,🇨🇳 国内直连,no-resolve
   - MATCH,🔒 防泄漏兜底
@@ -6351,30 +6360,6 @@ dns:
     geosite:private:
       - https://dns.alidns.com/dns-query
       - https://doh.pub/dns-query
-sniffer:
-  enable: true
-  force-dns-mapping: true
-  parse-pure-ip: true
-  override-destination: true
-  sniff:
-    HTTP:
-      ports:
-        - 80
-        - 8080-8880
-      override-destination: true
-    TLS:
-      ports:
-        - 443
-        - 8443
-    QUIC:
-      ports:
-        - 443
-        - 8443
-  skip-domain:
-    - Mijia Cloud
-    - +.push.apple.com
-    - +.lan
-    - +.local
 proxy-providers:
   slot-main:
     type: http
@@ -6424,6 +6409,13 @@ proxy-groups:
       - REJECT-DROP
       - DIRECT
     icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+  - name: 📱 国内应用直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
   - name: 🇨🇳 国内直连
     type: select
     proxies:
@@ -6490,6 +6482,32 @@ rules:
   - RULE-SET,geosite-private,🏠 局域网直连
   - RULE-SET,geoip-private,🏠 局域网直连,no-resolve
   - RULE-SET,geosite-category-ads-all,🚫 拦截
+  - DOMAIN-SUFFIX,weixin.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wx.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,weixinbridge.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,servicewechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,qpic.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,qlogo.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,tenpay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipayobjects.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,icbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,ccb.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,abchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,boc.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankofchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankcomm.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,spdb.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cib.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cebbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,psbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,citicbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,95516.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,unionpay.com,📱 国内应用直连
   - RULE-SET,geosite-cn,🇨🇳 国内直连
   - RULE-SET,geoip-cn,🇨🇳 国内直连,no-resolve
   - MATCH,🔒 防泄漏兜底
@@ -6549,6 +6567,13 @@ proxy-groups:
       - REJECT-DROP
       - DIRECT
     icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+  - name: 📱 国内应用直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
   - name: 🇨🇳 国内直连
     type: select
     proxies:
@@ -6615,6 +6640,32 @@ rules:
   - RULE-SET,geosite-private,🏠 局域网直连
   - RULE-SET,geoip-private,🏠 局域网直连,no-resolve
   - RULE-SET,geosite-category-ads-all,🚫 拦截
+  - DOMAIN-SUFFIX,weixin.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wx.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,weixinbridge.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,servicewechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,qpic.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,qlogo.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,tenpay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipayobjects.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,icbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,ccb.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,abchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,boc.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankofchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankcomm.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,spdb.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cib.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cebbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,psbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,citicbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,95516.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,unionpay.com,📱 国内应用直连
   - RULE-SET,geosite-cn,🇨🇳 国内直连
   - RULE-SET,geoip-cn,🇨🇳 国内直连,no-resolve
   - MATCH,🔒 防泄漏兜底
@@ -6674,6 +6725,13 @@ proxy-groups:
       - REJECT-DROP
       - DIRECT
     icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+  - name: 📱 国内应用直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
   - name: 🇨🇳 国内直连
     type: select
     proxies:
@@ -6740,6 +6798,32 @@ rules:
   - RULE-SET,geosite-private,🏠 局域网直连
   - RULE-SET,geoip-private,🏠 局域网直连,no-resolve
   - RULE-SET,geosite-category-ads-all,🚫 拦截
+  - DOMAIN-SUFFIX,weixin.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wx.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,weixinbridge.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,servicewechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,qpic.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,qlogo.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,tenpay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipayobjects.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,icbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,ccb.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,abchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,boc.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankofchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankcomm.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,spdb.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cib.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cebbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,psbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,citicbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,95516.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,unionpay.com,📱 国内应用直连
   - RULE-SET,geosite-cn,🇨🇳 国内直连
   - RULE-SET,geoip-cn,🇨🇳 国内直连,no-resolve
   - MATCH,🔒 防泄漏兜底

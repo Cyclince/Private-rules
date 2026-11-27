@@ -70,12 +70,13 @@ describe('client capability matrix (Shadowrocket official docs audit)', () => {
       supportsLookbehind: false,
     });
 
-    // 9 of 14 canonical rule types supported
-    expect(sr.supportedRuleTypes.size).toBe(9);
+    // 10 of 15 canonical rule types supported (NETWORK emits as PROTOCOL inside AND/OR/NOT logical rules)
+    expect(sr.supportedRuleTypes.size).toBe(10);
     expect(isRuleTypeSupported('shadowrocket', 'DOMAIN')).toBe(true);
     expect(isRuleTypeSupported('shadowrocket', 'USER-AGENT')).toBe(true);
     expect(isRuleTypeSupported('shadowrocket', 'URL-REGEX')).toBe(true);
     expect(isRuleTypeSupported('shadowrocket', 'DST-PORT')).toBe(true);
+    expect(isRuleTypeSupported('shadowrocket', 'NETWORK')).toBe(true);
     expect(isRuleTypeSupported('shadowrocket', 'SRC-PORT')).toBe(false);
     expect(isRuleTypeSupported('shadowrocket', 'PROCESS-NAME')).toBe(false);
     expect(isRuleTypeSupported('shadowrocket', 'DOMAIN-REGEX')).toBe(false);
@@ -361,4 +362,44 @@ describe('compileShadowrocket — simple complexity starter × (full/minimal) sn
       expect(compiled.content).toMatchSnapshot();
     });
   }
+
+  it('compiles nested PROTOCOL inside AND rules while warning on standalone NETWORK rules', () => {
+    const netCard: AppCard = {
+      id: 'net-check',
+      slug: 'net-check',
+      name: 'UDP Guard',
+      category: 'infrastructure',
+      stage: 'pre-direct',
+      group: { type: 'select', candidates: [{ kind: 'builtin', id: 'REJECT' }] },
+      matchers: [
+        {
+          kind: 'inline',
+          conditions: [
+            {
+              op: 'and',
+              items: [
+                { op: 'rule', rule: { type: 'NETWORK', value: 'udp' } },
+                { op: 'rule', rule: { type: 'DST-PORT', value: '443' } },
+              ],
+            },
+            { op: 'rule', rule: { type: 'NETWORK', value: 'tcp' } },
+          ],
+        },
+      ],
+    };
+    const body: TemplateBody = {
+      slots: [],
+      regionGroups: [],
+      cards: [{ cardId: 'net-check', enabled: true }],
+      groupMode: 'select',
+      final: { kind: 'builtin', id: 'DIRECT' },
+      output: 'minimal',
+      dns: { mode: 'fake-ip' },
+      modules: [],
+    };
+    const compiled = compileShadowrocket({ body, cards: [netCard] });
+    expect(compiled.content).toContain('AND,((PROTOCOL,UDP),(DST-PORT,443)),UDP Guard');
+    expect(compiled.content).not.toContain('\nPROTOCOL,TCP,');
+    expect(compiled.report.items.some((i) => i.code === 'UNSUPPORTED_RULE_TYPE')).toBe(true);
+  });
 });

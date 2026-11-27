@@ -737,18 +737,45 @@ static=🚀 代理, ⚡ 全部节点（自动）, direct, server-tag-regex=.*
 static=🎯 直连, direct, 🚀 代理
 static=🏠 局域网直连, direct, 🚀 代理
 static=🚫 拦截, reject, direct
+static=📱 国内应用直连, direct, 🚀 代理
 static=🇨🇳 国内直连, direct, 🚀 代理
 # Two-stage node filter (⚡ 全部节点（自动）): include=.* | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
 url-latency-benchmark=⚡ 全部节点（自动）, server-tag-regex=.*, check-interval=300, tolerance=50
 
 [filter_local]
+# [Inlined Remote Filter Required] geosite-private (https://rules.example.com/rules/geosite-private-qx.list) -> 🏠 局域网直连
 geoip, private, 🏠 局域网直连
+# [Inlined Remote Filter Required] geosite-category-ads-all (https://rules.example.com/rules/geosite-category-ads-all-qx.list) -> 🚫 拦截
+host-suffix, weixin.qq.com, 📱 国内应用直连
+host-suffix, wx.qq.com, 📱 国内应用直连
+host-suffix, weixinbridge.com, 📱 国内应用直连
+host-suffix, servicewechat.com, 📱 国内应用直连
+host-suffix, wechat.com, 📱 国内应用直连
+host-suffix, qpic.cn, 📱 国内应用直连
+host-suffix, qlogo.cn, 📱 国内应用直连
+host-suffix, tenpay.com, 📱 国内应用直连
+host-suffix, alipay.com, 📱 国内应用直连
+host-suffix, alipayobjects.com, 📱 国内应用直连
+host-suffix, alipay.cn, 📱 国内应用直连
+host-suffix, icbc.com.cn, 📱 国内应用直连
+host-suffix, ccb.com, 📱 国内应用直连
+host-suffix, abchina.com, 📱 国内应用直连
+host-suffix, boc.cn, 📱 国内应用直连
+host-suffix, bankofchina.com, 📱 国内应用直连
+host-suffix, bankcomm.com, 📱 国内应用直连
+host-suffix, cmbchina.com, 📱 国内应用直连
+host-suffix, spdb.com.cn, 📱 国内应用直连
+host-suffix, cib.com.cn, 📱 国内应用直连
+host-suffix, cmbc.com.cn, 📱 国内应用直连
+host-suffix, cebbank.com, 📱 国内应用直连
+host-suffix, psbc.com.cn, 📱 国内应用直连
+host-suffix, citicbank.com, 📱 国内应用直连
+host-suffix, 95516.com, 📱 国内应用直连
+host-suffix, unionpay.com, 📱 国内应用直连
 geoip, cn, 🇨🇳 国内直连
 final, 🚀 代理
 
 [filter_remote]
-https://rules.example.com/rules/geosite-private-qx.list, tag=geosite-private-lan-direct, force-policy=🏠 局域网直连, update-interval=28800, opt-parser=false, enabled=true
-https://rules.example.com/rules/geosite-category-ads-all-qx.list, tag=geosite-category-ads-all-ad-block, force-policy=🚫 拦截, update-interval=28800, opt-parser=false, enabled=true
 https://rules.example.com/rules/geosite-cn-qx.list, tag=geosite-cn-domestic-direct, force-policy=🇨🇳 国内直连, update-interval=28800, opt-parser=false, enabled=true
 "
 `;
@@ -760,12 +787,38 @@ exports[`compileQuanx — simple complexity starter × (full/minimal) snapshots 
 # Output: full
 # UPDATED: 2026-01-01T00:00:00.000Z
 
+# [Inlined Remote Filter Required] geosite-private (https://rules.example.com/rules/geosite-private-qx.list) -> 🏠 局域网直连
 geoip, private, 🏠 局域网直连
+# [Inlined Remote Filter Required] geosite-category-ads-all (https://rules.example.com/rules/geosite-category-ads-all-qx.list) -> 🚫 拦截
+host-suffix, weixin.qq.com, 📱 国内应用直连
+host-suffix, wx.qq.com, 📱 国内应用直连
+host-suffix, weixinbridge.com, 📱 国内应用直连
+host-suffix, servicewechat.com, 📱 国内应用直连
+host-suffix, wechat.com, 📱 国内应用直连
+host-suffix, qpic.cn, 📱 国内应用直连
+host-suffix, qlogo.cn, 📱 国内应用直连
+host-suffix, tenpay.com, 📱 国内应用直连
+host-suffix, alipay.com, 📱 国内应用直连
+host-suffix, alipayobjects.com, 📱 国内应用直连
+host-suffix, alipay.cn, 📱 国内应用直连
+host-suffix, icbc.com.cn, 📱 国内应用直连
+host-suffix, ccb.com, 📱 国内应用直连
+host-suffix, abchina.com, 📱 国内应用直连
+host-suffix, boc.cn, 📱 国内应用直连
+host-suffix, bankofchina.com, 📱 国内应用直连
+host-suffix, bankcomm.com, 📱 国内应用直连
+host-suffix, cmbchina.com, 📱 国内应用直连
+host-suffix, spdb.com.cn, 📱 国内应用直连
+host-suffix, cib.com.cn, 📱 国内应用直连
+host-suffix, cmbc.com.cn, 📱 国内应用直连
+host-suffix, cebbank.com, 📱 国内应用直连
+host-suffix, psbc.com.cn, 📱 国内应用直连
+host-suffix, citicbank.com, 📱 国内应用直连
+host-suffix, 95516.com, 📱 国内应用直连
+host-suffix, unionpay.com, 📱 国内应用直连
 geoip, cn, 🇨🇳 国内直连
 
 # [filter_remote] 以下远程分流列表请按需添加到 Quantumult X 的 [filter_remote] 段：
-# https://rules.example.com/rules/geosite-private-qx.list, tag=geosite-private-lan-direct, force-policy=🏠 局域网直连, update-interval=28800, opt-parser=false, enabled=true
-# https://rules.example.com/rules/geosite-category-ads-all-qx.list, tag=geosite-category-ads-all-ad-block, force-policy=🚫 拦截, update-interval=28800, opt-parser=false, enabled=true
 # https://rules.example.com/rules/geosite-cn-qx.list, tag=geosite-cn-domestic-direct, force-policy=🇨🇳 国内直连, update-interval=28800, opt-parser=false, enabled=true
 
 # Default Final Policy (请在 Quantumult X 主配置 [filter_local] 中保持兜底): final, 🚀 代理
@@ -785,18 +838,45 @@ static=🚀 代理, ⚡ 全部节点（自动）, direct, server-tag-regex=.*
 static=🎯 直连, direct, 🚀 代理
 static=🏠 局域网直连, direct, 🚀 代理
 static=🚫 拦截, reject, direct
+static=📱 国内应用直连, direct, 🚀 代理
 static=🇨🇳 国内直连, direct, 🚀 代理
 # Two-stage node filter (⚡ 全部节点（自动）): include=.* | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
 url-latency-benchmark=⚡ 全部节点（自动）, server-tag-regex=.*, check-interval=300, tolerance=50
 
 [filter_local]
+# [Inlined Remote Filter Required] geosite-private (https://rules.example.com/rules/geosite-private-qx.list) -> 🏠 局域网直连
 geoip, private, 🏠 局域网直连
+# [Inlined Remote Filter Required] geosite-category-ads-all (https://rules.example.com/rules/geosite-category-ads-all-qx.list) -> 🚫 拦截
+host-suffix, weixin.qq.com, 📱 国内应用直连
+host-suffix, wx.qq.com, 📱 国内应用直连
+host-suffix, weixinbridge.com, 📱 国内应用直连
+host-suffix, servicewechat.com, 📱 国内应用直连
+host-suffix, wechat.com, 📱 国内应用直连
+host-suffix, qpic.cn, 📱 国内应用直连
+host-suffix, qlogo.cn, 📱 国内应用直连
+host-suffix, tenpay.com, 📱 国内应用直连
+host-suffix, alipay.com, 📱 国内应用直连
+host-suffix, alipayobjects.com, 📱 国内应用直连
+host-suffix, alipay.cn, 📱 国内应用直连
+host-suffix, icbc.com.cn, 📱 国内应用直连
+host-suffix, ccb.com, 📱 国内应用直连
+host-suffix, abchina.com, 📱 国内应用直连
+host-suffix, boc.cn, 📱 国内应用直连
+host-suffix, bankofchina.com, 📱 国内应用直连
+host-suffix, bankcomm.com, 📱 国内应用直连
+host-suffix, cmbchina.com, 📱 国内应用直连
+host-suffix, spdb.com.cn, 📱 国内应用直连
+host-suffix, cib.com.cn, 📱 国内应用直连
+host-suffix, cmbc.com.cn, 📱 国内应用直连
+host-suffix, cebbank.com, 📱 国内应用直连
+host-suffix, psbc.com.cn, 📱 国内应用直连
+host-suffix, citicbank.com, 📱 国内应用直连
+host-suffix, 95516.com, 📱 国内应用直连
+host-suffix, unionpay.com, 📱 国内应用直连
 geoip, cn, 🇨🇳 国内直连
 final, 🚀 代理
 
 [filter_remote]
-https://rules.example.com/rules/geosite-private-qx.list, tag=geosite-private-lan-direct, force-policy=🏠 局域网直连, update-interval=28800, opt-parser=false, enabled=true
-https://rules.example.com/rules/geosite-category-ads-all-qx.list, tag=geosite-category-ads-all-ad-block, force-policy=🚫 拦截, update-interval=28800, opt-parser=false, enabled=true
 https://rules.example.com/rules/geosite-cn-qx.list, tag=geosite-cn-domestic-direct, force-policy=🇨🇳 国内直连, update-interval=28800, opt-parser=false, enabled=true
 "
 `;
@@ -808,12 +888,38 @@ exports[`compileQuanx — simple complexity starter × (full/minimal) snapshots 
 # Output: minimal
 # UPDATED: 2026-01-01T00:00:00.000Z
 
+# [Inlined Remote Filter Required] geosite-private (https://rules.example.com/rules/geosite-private-qx.list) -> 🏠 局域网直连
 geoip, private, 🏠 局域网直连
+# [Inlined Remote Filter Required] geosite-category-ads-all (https://rules.example.com/rules/geosite-category-ads-all-qx.list) -> 🚫 拦截
+host-suffix, weixin.qq.com, 📱 国内应用直连
+host-suffix, wx.qq.com, 📱 国内应用直连
+host-suffix, weixinbridge.com, 📱 国内应用直连
+host-suffix, servicewechat.com, 📱 国内应用直连
+host-suffix, wechat.com, 📱 国内应用直连
+host-suffix, qpic.cn, 📱 国内应用直连
+host-suffix, qlogo.cn, 📱 国内应用直连
+host-suffix, tenpay.com, 📱 国内应用直连
+host-suffix, alipay.com, 📱 国内应用直连
+host-suffix, alipayobjects.com, 📱 国内应用直连
+host-suffix, alipay.cn, 📱 国内应用直连
+host-suffix, icbc.com.cn, 📱 国内应用直连
+host-suffix, ccb.com, 📱 国内应用直连
+host-suffix, abchina.com, 📱 国内应用直连
+host-suffix, boc.cn, 📱 国内应用直连
+host-suffix, bankofchina.com, 📱 国内应用直连
+host-suffix, bankcomm.com, 📱 国内应用直连
+host-suffix, cmbchina.com, 📱 国内应用直连
+host-suffix, spdb.com.cn, 📱 国内应用直连
+host-suffix, cib.com.cn, 📱 国内应用直连
+host-suffix, cmbc.com.cn, 📱 国内应用直连
+host-suffix, cebbank.com, 📱 国内应用直连
+host-suffix, psbc.com.cn, 📱 国内应用直连
+host-suffix, citicbank.com, 📱 国内应用直连
+host-suffix, 95516.com, 📱 国内应用直连
+host-suffix, unionpay.com, 📱 国内应用直连
 geoip, cn, 🇨🇳 国内直连
 
 # [filter_remote] 以下远程分流列表请按需添加到 Quantumult X 的 [filter_remote] 段：
-# https://rules.example.com/rules/geosite-private-qx.list, tag=geosite-private-lan-direct, force-policy=🏠 局域网直连, update-interval=28800, opt-parser=false, enabled=true
-# https://rules.example.com/rules/geosite-category-ads-all-qx.list, tag=geosite-category-ads-all-ad-block, force-policy=🚫 拦截, update-interval=28800, opt-parser=false, enabled=true
 # https://rules.example.com/rules/geosite-cn-qx.list, tag=geosite-cn-domestic-direct, force-policy=🇨🇳 国内直连, update-interval=28800, opt-parser=false, enabled=true
 
 # Default Final Policy (请在 Quantumult X 主配置 [filter_local] 中保持兜底): final, 🚀 代理

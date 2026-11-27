@@ -331,6 +331,7 @@ describe('M2a quick-create pure domain logic', () => {
       ]);
 
       expect(body.modules.filter((m) => m.enabled)).toEqual([
+        { id: 'domestic-apps-direct', enabled: true },
         { id: 'dns-leak-guard', enabled: true },
         { id: 'ip-no-resolve', enabled: true },
       ]);

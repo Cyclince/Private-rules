@@ -74,10 +74,11 @@ describe('client capability matrix (Loon official docs audit)', () => {
       supportsLookbehind: true,
     });
 
-    // 11 of 14 canonical rule types supported
-    expect(loon.supportedRuleTypes.size).toBe(11);
+    // 12 of 15 canonical rule types supported (NETWORK emits as PROTOCOL)
+    expect(loon.supportedRuleTypes.size).toBe(12);
     expect(isRuleTypeSupported('loon', 'DST-PORT')).toBe(true);
     expect(isRuleTypeSupported('loon', 'SRC-PORT')).toBe(true);
+    expect(isRuleTypeSupported('loon', 'NETWORK')).toBe(true);
     expect(isRuleTypeSupported('loon', 'PROCESS-NAME')).toBe(true);
     expect(isRuleTypeSupported('loon', 'USER-AGENT')).toBe(true);
     expect(isRuleTypeSupported('loon', 'URL-REGEX')).toBe(true);

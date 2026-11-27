@@ -212,7 +212,7 @@ function formatLoonRuleValue(type: string, rawValue: string): string {
     return sanitizeLoonScalar(rawValue).replace(/,/g, '');
   }
   const value = sanitizeLoonRuleValue(rawValue);
-  if (type === 'GEOIP') return value.toUpperCase();
+  if (type === 'GEOIP' || type === 'NETWORK' || type === 'PROTOCOL') return value.toUpperCase();
   return value;
 }
 
@@ -367,7 +367,7 @@ function convertPayloadLineToLoonRule(
   const parts = line.split(',').map((part) => part.trim());
   if (parts.length < 2) return null;
   const rawType = parts[0]!.toUpperCase();
-  const mappedType = rawType === 'DST-PORT' ? 'DEST-PORT' : rawType;
+  const mappedType = rawType === 'DST-PORT' ? 'DEST-PORT' : rawType === 'NETWORK' ? 'PROTOCOL' : rawType;
   const allowed = new Set([
     'DOMAIN',
     'DOMAIN-SUFFIX',
@@ -381,6 +381,7 @@ function convertPayloadLineToLoonRule(
     'DEST-PORT',
     'SRC-PORT',
     'PROCESS-NAME',
+    'PROTOCOL',
   ]);
   if (!allowed.has(mappedType)) return null;
 

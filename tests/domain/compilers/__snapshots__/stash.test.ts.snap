@@ -3354,6 +3354,11 @@ proxy-groups:
       - REJECT
       - REJECT-DROP
       - DIRECT
+  - name: 📱 国内应用直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
   - name: 🇨🇳 国内直连
     type: select
     proxies:
@@ -3370,6 +3375,32 @@ rules:
   - GEOSITE,private,🏠 局域网直连
   - GEOIP,PRIVATE,🏠 局域网直连,no-resolve
   - GEOSITE,category-ads-all,🚫 拦截
+  - DOMAIN-SUFFIX,weixin.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wx.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,weixinbridge.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,servicewechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,qpic.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,qlogo.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,tenpay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipayobjects.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,icbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,ccb.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,abchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,boc.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankofchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankcomm.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,spdb.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cib.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cebbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,psbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,citicbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,95516.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,unionpay.com,📱 国内应用直连
   - GEOSITE,cn,🇨🇳 国内直连
   - GEOIP,CN,🇨🇳 国内直连,no-resolve
   - MATCH,🚀 代理
@@ -3434,6 +3465,11 @@ proxy-groups:
       - REJECT
       - REJECT-DROP
       - DIRECT
+  - name: 📱 国内应用直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
   - name: 🇨🇳 国内直连
     type: select
     proxies:
@@ -3450,6 +3486,32 @@ rules:
   - GEOSITE,private,🏠 局域网直连
   - GEOIP,PRIVATE,🏠 局域网直连,no-resolve
   - GEOSITE,category-ads-all,🚫 拦截
+  - DOMAIN-SUFFIX,weixin.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wx.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,weixinbridge.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,servicewechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,qpic.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,qlogo.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,tenpay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipayobjects.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,icbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,ccb.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,abchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,boc.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankofchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankcomm.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,spdb.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cib.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cebbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,psbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,citicbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,95516.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,unionpay.com,📱 国内应用直连
   - GEOSITE,cn,🇨🇳 国内直连
   - GEOIP,CN,🇨🇳 国内直连,no-resolve
   - MATCH,🚀 代理
@@ -3492,6 +3554,11 @@ proxy-groups:
       - REJECT
       - REJECT-DROP
       - DIRECT
+  - name: 📱 国内应用直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
   - name: 🇨🇳 国内直连
     type: select
     proxies:
@@ -3508,6 +3575,32 @@ rules:
   - GEOSITE,private,🏠 局域网直连
   - GEOIP,PRIVATE,🏠 局域网直连,no-resolve
   - GEOSITE,category-ads-all,🚫 拦截
+  - DOMAIN-SUFFIX,weixin.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wx.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,weixinbridge.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,servicewechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,qpic.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,qlogo.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,tenpay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipayobjects.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,icbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,ccb.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,abchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,boc.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankofchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankcomm.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,spdb.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cib.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cebbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,psbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,citicbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,95516.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,unionpay.com,📱 国内应用直连
   - GEOSITE,cn,🇨🇳 国内直连
   - GEOIP,CN,🇨🇳 国内直连,no-resolve
   - MATCH,🚀 代理
@@ -3550,6 +3643,11 @@ proxy-groups:
       - REJECT
       - REJECT-DROP
       - DIRECT
+  - name: 📱 国内应用直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
   - name: 🇨🇳 国内直连
     type: select
     proxies:
@@ -3566,6 +3664,32 @@ rules:
   - GEOSITE,private,🏠 局域网直连
   - GEOIP,PRIVATE,🏠 局域网直连,no-resolve
   - GEOSITE,category-ads-all,🚫 拦截
+  - DOMAIN-SUFFIX,weixin.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wx.qq.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,weixinbridge.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,servicewechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,wechat.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,qpic.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,qlogo.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,tenpay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipayobjects.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,alipay.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,icbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,ccb.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,abchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,boc.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankofchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,bankcomm.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbchina.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,spdb.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cib.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cmbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,cebbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,psbc.com.cn,📱 国内应用直连
+  - DOMAIN-SUFFIX,citicbank.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,95516.com,📱 国内应用直连
+  - DOMAIN-SUFFIX,unionpay.com,📱 国内应用直连
   - GEOSITE,cn,🇨🇳 国内直连
   - GEOIP,CN,🇨🇳 国内直连,no-resolve
   - MATCH,🚀 代理

@@ -770,17 +770,44 @@ Filter-⚡ 全部节点（自动） = NameRegex, FilterKey="(?i)^(?!.*(?:(?:流�
 🎯 直连 = select, DIRECT, 🚀 代理
 🏠 局域网直连 = select, DIRECT, 🚀 代理
 🚫 拦截 = select, REJECT, REJECT-DROP, DIRECT
+📱 国内应用直连 = select, DIRECT, 🚀 代理
 🇨🇳 国内直连 = select, DIRECT, 🚀 代理
 ⚡ 全部节点（自动） = url-test, Filter-⚡ 全部节点（自动）, url=https://cp.cloudflare.com/generate_204, interval=300, tolerance=50
 
 [Rule]
+# [Inlined Remote Rule Required] geosite-private (https://rules.example.com/rules/geosite-private-loon.list) -> 🏠 局域网直连
 GEOIP,PRIVATE,🏠 局域网直连,no-resolve
+# [Inlined Remote Rule Required] geosite-category-ads-all (https://rules.example.com/rules/geosite-category-ads-all-loon.list) -> 🚫 拦截
+DOMAIN-SUFFIX,weixin.qq.com,📱 国内应用直连
+DOMAIN-SUFFIX,wx.qq.com,📱 国内应用直连
+DOMAIN-SUFFIX,weixinbridge.com,📱 国内应用直连
+DOMAIN-SUFFIX,servicewechat.com,📱 国内应用直连
+DOMAIN-SUFFIX,wechat.com,📱 国内应用直连
+DOMAIN-SUFFIX,qpic.cn,📱 国内应用直连
+DOMAIN-SUFFIX,qlogo.cn,📱 国内应用直连
+DOMAIN-SUFFIX,tenpay.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipay.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipayobjects.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipay.cn,📱 国内应用直连
+DOMAIN-SUFFIX,icbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,ccb.com,📱 国内应用直连
+DOMAIN-SUFFIX,abchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,boc.cn,📱 国内应用直连
+DOMAIN-SUFFIX,bankofchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,bankcomm.com,📱 国内应用直连
+DOMAIN-SUFFIX,cmbchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,spdb.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cib.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cmbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cebbank.com,📱 国内应用直连
+DOMAIN-SUFFIX,psbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,citicbank.com,📱 国内应用直连
+DOMAIN-SUFFIX,95516.com,📱 国内应用直连
+DOMAIN-SUFFIX,unionpay.com,📱 国内应用直连
 GEOIP,CN,🇨🇳 国内直连,no-resolve
 FINAL,🚀 代理
 
 [Remote Rule]
-https://rules.example.com/rules/geosite-private-loon.list, policy=🏠 局域网直连, tag=geosite-private-lan-direct, enabled=true
-https://rules.example.com/rules/geosite-category-ads-all-loon.list, policy=🚫 拦截, tag=geosite-category-ads-all-ad-block, enabled=true
 https://rules.example.com/rules/geosite-cn-loon.list, policy=🇨🇳 国内直连, tag=geosite-cn-domestic-direct, enabled=true
 "
 `;
@@ -792,12 +819,38 @@ exports[`compileLoon — simple complexity starter × (full/minimal) snapshots >
 # Output: full
 # UPDATED: 2026-01-01T00:00:00.000Z
 
+# [Inlined Remote Rule Required] geosite-private (https://rules.example.com/rules/geosite-private-loon.list) -> 🏠 局域网直连
 GEOIP,PRIVATE,🏠 局域网直连,no-resolve
+# [Inlined Remote Rule Required] geosite-category-ads-all (https://rules.example.com/rules/geosite-category-ads-all-loon.list) -> 🚫 拦截
+DOMAIN-SUFFIX,weixin.qq.com,📱 国内应用直连
+DOMAIN-SUFFIX,wx.qq.com,📱 国内应用直连
+DOMAIN-SUFFIX,weixinbridge.com,📱 国内应用直连
+DOMAIN-SUFFIX,servicewechat.com,📱 国内应用直连
+DOMAIN-SUFFIX,wechat.com,📱 国内应用直连
+DOMAIN-SUFFIX,qpic.cn,📱 国内应用直连
+DOMAIN-SUFFIX,qlogo.cn,📱 国内应用直连
+DOMAIN-SUFFIX,tenpay.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipay.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipayobjects.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipay.cn,📱 国内应用直连
+DOMAIN-SUFFIX,icbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,ccb.com,📱 国内应用直连
+DOMAIN-SUFFIX,abchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,boc.cn,📱 国内应用直连
+DOMAIN-SUFFIX,bankofchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,bankcomm.com,📱 国内应用直连
+DOMAIN-SUFFIX,cmbchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,spdb.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cib.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cmbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cebbank.com,📱 国内应用直连
+DOMAIN-SUFFIX,psbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,citicbank.com,📱 国内应用直连
+DOMAIN-SUFFIX,95516.com,📱 国内应用直连
+DOMAIN-SUFFIX,unionpay.com,📱 国内应用直连
 GEOIP,CN,🇨🇳 国内直连,no-resolve
 
 # [Remote Rule] 以下远程规则列表请按需在 Loon 远程规则中添加：
-# https://rules.example.com/rules/geosite-private-loon.list, policy=🏠 局域网直连, tag=geosite-private-lan-direct, enabled=true
-# https://rules.example.com/rules/geosite-category-ads-all-loon.list, policy=🚫 拦截, tag=geosite-category-ads-all-ad-block, enabled=true
 # https://rules.example.com/rules/geosite-cn-loon.list, policy=🇨🇳 国内直连, tag=geosite-cn-domestic-direct, enabled=true
 
 # Default Final Policy (请在 Loon 主配置 [Rule] 中保持兜底策略): FINAL,🚀 代理
@@ -820,17 +873,44 @@ Filter-⚡ 全部节点（自动） = NameRegex, FilterKey="(?i)^(?!.*(?:(?:流�
 🎯 直连 = select, DIRECT, 🚀 代理
 🏠 局域网直连 = select, DIRECT, 🚀 代理
 🚫 拦截 = select, REJECT, REJECT-DROP, DIRECT
+📱 国内应用直连 = select, DIRECT, 🚀 代理
 🇨🇳 国内直连 = select, DIRECT, 🚀 代理
 ⚡ 全部节点（自动） = url-test, Filter-⚡ 全部节点（自动）, url=https://cp.cloudflare.com/generate_204, interval=300, tolerance=50
 
 [Rule]
+# [Inlined Remote Rule Required] geosite-private (https://rules.example.com/rules/geosite-private-loon.list) -> 🏠 局域网直连
 GEOIP,PRIVATE,🏠 局域网直连,no-resolve
+# [Inlined Remote Rule Required] geosite-category-ads-all (https://rules.example.com/rules/geosite-category-ads-all-loon.list) -> 🚫 拦截
+DOMAIN-SUFFIX,weixin.qq.com,📱 国内应用直连
+DOMAIN-SUFFIX,wx.qq.com,📱 国内应用直连
+DOMAIN-SUFFIX,weixinbridge.com,📱 国内应用直连
+DOMAIN-SUFFIX,servicewechat.com,📱 国内应用直连
+DOMAIN-SUFFIX,wechat.com,📱 国内应用直连
+DOMAIN-SUFFIX,qpic.cn,📱 国内应用直连
+DOMAIN-SUFFIX,qlogo.cn,📱 国内应用直连
+DOMAIN-SUFFIX,tenpay.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipay.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipayobjects.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipay.cn,📱 国内应用直连
+DOMAIN-SUFFIX,icbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,ccb.com,📱 国内应用直连
+DOMAIN-SUFFIX,abchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,boc.cn,📱 国内应用直连
+DOMAIN-SUFFIX,bankofchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,bankcomm.com,📱 国内应用直连
+DOMAIN-SUFFIX,cmbchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,spdb.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cib.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cmbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cebbank.com,📱 国内应用直连
+DOMAIN-SUFFIX,psbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,citicbank.com,📱 国内应用直连
+DOMAIN-SUFFIX,95516.com,📱 国内应用直连
+DOMAIN-SUFFIX,unionpay.com,📱 国内应用直连
 GEOIP,CN,🇨🇳 国内直连,no-resolve
 FINAL,🚀 代理
 
 [Remote Rule]
-https://rules.example.com/rules/geosite-private-loon.list, policy=🏠 局域网直连, tag=geosite-private-lan-direct, enabled=true
-https://rules.example.com/rules/geosite-category-ads-all-loon.list, policy=🚫 拦截, tag=geosite-category-ads-all-ad-block, enabled=true
 https://rules.example.com/rules/geosite-cn-loon.list, policy=🇨🇳 国内直连, tag=geosite-cn-domestic-direct, enabled=true
 "
 `;
@@ -842,12 +922,38 @@ exports[`compileLoon — simple complexity starter × (full/minimal) snapshots >
 # Output: minimal
 # UPDATED: 2026-01-01T00:00:00.000Z
 
+# [Inlined Remote Rule Required] geosite-private (https://rules.example.com/rules/geosite-private-loon.list) -> 🏠 局域网直连
 GEOIP,PRIVATE,🏠 局域网直连,no-resolve
+# [Inlined Remote Rule Required] geosite-category-ads-all (https://rules.example.com/rules/geosite-category-ads-all-loon.list) -> 🚫 拦截
+DOMAIN-SUFFIX,weixin.qq.com,📱 国内应用直连
+DOMAIN-SUFFIX,wx.qq.com,📱 国内应用直连
+DOMAIN-SUFFIX,weixinbridge.com,📱 国内应用直连
+DOMAIN-SUFFIX,servicewechat.com,📱 国内应用直连
+DOMAIN-SUFFIX,wechat.com,📱 国内应用直连
+DOMAIN-SUFFIX,qpic.cn,📱 国内应用直连
+DOMAIN-SUFFIX,qlogo.cn,📱 国内应用直连
+DOMAIN-SUFFIX,tenpay.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipay.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipayobjects.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipay.cn,📱 国内应用直连
+DOMAIN-SUFFIX,icbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,ccb.com,📱 国内应用直连
+DOMAIN-SUFFIX,abchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,boc.cn,📱 国内应用直连
+DOMAIN-SUFFIX,bankofchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,bankcomm.com,📱 国内应用直连
+DOMAIN-SUFFIX,cmbchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,spdb.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cib.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cmbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cebbank.com,📱 国内应用直连
+DOMAIN-SUFFIX,psbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,citicbank.com,📱 国内应用直连
+DOMAIN-SUFFIX,95516.com,📱 国内应用直连
+DOMAIN-SUFFIX,unionpay.com,📱 国内应用直连
 GEOIP,CN,🇨🇳 国内直连,no-resolve
 
 # [Remote Rule] 以下远程规则列表请按需在 Loon 远程规则中添加：
-# https://rules.example.com/rules/geosite-private-loon.list, policy=🏠 局域网直连, tag=geosite-private-lan-direct, enabled=true
-# https://rules.example.com/rules/geosite-category-ads-all-loon.list, policy=🚫 拦截, tag=geosite-category-ads-all-ad-block, enabled=true
 # https://rules.example.com/rules/geosite-cn-loon.list, policy=🇨🇳 国内直连, tag=geosite-cn-domestic-direct, enabled=true
 
 # Default Final Policy (请在 Loon 主配置 [Rule] 中保持兜底策略): FINAL,🚀 代理

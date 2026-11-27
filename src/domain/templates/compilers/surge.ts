@@ -676,7 +676,9 @@ function formatSurgeRuleValue(ruleType: string, rawValue: string): string {
     if (!cleaned) return '';
     return quoteSurgeParam(cleaned);
   }
-  return sanitizeSurgeRuleValue(rawValue);
+  const value = sanitizeSurgeRuleValue(rawValue);
+  if (ruleType === 'NETWORK') return value.toUpperCase();
+  return value;
 }
 
 function compileSurgeConditionExpr(

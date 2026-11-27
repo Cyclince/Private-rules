@@ -4,18 +4,13 @@ import type { ResolvedTemplate } from '../model';
 import { BLOCK_ENCRYPTED_DNS_CARD_ID, blockEncryptedDnsModule } from './block-encrypted-dns';
 import { APPLE_PUSH_DIRECT_CARD_ID, applePushDirectModule } from './apple-push-direct';
 import { BT_DIRECT_CARD_ID, btDirectModule } from './bt-direct';
+import { DISABLE_QUIC_CARD_ID, DISABLE_QUIC_MODULE_ID, disableQuicModule } from './disable-quic';
 import { DNS_LEAK_FINAL_CARD_ID, dnsLeakGuardModule } from './dns-leak';
 import { DOMESTIC_APPS_DIRECT_CARD_ID, domesticAppsDirectModule } from './domestic-apps-direct';
 import { GAME_DOWNLOAD_DIRECT_CARD_ID, gameDownloadDirectModule } from './game-download';
 import { ipNoResolveModule } from './no-resolve';
 import { PRIVACY_TRACKER_BLOCK_CARD_ID, privacyTrackerBlockModule } from './privacy-tracker-block';
-import {
-  MIHOMO_DEFAULT_SNIFFER_PATCH,
-  MIHOMO_SNIFFER_DISABLED_PATCH,
-  SNIFFER_MODULE_ID,
-  shouldEmitSniffer,
-  snifferModule,
-} from './sniffer';
+import { MIHOMO_DEFAULT_SNIFFER_PATCH, SNIFFER_MODULE_ID, shouldEmitSniffer, snifferModule } from './sniffer';
 import { TUN_PATCH_KEY, TUN_MODE_MODULE_ID, tunModeModule } from './tun-mode';
 import { TUNNEL_DIRECT_CARD_ID, tunnelDirectModule } from './tunnel-direct';
 import {
@@ -36,11 +31,12 @@ export {
   APPLE_PUSH_DIRECT_CARD_ID,
   BLOCK_ENCRYPTED_DNS_CARD_ID,
   BT_DIRECT_CARD_ID,
+  DISABLE_QUIC_CARD_ID,
+  DISABLE_QUIC_MODULE_ID,
   DNS_LEAK_FINAL_CARD_ID,
   DOMESTIC_APPS_DIRECT_CARD_ID,
   GAME_DOWNLOAD_DIRECT_CARD_ID,
   MIHOMO_DEFAULT_SNIFFER_PATCH,
-  MIHOMO_SNIFFER_DISABLED_PATCH,
   PRIVACY_TRACKER_BLOCK_CARD_ID,
   SNIFFER_MODULE_ID,
   TUNNEL_DIRECT_CARD_ID,
@@ -51,6 +47,7 @@ export {
   applePushDirectModule,
   blockEncryptedDnsModule,
   btDirectModule,
+  disableQuicModule,
   dnsLeakGuardModule,
   domesticAppsDirectModule,
   gameDownloadDirectModule,
@@ -113,6 +110,7 @@ export const ENHANCEMENT_MODULES: readonly EnhancementModule[] = [
   privacyTrackerBlockModule,
   blockEncryptedDnsModule,
   snifferModule,
+  disableQuicModule,
   gameDownloadDirectModule,
   applePushDirectModule,
   domesticAppsDirectModule,
@@ -130,6 +128,7 @@ export const ENHANCEMENT_MODULES: readonly EnhancementModule[] = [
 export const MODULE_AUXILIARY_CARD_IDS: readonly string[] = [
   PRIVACY_TRACKER_BLOCK_CARD_ID,
   BLOCK_ENCRYPTED_DNS_CARD_ID,
+  DISABLE_QUIC_CARD_ID,
   GAME_DOWNLOAD_DIRECT_CARD_ID,
   APPLE_PUSH_DIRECT_CARD_ID,
   DOMESTIC_APPS_DIRECT_CARD_ID,

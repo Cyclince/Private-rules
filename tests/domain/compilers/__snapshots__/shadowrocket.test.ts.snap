@@ -457,6 +457,7 @@ always-real-ip = *.lan, *.local, time.*.com, ntp.*.com, *.msftconnecttest.com
 🎯 直连 = select, DIRECT, 🚀 代理
 🏠 局域网直连 = select, DIRECT, 🚀 代理
 🚫 拦截 = select, REJECT, REJECT-DROP, DIRECT
+📱 国内应用直连 = select, DIRECT, 🚀 代理
 🇨🇳 国内直连 = select, DIRECT, 🚀 代理
 ⚡ 全部节点（自动） = url-test, policy-regex-filter=(?i)^(?!.*(?:(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel))).*$, url=https://cp.cloudflare.com/generate_204, interval=300, tolerance=50
 
@@ -464,6 +465,32 @@ always-real-ip = *.lan, *.local, time.*.com, ntp.*.com, *.msftconnecttest.com
 RULE-SET,https://rules.example.com/rules/geosite-private-shadowrocket.list,🏠 局域网直连
 GEOIP,PRIVATE,🏠 局域网直连,no-resolve
 RULE-SET,https://rules.example.com/rules/geosite-category-ads-all-shadowrocket.list,🚫 拦截
+DOMAIN-SUFFIX,weixin.qq.com,📱 国内应用直连
+DOMAIN-SUFFIX,wx.qq.com,📱 国内应用直连
+DOMAIN-SUFFIX,weixinbridge.com,📱 国内应用直连
+DOMAIN-SUFFIX,servicewechat.com,📱 国内应用直连
+DOMAIN-SUFFIX,wechat.com,📱 国内应用直连
+DOMAIN-SUFFIX,qpic.cn,📱 国内应用直连
+DOMAIN-SUFFIX,qlogo.cn,📱 国内应用直连
+DOMAIN-SUFFIX,tenpay.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipay.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipayobjects.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipay.cn,📱 国内应用直连
+DOMAIN-SUFFIX,icbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,ccb.com,📱 国内应用直连
+DOMAIN-SUFFIX,abchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,boc.cn,📱 国内应用直连
+DOMAIN-SUFFIX,bankofchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,bankcomm.com,📱 国内应用直连
+DOMAIN-SUFFIX,cmbchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,spdb.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cib.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cmbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cebbank.com,📱 国内应用直连
+DOMAIN-SUFFIX,psbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,citicbank.com,📱 国内应用直连
+DOMAIN-SUFFIX,95516.com,📱 国内应用直连
+DOMAIN-SUFFIX,unionpay.com,📱 国内应用直连
 RULE-SET,https://rules.example.com/rules/geosite-cn-shadowrocket.list,🇨🇳 国内直连
 GEOIP,CN,🇨🇳 国内直连,no-resolve
 FINAL,🚀 代理
@@ -481,6 +508,7 @@ exports[`compileShadowrocket — simple complexity starter × (full/minimal) sna
 🎯 直连 = select, DIRECT, 🚀 代理
 🏠 局域网直连 = select, DIRECT, 🚀 代理
 🚫 拦截 = select, REJECT, REJECT-DROP, DIRECT
+📱 国内应用直连 = select, DIRECT, 🚀 代理
 🇨🇳 国内直连 = select, DIRECT, 🚀 代理
 ⚡ 全部节点（自动） = url-test, policy-regex-filter=(?i)^(?!.*(?:(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel))).*$, url=https://cp.cloudflare.com/generate_204, interval=300, tolerance=50
 
@@ -488,6 +516,32 @@ exports[`compileShadowrocket — simple complexity starter × (full/minimal) sna
 RULE-SET,https://rules.example.com/rules/geosite-private-shadowrocket.list,🏠 局域网直连
 GEOIP,PRIVATE,🏠 局域网直连,no-resolve
 RULE-SET,https://rules.example.com/rules/geosite-category-ads-all-shadowrocket.list,🚫 拦截
+DOMAIN-SUFFIX,weixin.qq.com,📱 国内应用直连
+DOMAIN-SUFFIX,wx.qq.com,📱 国内应用直连
+DOMAIN-SUFFIX,weixinbridge.com,📱 国内应用直连
+DOMAIN-SUFFIX,servicewechat.com,📱 国内应用直连
+DOMAIN-SUFFIX,wechat.com,📱 国内应用直连
+DOMAIN-SUFFIX,qpic.cn,📱 国内应用直连
+DOMAIN-SUFFIX,qlogo.cn,📱 国内应用直连
+DOMAIN-SUFFIX,tenpay.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipay.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipayobjects.com,📱 国内应用直连
+DOMAIN-SUFFIX,alipay.cn,📱 国内应用直连
+DOMAIN-SUFFIX,icbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,ccb.com,📱 国内应用直连
+DOMAIN-SUFFIX,abchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,boc.cn,📱 国内应用直连
+DOMAIN-SUFFIX,bankofchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,bankcomm.com,📱 国内应用直连
+DOMAIN-SUFFIX,cmbchina.com,📱 国内应用直连
+DOMAIN-SUFFIX,spdb.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cib.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cmbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,cebbank.com,📱 国内应用直连
+DOMAIN-SUFFIX,psbc.com.cn,📱 国内应用直连
+DOMAIN-SUFFIX,citicbank.com,📱 国内应用直连
+DOMAIN-SUFFIX,95516.com,📱 国内应用直连
+DOMAIN-SUFFIX,unionpay.com,📱 国内应用直连
 RULE-SET,https://rules.example.com/rules/geosite-cn-shadowrocket.list,🇨🇳 国内直连
 GEOIP,CN,🇨🇳 国内直连,no-resolve
 FINAL,🚀 代理

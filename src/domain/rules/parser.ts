@@ -124,6 +124,12 @@ export function parseRuleInput(
       `${type === 'DST-PORT' ? '目标' : '来源'}端口格式不正确，请输入 1-65535 范围内的端口或端口区间`,
     );
   }
+  if (type === 'NETWORK') {
+    if (!/^[a-z0-9-]+$/i.test(value)) {
+      throw new AppError('VALIDATION_FAILED', '网络协议格式不正确，请输入 UDP 或 TCP');
+    }
+    value = value.toUpperCase();
+  }
 
   let displayType: string;
   if (wildcard && type === 'DOMAIN-SUFFIX') displayType = '通配域名';

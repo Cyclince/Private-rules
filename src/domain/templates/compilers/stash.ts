@@ -533,13 +533,14 @@ function compileStashConditionExpr(
 
     const aliasedType = STASH_CAPS.ruleTypeAliases[type] ?? type;
     const emittedType = type === 'IP-CIDR' && cleanValue.includes(':') ? STASH_CAPS.ipV6RuleType : aliasedType;
+    const formattedValue = type === 'NETWORK' ? cleanValue.toLowerCase() : cleanValue;
     const noResolve = Boolean(options?.noResolve && STASH_CAPS.noResolveRuleTypes.has(type));
-    const inner = noResolve ? `${emittedType},${cleanValue},no-resolve` : `${emittedType},${cleanValue}`;
+    const inner = noResolve ? `${emittedType},${formattedValue},no-resolve` : `${emittedType},${formattedValue}`;
     return {
       inner,
       leafParts: {
         type: emittedType,
-        value: cleanValue,
+        value: formattedValue,
         noResolve,
       },
     };

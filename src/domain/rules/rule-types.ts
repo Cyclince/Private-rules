@@ -15,6 +15,7 @@ export const RULE_TYPES: DomainRuleType[] = [
   'PROCESS-NAME',
   'USER-AGENT',
   'URL-REGEX',
+  'NETWORK',
 ];
 
 export const FRIENDLY_RULE_TYPE: Record<DomainRuleType, string> = {
@@ -32,6 +33,7 @@ export const FRIENDLY_RULE_TYPE: Record<DomainRuleType, string> = {
   'PROCESS-NAME': '程序名',
   'USER-AGENT': '应用标识（User-Agent）',
   'URL-REGEX': '网址正则',
+  NETWORK: '传输协议',
 };
 
 export const FRIENDLY_RULE_TYPES = [
@@ -55,6 +57,7 @@ function ruleTypeDescription(type: DomainRuleType) {
     'PROCESS-NAME': '按电脑上的程序匹配，手机客户端不生效。例：Telegram.exe',
     'USER-AGENT': '按 App 发出的标识匹配，只有少数客户端支持',
     'URL-REGEX': '按完整网址匹配，主要用于 iOS 客户端，适合熟悉正则的用户',
+    NETWORK: '按传输层或连接协议匹配（常见为 UDP 或 TCP），通常配合端口规则使用',
   };
   return descriptions[type];
 }

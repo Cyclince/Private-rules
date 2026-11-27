@@ -20,7 +20,8 @@ export type FriendlyRuleTypeKey =
   | 'ruleType.GEOIP'
   | 'ruleType.PROCESS-NAME'
   | 'ruleType.USER-AGENT'
-  | 'ruleType.URL-REGEX';
+  | 'ruleType.URL-REGEX'
+  | 'ruleType.NETWORK';
 
 export type FriendlyRuleTypeDescKey =
   | 'ruleTypeDesc.AUTO'
@@ -37,7 +38,8 @@ export type FriendlyRuleTypeDescKey =
   | 'ruleTypeDesc.GEOIP'
   | 'ruleTypeDesc.PROCESS-NAME'
   | 'ruleTypeDesc.USER-AGENT'
-  | 'ruleTypeDesc.URL-REGEX';
+  | 'ruleTypeDesc.URL-REGEX'
+  | 'ruleTypeDesc.NETWORK';
 
 export type FriendlyRuleInlineKey =
   | 'ruleInline.domainSuffix'
@@ -146,6 +148,7 @@ const TYPE_KEY_MAP: Record<DomainRuleType, FriendlyRuleTypeKey> = {
   'PROCESS-NAME': 'ruleType.PROCESS-NAME',
   'USER-AGENT': 'ruleType.USER-AGENT',
   'URL-REGEX': 'ruleType.URL-REGEX',
+  NETWORK: 'ruleType.NETWORK',
 };
 
 const OPTION_LABEL_KEY_MAP: Record<DomainRuleType, FriendlyRuleTypeKey> = {
@@ -168,6 +171,7 @@ const TYPE_DESC_KEY_MAP: Record<DomainRuleType, FriendlyRuleTypeDescKey> = {
   'PROCESS-NAME': 'ruleTypeDesc.PROCESS-NAME',
   'USER-AGENT': 'ruleTypeDesc.USER-AGENT',
   'URL-REGEX': 'ruleTypeDesc.URL-REGEX',
+  NETWORK: 'ruleTypeDesc.NETWORK',
 };
 
 const IPV4_REGEX = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?:\/(\d{1,2}))?$/;

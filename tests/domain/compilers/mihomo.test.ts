@@ -63,6 +63,7 @@ describe('client capability matrix (mihomo official fields)', () => {
     expect(mihomo.supportsProxyProviderOverrideUdp).toBe(true);
 
     expect(isRuleTypeSupported('mihomo', 'DOMAIN-SUFFIX')).toBe(true);
+    expect(isRuleTypeSupported('mihomo', 'NETWORK')).toBe(true);
     expect(isRuleTypeSupported('mihomo', 'USER-AGENT')).toBe(false);
     expect(isRuleTypeSupported('mihomo', 'URL-REGEX')).toBe(false);
     expect(isGroupTypeSupported('mihomo', 'fallback')).toBe(true);

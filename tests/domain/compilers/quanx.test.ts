@@ -80,10 +80,11 @@ describe('client capability matrix (Quantumult X official docs audit)', () => {
       'USER-AGENT': 'user-agent',
     });
 
-    // 7 of 14 canonical rule types supported
+    // 7 of 15 canonical rule types supported
     expect(qx.supportedRuleTypes.size).toBe(7);
     expect(isRuleTypeSupported('quantumult-x', 'DOMAIN')).toBe(true);
     expect(isRuleTypeSupported('quantumult-x', 'USER-AGENT')).toBe(true);
+    expect(isRuleTypeSupported('quantumult-x', 'NETWORK')).toBe(false);
     expect(isRuleTypeSupported('quantumult-x', 'DST-PORT')).toBe(false);
     expect(isRuleTypeSupported('quantumult-x', 'PROCESS-NAME')).toBe(false);
     expect(isRuleTypeSupported('quantumult-x', 'URL-REGEX')).toBe(false);

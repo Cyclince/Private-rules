@@ -2,11 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
 import { BUILTIN_CARDS } from '../../src/builtin/cards';
 import { BUILTIN_CATALOG } from '../../src/builtin/catalog';
-import { buildStarterTemplate } from '../../src/builtin/templates';
+import { buildComplexityStarterTemplate, buildStarterTemplate } from '../../src/builtin/templates';
 import {
   ModuleConflictError,
   applyEnhancementModules,
+  buildDefaultModulesForComplexity,
+  compileLoon,
   compileMihomo,
+  compileQuanx,
+  compileShadowrocket,
+  compileSingbox,
+  compileStash,
   compileSurge,
   probeTemplate,
   resolveTemplateCards,
@@ -15,11 +21,12 @@ import {
 import {
   APPLE_PUSH_DIRECT_CARD_ID,
   BT_DIRECT_CARD_ID,
+  DISABLE_QUIC_CARD_ID,
+  DISABLE_QUIC_MODULE_ID,
   DOMESTIC_APPS_DIRECT_CARD_ID,
   ENHANCEMENT_MODULES,
-  MODULE_AUXILIARY_CARD_IDS,
   MIHOMO_DEFAULT_SNIFFER_PATCH,
-  MIHOMO_SNIFFER_DISABLED_PATCH,
+  MODULE_AUXILIARY_CARD_IDS,
   PRIVACY_TRACKER_BLOCK_CARD_ID,
   SNIFFER_MODULE_ID,
   TUN_MODE_MODULE_ID,
@@ -43,6 +50,7 @@ const STANDARD_SLOT_BINDINGS = {
 const NEW_MODULE_IDS = [
   'privacy-tracker-block',
   'sniffer',
+  'disable-quic',
   'apple-push-direct',
   'domestic-apps-direct',
   'bt-direct',
@@ -54,10 +62,11 @@ type ModuleId = (typeof NEW_MODULE_IDS)[number];
 const EXPECTED_TIERS: Record<ModuleId, ModuleTierDefaults> = {
   'privacy-tracker-block': { simple: false, advanced: false, pro: true },
   sniffer: { simple: false, advanced: true, pro: true },
+  'disable-quic': { simple: false, advanced: false, pro: true },
   'apple-push-direct': { simple: false, advanced: true, pro: true },
   'domestic-apps-direct': { simple: true, advanced: true, pro: true },
   'bt-direct': { simple: false, advanced: false, pro: true },
-  'tun-mode': { simple: false, advanced: false, pro: true },
+  'tun-mode': { simple: false, advanced: false, pro: false },
 };
 
 function buildBody(modules: readonly { id: string; enabled: boolean }[] = []) {
@@ -92,7 +101,7 @@ function appliedTemplate(body: ReturnType<typeof buildBody>['body']) {
 function probeIn(
   body: ReturnType<typeof buildBody>['body'],
   target: string,
-  meta?: { processName?: string; dstPort?: number },
+  meta?: { processName?: string; dstPort?: number; network?: string },
 ) {
   const applied = appliedTemplate(body);
   return probeTemplate({
@@ -117,6 +126,17 @@ describe('N4 §5.2 enhancement modules — metadata, tiers and conflicts', () =>
     // Only mihomo can express a sniffer section / TUN runtime block today.
     expect(byId.get('sniffer')!.supportedClients).toEqual(['mihomo']);
     expect(byId.get('tun-mode')!.supportedClients).toEqual(['mihomo']);
+    // disable-quic works on every client that supports UDP/network + port + AND logic (all except quantumult-x).
+    expect(byId.get(DISABLE_QUIC_MODULE_ID)!.group).toBe('accuracy');
+    expect(byId.get(DISABLE_QUIC_MODULE_ID)!.conflictsWith).toEqual([]);
+    expect(byId.get(DISABLE_QUIC_MODULE_ID)!.supportedClients).toEqual([
+      'mihomo',
+      'stash',
+      'surge',
+      'sing-box',
+      'loon',
+      'shadowrocket',
+    ]);
     // The remaining additions are pure rule cards and work on every compiled client.
     for (const id of ['privacy-tracker-block', 'apple-push-direct', 'domestic-apps-direct', 'bt-direct'] as const) {
       expect(byId.get(id)!.supportedClients).toEqual([
@@ -281,9 +301,14 @@ describe('N4 §5.2 enhancement modules — mihomo output per module', () => {
     expect(conditions.some((cond) => cond.op === 'rule' && cond.rule.type === 'DST-PORT')).toBe(true);
   });
 
-  it('sniffer keeps exactly one compiler-written block and neutralises it when explicitly disabled', () => {
+  it('sniffer keeps exactly one compiler-written block and omits sniffer completely when explicitly disabled', () => {
+    const { body: baselineBody } = buildBody();
     const { body } = buildBody([{ id: 'sniffer', enabled: true }]);
-    const enabledDoc = docOf(body);
+    const baselineYaml = compileMihomoBody(baselineBody).content;
+    const enabledYaml = compileMihomoBody(body).content;
+    expect(enabledYaml).toBe(baselineYaml);
+
+    const enabledDoc = parseYaml(enabledYaml) as Record<string, unknown>;
     const sniffer = enabledDoc.sniffer as Record<string, unknown>;
     expect(sniffer.enable).toBe(true);
     expect((sniffer.sniff as Record<string, unknown>).QUIC).toBeTruthy();
@@ -293,10 +318,11 @@ describe('N4 §5.2 enhancement modules — mihomo output per module', () => {
       ...body,
       modules: [...body.modules.filter((mod) => mod.id !== 'sniffer'), { id: 'sniffer', enabled: false }],
     };
-    const disabledDoc = docOf(disabled);
-    expect((disabledDoc.sniffer as Record<string, unknown>).enable).toBe(false);
-    // Only one sniffer mapping is emitted (the compiler block plus the patch, merged into one key).
-    expect(compileMihomoBody(disabled).content.match(/^sniffer:/gm)).toHaveLength(1);
+    const disabledCompiled = compileMihomoBody(disabled);
+    const disabledDoc = parseYaml(disabledCompiled.content) as Record<string, unknown>;
+    expect(disabledDoc.sniffer).toBeUndefined();
+    expect(disabledCompiled.content).not.toMatch(/^sniffer:/m);
+    expect(appliedTemplate(disabled).body.clientPatches?.mihomo).toBeUndefined();
 
     expect(shouldEmitSniffer([])).toBe(true);
     expect(shouldEmitSniffer([{ id: 'sniffer', enabled: false }])).toBe(false);
@@ -345,6 +371,7 @@ describe('N4 §5.2 enhancement modules — mihomo output per module', () => {
       .map((entry) => entry.cardId)
       .filter((cardId) => MODULE_AUXILIARY_CARD_IDS.includes(cardId));
     expect(order).toEqual([
+      DISABLE_QUIC_CARD_ID,
       PRIVACY_TRACKER_BLOCK_CARD_ID,
       'module-game-download-direct',
       APPLE_PUSH_DIRECT_CARD_ID,
@@ -402,7 +429,7 @@ describe('N4 §5.2 enhancement modules — mihomo output per module', () => {
     expect(compiled.content).not.toContain('tun:');
   });
 
-  it('leaves minimal output alone (no sniffer to neutralise) and notes runtime modules', () => {
+  it('leaves minimal output cleanly without sniffer and notes runtime modules', () => {
     const tpl = buildStarterTemplate('standard', { output: 'minimal' });
     const snifferOff = {
       ...structuredClone(tpl.baseBody),
@@ -412,6 +439,7 @@ describe('N4 §5.2 enhancement modules — mihomo output per module', () => {
     const res = applyEnhancementModules(resolveTemplateCards(snifferOff, BUILTIN_CARDS), { client: 'mihomo' });
     expect(res.disabled).toEqual([]);
     expect(res.template.body.clientPatches?.mihomo).toBeUndefined();
+    expect(compileMihomoBody(snifferOff).content).not.toMatch(/^sniffer:/m);
 
     const withTun = {
       ...structuredClone(tpl.baseBody),
@@ -423,13 +451,101 @@ describe('N4 §5.2 enhancement modules — mihomo output per module', () => {
     expect(tunRes.notes.some((note) => note.includes('运行参数'))).toBe(true);
   });
 
-  it('documents the T1 sniffer block and the switch-off patch', () => {
+  it('documents the T1 sniffer block accurately', () => {
     // Mirrors `compileSnifferSection()` — used for documentation and drift detection only.
     expect(MIHOMO_DEFAULT_SNIFFER_PATCH).toContain('sniffer:');
     expect(MIHOMO_DEFAULT_SNIFFER_PATCH).toContain('QUIC:');
     expect(MIHOMO_DEFAULT_SNIFFER_PATCH).toContain('enable: true');
+  });
 
-    expect(MIHOMO_SNIFFER_DISABLED_PATCH).toContain('sniffer:');
-    expect(MIHOMO_SNIFFER_DISABLED_PATCH).toContain('enable: false');
+  it('hides module auxiliary groups across all complexity tiers and preserves visible group counts', () => {
+    const simpleTpl = buildComplexityStarterTemplate('simple');
+    const simpleDoc = parseYaml(compileMihomoBody(simpleTpl.baseBody).content) as Record<string, unknown>;
+    const simpleVisible = (simpleDoc['proxy-groups'] as Array<Record<string, unknown>>)
+      .filter((g) => g.hidden !== true)
+      .map((g) => g.name);
+    expect(simpleVisible).toEqual(['🚀 代理', '🎯 直连', '🚫 拦截']);
+
+    const advBase = buildComplexityStarterTemplate('advanced').baseBody;
+    const advWithModules = {
+      ...structuredClone(advBase),
+      modules: buildDefaultModulesForComplexity('advanced'),
+    };
+    const advDoc = parseYaml(compileMihomoBody(advWithModules).content) as Record<string, unknown>;
+    const advGroups = advDoc['proxy-groups'] as Array<Record<string, unknown>>;
+    const advVisibleNames = advGroups.filter((g) => g.hidden !== true).map((g) => String(g.name));
+    // 12 core/business visible groups from recommended + 🔒 防泄漏兜底 (`module-dns-leak-final`), while
+    // module auxiliary groups (`苹果推送直连` / `国内应用直连` / `隧道直连` 等) remain hidden.
+    expect(advVisibleNames.length).toBeLessThanOrEqual(13);
+    expect(advVisibleNames.length).toBeGreaterThanOrEqual(8);
+    expect(advVisibleNames).not.toContain('🍎 Apple 推送直连');
+    expect(advVisibleNames).not.toContain('📱 国内应用直连');
+    expect(advGroups.find((g) => g.name === '🍎 Apple 推送直连')?.hidden).toBe(true);
+    expect(advGroups.find((g) => g.name === '📱 国内应用直连')?.hidden).toBe(true);
+  });
+
+  it('compiles disable-quic across supported clients, hits UDP/443 in probe, and skips Quantumult X', () => {
+    const { body } = buildBody([{ id: DISABLE_QUIC_MODULE_ID, enabled: true }]);
+    const mihomoDoc = docOf(body);
+    const mihomoRules = rulesOf(mihomoDoc);
+    expect(mihomoRules).toContain('AND,((NETWORK,UDP),(DST-PORT,443)),🛑 禁用 QUIC');
+    const quicGroup = (mihomoDoc['proxy-groups'] as Array<Record<string, unknown>>).find(
+      (g) => g.name === '🛑 禁用 QUIC',
+    );
+    expect(quicGroup).toMatchObject({ type: 'select', proxies: ['REJECT', 'REJECT-DROP'], hidden: true });
+
+    // Probe matches UDP/443, ignores TCP/443, and coexists cleanly with game-download-direct
+    expect(probeIn(body, 'https://www.youtube.com', { dstPort: 443, network: 'udp' }).cardId).toBe(
+      DISABLE_QUIC_CARD_ID,
+    );
+    expect(probeIn(body, 'https://www.youtube.com', { dstPort: 443, network: 'tcp' }).cardId).not.toBe(
+      DISABLE_QUIC_CARD_ID,
+    );
+
+    const commonInput = {
+      body,
+      cards: BUILTIN_CARDS,
+      catalogIndex: BUILTIN_CATALOG,
+      generatedAt: FIXED_GENERATED_AT,
+      baseUrl: FIXED_BASE_URL,
+      rulesetBehaviors: new Map(),
+      slotBindings: STANDARD_SLOT_BINDINGS,
+      experimentalFullConfig: true,
+    };
+
+    const stashRes = compileStash(commonInput);
+    expect(stashRes.content).toContain('AND,((NETWORK,udp),(DST-PORT,443)),🛑 禁用 QUIC');
+
+    const surgeRes = compileSurge(commonInput);
+    expect(surgeRes.content).toContain('AND,((PROTOCOL,UDP),(DEST-PORT,443)),🛑 禁用 QUIC');
+
+    const loonRes = compileLoon(commonInput);
+    expect(loonRes.content).toContain('AND,((PROTOCOL,UDP),(DEST-PORT,443)),🛑 禁用 QUIC');
+
+    const srRes = compileShadowrocket(commonInput);
+    expect(srRes.content).toContain('AND,((PROTOCOL,UDP),(DST-PORT,443)),🛑 禁用 QUIC');
+    expect(srRes.report.items.some((i) => i.code === 'UNSUPPORTED_RULE_TYPE')).toBe(false);
+
+    const sbRes = compileSingbox(commonInput);
+    const sbJson = JSON.parse(sbRes.content) as { route: { rules: Array<Record<string, unknown>> } };
+    expect(
+      sbJson.route.rules.some(
+        (rule) =>
+          rule.type === 'logical' &&
+          rule.mode === 'and' &&
+          Array.isArray(rule.rules) &&
+          JSON.stringify(rule.rules).includes('"network":["udp"]') &&
+          JSON.stringify(rule.rules).includes('"port":[443]'),
+      ),
+    ).toBe(true);
+
+    const qxRes = compileQuanx(commonInput);
+    expect(qxRes.report.stats?.skippedModules).toContain(DISABLE_QUIC_MODULE_ID);
+    expect(
+      qxRes.report.items.some(
+        (item) => item.code === 'MODULE_SKIPPED' && item.location?.moduleId === DISABLE_QUIC_MODULE_ID,
+      ),
+    ).toBe(true);
+    expect(qxRes.content).not.toContain('禁用 QUIC');
   });
 });
