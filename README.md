@@ -211,7 +211,7 @@ Compose 已启用 `TRUST_PROXY`。不要允许不受信任的上游覆盖 `Host`
 
 - Android Chromium 在满足安装条件后会调用系统安装面板；
 - iPhone 与 iPad 会显示 Safari“分享 → 添加到主屏幕”的对应步骤；
-- Service Worker（`v3`）仅缓存静态外壳资产，严格不缓存 `/api`、`/rules`、`/sub`、`/p`、`/t` 与 `/health`。
+- Service Worker（`v4`）仅缓存静态外壳资产，严格不缓存 `/api`、`/rules`、`/sub`、`/p`、`/t` 与 `/health`。
 
 ## 订阅格式
 

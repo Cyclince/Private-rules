@@ -1,10 +1,10 @@
-const CACHE_NAME = 'private-rules-pwa-v3';
+const CACHE_NAME = 'private-rules-pwa-v4';
 const APP_SHELL = [
   '/pwa-install',
   '/manifest.webmanifest',
   '/pwa-icon-192.png',
   '/pwa-icon-512.png',
-  '/apple-touch-icon-1.0.6.png',
+  '/apple-touch-icon-1.1.0.png',
 ];
 
 const NO_CACHE_PATH = /^\/(api|rules|sub|p|t|health)(\/|$)/;

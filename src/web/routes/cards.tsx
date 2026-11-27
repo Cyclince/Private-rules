@@ -9,6 +9,7 @@ import { SectionSubNav } from '../components/layout/SectionSubNav';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { EmptyState } from '../components/ui/empty-state';
 import { Input } from '../components/ui/input';
 import { loadPageTranslations, useI18n, type MessageKey } from '../i18n';
 import { api, formatApiError, readApiJson } from '../lib/api';
@@ -332,8 +333,8 @@ function CardsPage() {
         </div>
       ) : filteredCards.length === 0 ? (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-text-muted" data-testid="cards-empty">
-            {t('cards.empty')}
+          <CardContent className="pt-5">
+            <EmptyState data-testid="cards-empty" title={t('cards.empty')} className="border-0 bg-transparent py-6" />
           </CardContent>
         </Card>
       ) : (

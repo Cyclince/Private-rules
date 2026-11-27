@@ -10,6 +10,7 @@ import { useToast } from '../../lib/toast';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { EmptyState } from '../ui/empty-state';
 import { Switch } from '../ui/switch';
 
 const SourceFormDialog = lazy(() => import('./SourceFormDialog').then((m) => ({ default: m.SourceFormDialog })));
@@ -181,12 +182,7 @@ export function SourcesPanel({ rulesetId }: SourcesPanelProps) {
         {sourcesQuery.isLoading ? (
           <div className="h-20 animate-pulse rounded bg-surface-muted" />
         ) : sources.length === 0 ? (
-          <div
-            data-testid="sources-empty"
-            className="rounded-[var(--radius-md)] border border-border bg-surface-muted/40 py-8 text-center text-sm text-text-muted"
-          >
-            {t('sources.empty')}
-          </div>
+          <EmptyState data-testid="sources-empty" title={t('sources.empty')} />
         ) : (
           <div className="flex flex-col gap-2.5" data-testid="sources-list">
             {sources.map((source) => {

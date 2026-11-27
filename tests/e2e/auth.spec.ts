@@ -66,12 +66,12 @@ test('PWA install page and install metadata are available without authentication
   const swRes = await request.get('/sw.js');
   expect(swRes.status()).toBe(200);
   const swText = await swRes.text();
-  expect(swText).toContain('private-rules-pwa-v3');
+  expect(swText).toContain('private-rules-pwa-v4');
   expect(swText).toContain('api|rules|sub');
 
   expect((await request.get('/pwa-icon-192.png')).status()).toBe(200);
   expect((await request.get('/pwa-icon-512.png')).status()).toBe(200);
-  const appleIcon = await request.get('/apple-touch-icon-1.0.6.png');
+  const appleIcon = await request.get('/apple-touch-icon-1.1.0.png');
   expect(appleIcon.status()).toBe(200);
   expect(appleIcon.headers()['content-type']).toContain('image/png');
 });

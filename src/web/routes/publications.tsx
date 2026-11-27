@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { AlertTriangle, Code2, Link2, Lock, Pencil, Plus, Search, Send, ShieldAlert, Trash2 } from 'lucide-react';
+import { AlertTriangle, Code2, Link2, Lock, Pencil, Plus, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import type { PublicationWithLinks } from '../../server/routes/publications';
 import {
@@ -15,6 +15,7 @@ import { PublicationLinksCard } from '../components/publications/PublicationLink
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { EmptyState } from '../components/ui/empty-state';
 import { Input } from '../components/ui/input';
 import { loadPageTranslations, useI18n, type MessageKey } from '../i18n';
 import { api, formatApiError, readApiJson } from '../lib/api';
@@ -315,13 +316,25 @@ function PublicationsPage() {
             </>
           ) : filteredPublications.length === 0 ? (
             <Card>
-              <CardContent
-                className="flex flex-col items-center gap-2 py-8 text-center"
-                data-testid="publications-empty"
-              >
-                <Send className="h-6 w-6 text-text-muted" />
-                <div className="text-sm font-medium text-text">{t('publications.emptyList')}</div>
-                <p className="text-xs text-text-muted">{t('publications.emptyListHint')}</p>
+              <CardContent className="pt-5">
+                <EmptyState
+                  compact
+                  data-testid="publications-empty"
+                  title={t('publications.emptyList')}
+                  description={t('publications.emptyListHint')}
+                  action={
+                    !inTelegram && !searchQ && !activeClient ? (
+                      <Button
+                        size="sm"
+                        onClick={() => setFormDialog({ open: true, mode: 'create', publication: null })}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>{t('publications.create')}</span>
+                      </Button>
+                    ) : undefined
+                  }
+                  className="border-0 bg-transparent px-2 py-4"
+                />
               </CardContent>
             </Card>
           ) : (

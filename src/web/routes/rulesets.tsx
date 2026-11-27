@@ -42,6 +42,7 @@ const SourcesPanel = lazy(() =>
 );
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { EmptyState } from '../components/ui/empty-state';
 import { Input } from '../components/ui/input';
 import { Switch } from '../components/ui/switch';
 import { loadPageTranslations, useI18n } from '../i18n';
@@ -628,7 +629,18 @@ function RulesetsPage() {
                 <div className="h-14 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
               </div>
             ) : filteredCategories.length === 0 ? (
-              <p className="py-6 text-center text-sm text-text-muted">{t('rulesets.emptyList')}</p>
+              <EmptyState
+                compact
+                title={t('rulesets.emptyList')}
+                action={
+                  !isTelegram && !search.q ? (
+                    <Button size="sm" onClick={() => setRulesetDialog({ open: true, mode: 'create' })}>
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>{t('rulesets.create')}</span>
+                    </Button>
+                  ) : undefined
+                }
+              />
             ) : (
               filteredCategories.map((item) => {
                 const isSelected = selectedRuleset?.id === item.id;
@@ -973,12 +985,7 @@ function RulesetsPage() {
                         <div className="h-11 animate-pulse rounded bg-surface-muted" />
                       </div>
                     ) : rules.length === 0 ? (
-                      <div
-                        data-testid="rules-empty-state"
-                        className="rounded-[var(--radius-md)] border border-border bg-surface-muted/40 py-8 text-center text-sm text-text-muted"
-                      >
-                        {t('rules.emptyRules')}
-                      </div>
+                      <EmptyState data-testid="rules-empty-state" title={t('rules.emptyRules')} />
                     ) : (
                       <div
                         className="flex flex-col divide-y divide-border rounded-[var(--radius-md)] border border-border"

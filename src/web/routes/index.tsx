@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { AlertTriangle, CheckCircle2, FolderKanban, Globe, Layers, RefreshCw, Sparkles } from 'lucide-react';
 import { useState } from 'react';
-import loginBgUrl from '../assets/miku-login-bg.webp';
+import dashboardBannerUrl from '../assets/miku-dashboard-banner.webp';
 import { loadPageTranslations, useI18n } from '../i18n';
 import { api, formatApiError, readApiJson } from '../lib/api';
 import { requireAuthBeforeLoad } from '../lib/auth-guard';
@@ -120,22 +120,24 @@ function DashboardPage() {
   return (
     <div className="flex flex-col gap-5" data-testid="dashboard-page">
       <section className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface text-text shadow-sm">
-        <div className="relative h-40 w-full overflow-hidden border-b border-border bg-surface-muted sm:h-44">
+        <div className="relative h-40 w-full overflow-hidden border-b border-border bg-[#0b1418] sm:h-44">
           <img
-            src={loginBgUrl}
+            src={dashboardBannerUrl}
             alt={t('dashboard.title')}
-            className="h-full w-full object-cover object-center opacity-85"
+            decoding="async"
+            className="h-full w-full object-cover object-[85%_25%] opacity-95"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-bg/95 via-bg/55 to-transparent" />
-          <div className="absolute bottom-4 left-5 right-5 flex flex-col gap-1">
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0b1418]/92 via-[#0b1418]/65 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-[#0b1418]/75 to-transparent" />
+          <div className="absolute bottom-4 left-5 right-5 flex max-w-xl flex-col gap-1">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span className="text-xs font-medium text-primary">
+              <Sparkles className="h-4 w-4 text-[#39c5bb]" />
+              <span className="text-xs font-medium text-[#39c5bb]">
                 Private Rules · {healthQuery.data?.version ?? '1.1.0'}
               </span>
             </div>
-            <h2 className="text-xl font-semibold tracking-tight text-text">{t('dashboard.title')}</h2>
-            <p className="text-sm text-text-muted">{t('dashboard.subtitle')}</p>
+            <h2 className="text-xl font-semibold tracking-tight text-[#e8f4f4]">{t('dashboard.title')}</h2>
+            <p className="text-sm text-[#b7d3d9]">{t('dashboard.subtitle')}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">

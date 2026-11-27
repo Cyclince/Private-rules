@@ -70,10 +70,15 @@ describe('M2.1 build-time i18n, zero runtime OpenCC, and WebP assets', () => {
     }
   });
 
-  it('stores valid WebP placeholder assets in src/web/assets/ each <= 150KB and documents licenses in THIRD-PARTY-NOTICES.md', async () => {
+  it('stores valid WebP assets in src/web/assets/ each <= 150KB and documents licenses in THIRD-PARTY-NOTICES.md', async () => {
     const assetsDir = join(WEB_DIR, 'assets');
     const files = (await readdir(assetsDir)).filter((name) => name.endsWith('.webp')).sort();
-    expect(files).toEqual(['miku-about-emblem.webp', 'miku-empty-state.webp', 'miku-login-bg.webp']);
+    expect(files).toEqual([
+      'miku-about-emblem.webp',
+      'miku-dashboard-banner.webp',
+      'miku-empty-state.webp',
+      'miku-login-bg.webp',
+    ]);
 
     for (const name of files) {
       const fullPath = join(assetsDir, name);

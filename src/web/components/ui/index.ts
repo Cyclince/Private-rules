@@ -23,6 +23,7 @@ export {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './dropdown-menu';
+export { EmptyState, type EmptyStateProps } from './empty-state';
 export { Input, type InputProps } from './input';
 export {
   Select,

@@ -10,6 +10,7 @@ import type { CreateTemplateSubmitPayload } from '../components/templates/Create
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { EmptyState } from '../components/ui/empty-state';
 import { Input } from '../components/ui/input';
 import { loadPageTranslations, useI18n } from '../i18n';
 import { api, formatApiError, readApiJson } from '../lib/api';
@@ -248,13 +249,19 @@ function TemplatesListPage() {
               <div className="h-32 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
             </div>
           ) : templates.length === 0 ? (
-            <div
+            <EmptyState
               data-testid="templates-empty"
-              className="rounded-[var(--radius-md)] border border-dashed border-border bg-surface-muted/50 p-6 text-center"
-            >
-              <p className="text-sm font-medium text-text">{t('templates.emptyTitle')}</p>
-              <p className="mt-1 text-xs text-text-muted">{t('templates.emptyHint')}</p>
-            </div>
+              title={t('templates.emptyTitle')}
+              description={t('templates.emptyHint')}
+              action={
+                !inTelegram && !searchQ ? (
+                  <Button size="sm" onClick={() => setCreateDialog({ open: true, tier: null })}>
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>{t('templates.createBlankBtn')}</span>
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <div data-testid="templates-list" className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {templates.map((tpl) => (

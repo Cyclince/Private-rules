@@ -8,6 +8,7 @@ import { SectionSubNav } from '../components/layout/SectionSubNav';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { EmptyState } from '../components/ui/empty-state';
 import { Input } from '../components/ui/input';
 import { loadPageTranslations, useI18n, type MessageKey } from '../i18n';
 import { requireAuthBeforeLoad } from '../lib/auth-guard';
@@ -316,8 +317,12 @@ function CatalogPage() {
         </div>
       ) : roots.length === 0 ? (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-text-muted" data-testid="catalog-empty">
-            {t('catalog.empty')}
+          <CardContent className="pt-5">
+            <EmptyState
+              data-testid="catalog-empty"
+              title={t('catalog.empty')}
+              className="border-0 bg-transparent py-6"
+            />
           </CardContent>
         </Card>
       ) : (
