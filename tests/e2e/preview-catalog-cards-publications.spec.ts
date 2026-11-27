@@ -103,11 +103,15 @@ test.describe('M2b Consolidated Scenes Library, Community Rules Picker, and Adva
         const slotId = tplPayload.resolvedBody.slots[0]?.id ?? 'slot-main';
 
         // ============================================================
-        // 1. SCENES LIBRARY (/admin/templates/scenes): community rules browser + detail drawer inside scene editor
+        // 1. POLICY GROUPS (/admin/templates/groups): community rules browser + detail drawer inside the editor
         // ============================================================
-        await page.goto('/admin/templates/scenes');
+        await page.goto('/admin/templates/groups');
         await expect(page.getByTestId('cards-page')).toBeVisible();
         await expect(page.getByTestId('cards-list')).toBeVisible();
+        // Policy groups are listed by category section with an icon in the heading (r2 §4.2).
+        await expect(page.getByTestId('policy-group-section-base')).toBeVisible();
+        await expect(page.getByTestId('policy-group-section-ai')).toContainText('AI');
+        await expect(page.getByTestId('policy-group-section-privacy')).toBeVisible();
         await expectNoHorizontalOverflow(page);
 
         // Open New Scene dialog -> browse community rules (replaces standalone /catalog page)
@@ -146,7 +150,7 @@ test.describe('M2b Consolidated Scenes Library, Community Rules Picker, and Adva
         await expect(page.getByTestId('card-form-dialog')).toBeHidden();
 
         // ============================================================
-        // 2. SCENES LIBRARY: builtin/user/fork, view, "复制并修改", edit, create, delete
+        // 2. POLICY GROUPS: builtin/user/fork, view, "复制并修改", edit, create, delete
         // ============================================================
         await page.getByTestId('cards-origin-builtin').click();
         await page.getByTestId('cards-category-ai').click();
@@ -425,7 +429,7 @@ test.describe('M2b Consolidated Scenes Library, Community Rules Picker, and Adva
     }
   });
 
-  test('Telegram Mini App session renders scenes library and template detail (normal & advanced) read-only', async ({
+  test('Telegram Mini App session renders the policy group library and template detail (normal & advanced) read-only', async ({
     page,
   }) => {
     await signInAdmin(page);
@@ -476,7 +480,7 @@ test.describe('M2b Consolidated Scenes Library, Community Rules Picker, and Adva
       await page.setViewportSize({ width: 390, height: 844 });
 
       // Scenes library shows Telegram read-only notice and disables write buttons
-      await page.goto('/admin/templates/scenes');
+      await page.goto('/admin/templates/groups');
       await expect(page.getByTestId('cards-telegram-readonly')).toBeVisible();
       await expect(page.getByTestId('cards-create-btn')).toBeDisabled();
       await expect(page.getByTestId('card-fork-openai')).toBeDisabled();

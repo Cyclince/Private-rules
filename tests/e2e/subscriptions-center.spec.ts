@@ -181,7 +181,7 @@ test.describe('M1a Navigation, Routing, and Subscription Center', () => {
     }
   });
 
-  test('390px mobile bottom nav renders all 5 items and template SectionSubNav has 模板/场景库 with old routes redirecting', async ({
+  test('390px mobile bottom nav renders all 5 items and template SectionSubNav has 模板/策略组 with old routes redirecting', async ({
     page,
   }) => {
     await signInAdmin(page);
@@ -199,27 +199,31 @@ test.describe('M1a Navigation, Routing, and Subscription Center', () => {
     await page.goto('/admin/rulesets?q=demo&tab=sources');
     await expect(page).toHaveURL(/\/admin\/rules\?q=demo&tab=sources/);
 
-    // Check /admin/templates secondary scene library entry -> 2-tab SectionSubNav (模板 / 场景库)
+    // Check /admin/templates secondary policy group entry -> 2-tab SectionSubNav (模板 / 策略组)
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/admin/templates');
-    await expect(page.getByTestId('templates-scenes-btn')).toHaveText('场景库');
-    await page.getByTestId('templates-scenes-btn').click();
-    await expect(page).toHaveURL(/\/admin\/templates\/scenes/);
+    await expect(page.getByTestId('templates-groups-btn')).toHaveText('策略组');
+    await page.getByTestId('templates-groups-btn').click();
+    await expect(page).toHaveURL(/\/admin\/templates\/groups/);
 
     const subnav = page.getByTestId('section-subnav-templates');
     await expect(subnav).toBeVisible();
     await expect(subnav.getByRole('link')).toHaveCount(2);
     await expect(subnav.getByTestId('subnav-templates')).toHaveText('模板');
-    await expect(subnav.getByTestId('subnav-scenes')).toHaveText('场景库');
+    await expect(subnav.getByTestId('subnav-groups')).toHaveText('策略组');
 
     await subnav.getByTestId('subnav-templates').click();
     await expect(page).toHaveURL(/\/admin\/templates$/);
 
     // Check old routes redirect cleanly
     await page.goto('/admin/cards');
-    await expect(page).toHaveURL(/\/admin\/templates\/scenes/);
+    await expect(page).toHaveURL(/\/admin\/templates\/groups/);
     await page.goto('/admin/catalog');
-    await expect(page).toHaveURL(/\/admin\/templates\/scenes/);
+    await expect(page).toHaveURL(/\/admin\/templates\/groups/);
+    // Old /templates/scenes route redirects to the renamed policy-group library and keeps its search params
+    await page.goto('/admin/templates/scenes?q=ai&origin=builtin');
+    await expect(page).toHaveURL(/\/admin\/templates\/groups\?q=ai&origin=builtin/);
+    await expect(page.getByTestId('cards-page')).toBeVisible();
     await page.goto('/admin/publications');
     await expect(page).toHaveURL(/\/admin\/templates$/);
   });

@@ -5,7 +5,8 @@ import { E2E_ORIGIN } from '../helpers/e2e-env';
 const ORIGIN = E2E_ORIGIN;
 const JSON_HEADERS = { origin: ORIGIN, 'content-type': 'application/json' };
 
-const FORBIDDEN_PLAIN_WORDS = ['槽位', '组件', '发布', '策略组'] as const;
+// "策略组" is a user-facing term since r2 §4.1, so it is no longer forbidden here.
+const FORBIDDEN_PLAIN_WORDS = ['槽位', '组件', '发布'] as const;
 const FORBIDDEN_PLAIN_REGEXES = [/\bfull\b/i, /\bminimal\b/i, /\bfork\b/i, /\boverlay\b/i] as const;
 
 async function signInAdmin(page: Page) {
@@ -191,7 +192,7 @@ test.describe('M2b Template Detail 3-Tab Simple Flows, Redirects & Mobile Layout
       expect(await srAfterSubRes.text()).toContain('[Proxy Group]');
 
       // ------------------------------------------------------------
-      // 390px mobile layout: zero horizontal overflow across all 3 tabs (normal & advanced) + scenes library
+      // 390px mobile layout: zero horizontal overflow across all 3 tabs (normal & advanced) + policy group library
       // ------------------------------------------------------------
       await page.setViewportSize({ width: 390, height: 844 });
       for (const tab of ['routing', 'nodes', 'output'] as const) {
@@ -215,11 +216,11 @@ test.describe('M2b Template Detail 3-Tab Simple Flows, Redirects & Mobile Layout
       await expect(page).toHaveURL(/\/admin\/templates$/);
 
       await page.goto('/admin/cards');
-      await expect(page).toHaveURL(/\/admin\/templates\/scenes/);
+      await expect(page).toHaveURL(/\/admin\/templates\/groups/);
       await expectNoHorizontalOverflow(page);
 
       await page.goto('/admin/catalog');
-      await expect(page).toHaveURL(/\/admin\/templates\/scenes/);
+      await expect(page).toHaveURL(/\/admin\/templates\/groups/);
       await expectNoHorizontalOverflow(page);
     } finally {
       for (const pubId of pubIdsToClean) {

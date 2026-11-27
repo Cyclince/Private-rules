@@ -26,6 +26,7 @@ const NORMAL_FILES = [
   'src/web/components/templates/TemplateSimpleNodesTab.tsx',
   'src/web/components/templates/TemplateSimpleOutputTab.tsx',
   'src/web/components/templates/AddClientDialog.tsx',
+  'src/web/routes/templates.groups.tsx',
   'src/web/components/apps/AppPicker.tsx',
   'src/web/components/apps/AppIcon.tsx',
 ];
@@ -50,14 +51,16 @@ const NORMAL_PREFIXES = [
   'ruleInline.',
   'cards.',
   'catalog.',
+  'taxonomy.',
   'apps.',
 ];
 
 // Explicit exceptions for advanced editing and original syntax / type-guide examples.
-// Scene-library files and advanced-only components are deliberately not in NORMAL_FILES.
+// The policy-group editor vocabulary stays whitelisted; advanced-only components are deliberately
+// not in NORMAL_FILES. "策略组" itself is a user-facing term (design revision r2 §4.1).
 const ALLOWED_TECHNICAL_PREFIXES = [
   'subscriptions.examplePolicyHint', // Localized guidance within the configuration example, not ordinary copy.
-  'cards.', // Scene-library editor vocabulary.
+  'cards.', // Policy-group editor vocabulary (matcher kinds, rule syntax placeholders).
   'catalog.', // Community scene/rule library examples.
   'templates.editor',
   'templates.probe',
@@ -69,8 +72,9 @@ const ALLOWED_TECHNICAL_PREFIXES = [
   'import.textarea',
   'ruleTypeDesc.',
 ];
+// "策略组" is intentionally allowed: it is the user-visible name of a policy group (r2 §4.1).
 const FORBIDDEN =
-  /槽位|组件|发布|full|minimal|Fork|策略组|overlay|DOMAIN-|IP-CIDR|no-resolve|内核|语法|格式|YAML|LIST|JSON/i;
+  /槽位|组件|发布|full|minimal|Fork|overlay|DOMAIN-|IP-CIDR|no-resolve|内核|语法|格式|YAML|LIST|JSON/i;
 
 function allowed(key: string) {
   return ALLOWED_TECHNICAL_PREFIXES.some((prefix) => key.startsWith(prefix));
@@ -120,7 +124,6 @@ describe('F7 ordinary-page Chinese copy', () => {
       'full',
       'minimal',
       'Fork',
-      '策略组',
       'overlay',
       'DOMAIN-SUFFIX',
       'IP-CIDR',
@@ -135,7 +138,8 @@ describe('F7 ordinary-page Chinese copy', () => {
       expect(violations([['wizard.step1Desc', term]])).toHaveLength(1);
     }
     expect(violations([['templateDetail.outputDesc', '发布到策略组']])).toHaveLength(1);
-    expect(violations([['subscriptions.exampleTitle', '策略组']])).toHaveLength(1);
+    expect(violations([['subscriptions.exampleTitle', '策略组']])).toEqual([]);
+    expect(violations([['cards.subtitle', '策略组 = 一类网站走哪条线路']])).toEqual([]);
     expect(violations([['subscriptions.examplePolicyHint', '把 PROXY 换成策略组名称']])).toEqual([]);
     expect(violations([['templates.deleteConfirmBody', '发布配置']])).toHaveLength(1);
     expect(

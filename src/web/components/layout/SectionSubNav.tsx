@@ -12,7 +12,7 @@ type SectionTab = {
 
 const TEMPLATES_TABS: readonly SectionTab[] = [
   { to: '/templates', labelKey: 'nav.templates', testId: 'subnav-templates', exact: true },
-  { to: '/templates/scenes', labelKey: 'nav.cards', testId: 'subnav-scenes' },
+  { to: '/templates/groups', labelKey: 'nav.cards', testId: 'subnav-groups' },
 ];
 
 export function SectionSubNav({ section }: { section: 'templates' }) {

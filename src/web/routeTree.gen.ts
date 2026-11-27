@@ -22,6 +22,7 @@ import { Route as SubscriptionsIndexRouteImport } from './routes/subscriptions.i
 import { Route as SubscriptionsIdRouteImport } from './routes/subscriptions.$id'
 import { Route as TemplatesIndexRouteImport } from './routes/templates.index'
 import { Route as TemplatesIdRouteImport } from './routes/templates.$id'
+import { Route as TemplatesGroupsRouteImport } from './routes/templates.groups'
 import { Route as TemplatesNewRouteImport } from './routes/templates.new'
 import { Route as TemplatesScenesRouteImport } from './routes/templates.scenes'
 
@@ -90,6 +91,11 @@ const TemplatesIdRoute = TemplatesIdRouteImport.update({
   path: '/templates/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TemplatesGroupsRoute = TemplatesGroupsRouteImport.update({
+  id: '/templates/groups',
+  path: '/templates/groups',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TemplatesNewRoute = TemplatesNewRouteImport.update({
   id: '/templates/new',
   path: '/templates/new',
@@ -112,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/rules/$id': typeof RulesIdRoute
   '/subscriptions/$id': typeof SubscriptionsIdRoute
   '/templates/$id': typeof TemplatesIdRoute
+  '/templates/groups': typeof TemplatesGroupsRoute
   '/templates/new': typeof TemplatesNewRoute
   '/templates/scenes': typeof TemplatesScenesRoute
   '/rules/': typeof RulesIndexRoute
@@ -129,6 +136,7 @@ export interface FileRoutesByTo {
   '/rules/$id': typeof RulesIdRoute
   '/subscriptions/$id': typeof SubscriptionsIdRoute
   '/templates/$id': typeof TemplatesIdRoute
+  '/templates/groups': typeof TemplatesGroupsRoute
   '/templates/new': typeof TemplatesNewRoute
   '/templates/scenes': typeof TemplatesScenesRoute
   '/rules': typeof RulesIndexRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   '/rules/$id': typeof RulesIdRoute
   '/subscriptions/$id': typeof SubscriptionsIdRoute
   '/templates/$id': typeof TemplatesIdRoute
+  '/templates/groups': typeof TemplatesGroupsRoute
   '/templates/new': typeof TemplatesNewRoute
   '/templates/scenes': typeof TemplatesScenesRoute
   '/rules/': typeof RulesIndexRoute
@@ -166,6 +175,7 @@ export interface FileRouteTypes {
     | '/rules/$id'
     | '/subscriptions/$id'
     | '/templates/$id'
+    | '/templates/groups'
     | '/templates/new'
     | '/templates/scenes'
     | '/rules/'
@@ -183,6 +193,7 @@ export interface FileRouteTypes {
     | '/rules/$id'
     | '/subscriptions/$id'
     | '/templates/$id'
+    | '/templates/groups'
     | '/templates/new'
     | '/templates/scenes'
     | '/rules'
@@ -200,6 +211,7 @@ export interface FileRouteTypes {
     | '/rules/$id'
     | '/subscriptions/$id'
     | '/templates/$id'
+    | '/templates/groups'
     | '/templates/new'
     | '/templates/scenes'
     | '/rules/'
@@ -218,6 +230,7 @@ export interface RootRouteChildren {
   RulesIdRoute: typeof RulesIdRoute
   SubscriptionsIdRoute: typeof SubscriptionsIdRoute
   TemplatesIdRoute: typeof TemplatesIdRoute
+  TemplatesGroupsRoute: typeof TemplatesGroupsRoute
   TemplatesNewRoute: typeof TemplatesNewRoute
   TemplatesScenesRoute: typeof TemplatesScenesRoute
   RulesIndexRoute: typeof RulesIndexRoute
@@ -318,6 +331,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TemplatesIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/templates/groups': {
+      id: '/templates/groups'
+      path: '/templates/groups'
+      fullPath: '/templates/groups'
+      preLoaderRoute: typeof TemplatesGroupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/templates/new': {
       id: '/templates/new'
       path: '/templates/new'
@@ -346,6 +366,7 @@ const rootRouteChildren: RootRouteChildren = {
   RulesIdRoute: RulesIdRoute,
   SubscriptionsIdRoute: SubscriptionsIdRoute,
   TemplatesIdRoute: TemplatesIdRoute,
+  TemplatesGroupsRoute: TemplatesGroupsRoute,
   TemplatesNewRoute: TemplatesNewRoute,
   TemplatesScenesRoute: TemplatesScenesRoute,
   RulesIndexRoute: RulesIndexRoute,

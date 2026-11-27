@@ -9,7 +9,7 @@ export const Route = createFileRoute('/cards')({
       if (typeof value === 'string' && value) nextSearch[key] = value;
     }
     throw redirect({
-      to: '/templates/scenes',
+      to: '/templates/groups',
       search: nextSearch,
       replace: true,
     });

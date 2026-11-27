@@ -300,8 +300,8 @@ function TemplatesListPage() {
           ) : null}
 
           <Link
-            to="/templates/scenes"
-            data-testid="templates-scenes-btn"
+            to="/templates/groups"
+            data-testid="templates-groups-btn"
             className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[var(--radius-md)] border border-border bg-surface px-3 text-sm font-medium text-text transition-colors hover:bg-surface-muted"
           >
             <Layers className="h-4 w-4 text-text-muted" />

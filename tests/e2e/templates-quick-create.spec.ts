@@ -5,7 +5,8 @@ import { parse as parseYaml } from 'yaml';
 const ORIGIN = E2E_ORIGIN;
 const JSON_HEADERS = { origin: ORIGIN, 'content-type': 'application/json' };
 
-const FORBIDDEN_PLAIN_WORDS = ['槽位', '组件', '发布', '策略组'] as const;
+// "策略组" is a user-facing term since r2 §4.1, so it is no longer forbidden here.
+const FORBIDDEN_PLAIN_WORDS = ['槽位', '组件', '发布'] as const;
 const FORBIDDEN_PLAIN_REGEXES = [/\bfull\b/i, /\bminimal\b/i, /\bfork\b/i, /\boverlay\b/i] as const;
 
 async function signInAdmin(page: Page) {

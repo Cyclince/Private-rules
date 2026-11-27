@@ -10,7 +10,13 @@ import {
   normalizeStarterTier,
 } from '../../src/builtin';
 import { checkStageOrdering, resolveTemplateCards, validateTemplateGraph } from '../../src/domain/templates';
-import { CATALOG_CATEGORY_VALUES, appCardSchema, catalogEntrySchema, templateSchema } from '../../src/shared/schemas';
+import {
+  CATALOG_CATEGORY_VALUES,
+  LEGACY_CATALOG_CATEGORY_VALUES,
+  appCardSchema,
+  catalogEntrySchema,
+  templateSchema,
+} from '../../src/shared/schemas';
 import type { AppCard } from '../../src/shared/schemas/card';
 import type { TemplateBody } from '../../src/shared/schemas/template';
 
@@ -29,10 +35,14 @@ describe('built-in catalog, starter cards, and 3-tier starter templates', () => 
       expect(parsed.sourceUrl).toMatch(/^https:\/\//);
     }
 
-    // All 8 catalog categories are covered
-    for (const category of CATALOG_CATEGORY_VALUES) {
-      expect(categoriesSeen.has(category)).toBe(true);
+    // Categories must all come from the 15 current ids (r2 §4.2), never a legacy id.
+    const primaryCategories = new Set<string>(CATALOG_CATEGORY_VALUES);
+    for (const category of categoriesSeen) {
+      expect(primaryCategories.has(category)).toBe(true);
+      expect(LEGACY_CATALOG_CATEGORY_VALUES as readonly string[]).not.toContain(category);
     }
+    // The rule catalog covers most categories; shopping groups need dedicated rules (D14 draft).
+    expect(categoriesSeen.size).toBeGreaterThanOrEqual(12);
 
     // Every parentId references an existing catalog entry
     for (const entry of BUILTIN_CATALOG) {
@@ -57,9 +67,14 @@ describe('built-in catalog, starter cards, and 3-tier starter templates', () => 
       categoriesSeen.add(parsed.category);
     }
 
-    for (const category of CATALOG_CATEGORY_VALUES) {
-      expect(categoriesSeen.has(category)).toBe(true);
+    // Every starter card uses one of the 15 current categories; the remaining categories
+    // (finance, shopping) ship in the D14 draft before they get built-in cards.
+    const primaryCategories = new Set<string>(CATALOG_CATEGORY_VALUES);
+    for (const category of categoriesSeen) {
+      expect(primaryCategories.has(category)).toBe(true);
+      expect(LEGACY_CATALOG_CATEGORY_VALUES as readonly string[]).not.toContain(category);
     }
+    expect(categoriesSeen.size).toBeGreaterThanOrEqual(12);
   });
 
   it.each(STARTER_TEMPLATE_TIERS)(

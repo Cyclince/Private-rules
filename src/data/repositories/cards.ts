@@ -1,6 +1,7 @@
 import { asc, eq } from 'drizzle-orm';
 import {
   appCardBodySchema,
+  normalizeCatalogCategory,
   type AppCard,
   type AppCardBody,
   type CardOrigin,
@@ -36,7 +37,8 @@ export function mapAppCardRow(row: AppCardRow): AppCard {
     slug: row.slug,
     name: row.name,
     icon: row.icon ?? undefined,
-    category: row.category as CatalogCategory,
+    // Legacy ids (`advertising`, `infrastructure`) map to current categories on read; rows stay untouched.
+    category: (normalizeCatalogCategory(row.category) ?? 'other') as CatalogCategory,
     stage: body.stage,
     group: body.group,
     matchers: body.matchers,

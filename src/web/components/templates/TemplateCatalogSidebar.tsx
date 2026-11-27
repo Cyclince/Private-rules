@@ -2,7 +2,8 @@ import { Blocks, BookOpen, Check, Plus, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { CatalogItem } from '../../../application/catalog';
 import { getStageMetadata } from '../../../domain/templates/stages';
-import type { AppCard, CatalogCategory } from '../../../shared/schemas/card';
+import { CATALOG_CATEGORY_VALUES, type CatalogCategory } from '../../../shared/app-categories';
+import type { AppCard } from '../../../shared/schemas/card';
 import { useI18n, type MessageKey } from '../../i18n';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -16,17 +17,7 @@ type TemplateCatalogSidebarProps = {
   onAddCard: (card: AppCard) => void;
 };
 
-const CATEGORIES: ReadonlyArray<CatalogCategory | 'all'> = [
-  'all',
-  'ai',
-  'streaming',
-  'social',
-  'gaming',
-  'advertising',
-  'domestic',
-  'infrastructure',
-  'other',
-];
+const CATEGORIES: ReadonlyArray<CatalogCategory | 'all'> = ['all', ...CATALOG_CATEGORY_VALUES];
 
 export function TemplateCatalogSidebar({
   cards,

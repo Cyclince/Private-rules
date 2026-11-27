@@ -1,6 +1,11 @@
 import { asc, eq } from 'drizzle-orm';
 import type { DatabasePort } from '../../application/ports/database';
-import type { CatalogCategory, CatalogDefaultRoute, CatalogEntry } from '../../shared/schemas/card';
+import {
+  normalizeCatalogCategory,
+  type CatalogCategory,
+  type CatalogDefaultRoute,
+  type CatalogEntry,
+} from '../../shared/schemas/card';
 import type { AppDatabase } from '../db';
 import { catalogEntries } from '../schema';
 
@@ -25,7 +30,8 @@ export function mapCatalogEntryRow(row: CatalogEntryRow): CatalogEntry {
     parentId: row.parentId ?? undefined,
     name: row.name,
     aliases: parseAliases(row.aliases),
-    category: row.category as CatalogCategory,
+    // Legacy ids (`advertising`, `infrastructure`) map to current categories on read; rows stay untouched.
+    category: (normalizeCatalogCategory(row.category) ?? 'other') as CatalogCategory,
     defaultRoute: row.defaultRoute as CatalogDefaultRoute,
     sourceUrl: row.sourceUrl,
     ruleCount: row.ruleCount ?? null,

@@ -39,8 +39,9 @@ const HKMT_CANDIDATES: PolicyRef[] = [
 ];
 
 /**
- * Built-in starter app cards (~28 cards covering all 8 catalog categories and
- * all 7 rule stratification stages, design §10.4 & §10.10).
+ * Built-in starter policy groups (~30 cards covering 13 of the 15 categories from
+ * design revision r2 §4.2 and all 7 rule stratification stages, design §10.4 & §10.10).
+ * The remaining categories (finance, shopping) are listed in docs/policy-groups-catalog.md (D14).
  *
  * Every card references only GeoSite / GeoIP / built-in catalog IDs / inline
  * port rules; no third-party rule content is bundled.
@@ -52,7 +53,7 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     slug: 'auto-select',
     name: '⚡ 自动选择',
     icon: 'auto',
-    category: 'infrastructure',
+    category: 'base',
     stage: 'proxy-fallback',
     hidden: true,
     origin: 'builtin',
@@ -68,7 +69,7 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     slug: 'proxy-select',
     name: '🚀 节点选择',
     icon: 'proxy',
-    category: 'infrastructure',
+    category: 'base',
     stage: 'proxy-fallback',
     hidden: true,
     origin: 'builtin',
@@ -127,7 +128,7 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     slug: 'ad-block',
     name: '🛡️ 广告拦截',
     icon: 'advertising',
-    category: 'advertising',
+    category: 'privacy',
     stage: 'pre-direct',
     origin: 'builtin',
     group: {
@@ -259,7 +260,7 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     slug: 'bilibili-hkmt',
     name: '📺 哔哩哔哩港澳台',
     icon: 'bilibili',
-    category: 'streaming',
+    category: 'regional-streaming',
     stage: 'app',
     origin: 'builtin',
     group: {
@@ -273,7 +274,7 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     slug: 'spotify',
     name: '🎵 Spotify',
     icon: 'spotify',
-    category: 'streaming',
+    category: 'music',
     stage: 'app',
     origin: 'builtin',
     group: {
@@ -307,7 +308,7 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     slug: 'github',
     name: '🐙 GitHub',
     icon: 'github',
-    category: 'infrastructure',
+    category: 'developer',
     stage: 'app',
     origin: 'builtin',
     group: {
@@ -321,7 +322,7 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     slug: 'google-fcm',
     name: '🔔 Google FCM',
     icon: 'google-fcm',
-    category: 'infrastructure',
+    category: 'cloud-office',
     stage: 'app',
     origin: 'builtin',
     group: {
@@ -339,7 +340,7 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     slug: 'google',
     name: '🔍 Google',
     icon: 'google',
-    category: 'infrastructure',
+    category: 'cloud-office',
     stage: 'app',
     origin: 'builtin',
     group: {
@@ -353,7 +354,7 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     slug: 'apple',
     name: '🍎 Apple',
     icon: 'apple',
-    category: 'infrastructure',
+    category: 'apple',
     stage: 'app',
     origin: 'builtin',
     group: {
@@ -367,7 +368,7 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     slug: 'onedrive',
     name: '☁️ OneDrive',
     icon: 'onedrive',
-    category: 'infrastructure',
+    category: 'cloud-office',
     stage: 'app',
     origin: 'builtin',
     group: {
@@ -381,7 +382,7 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     slug: 'microsoft',
     name: '🪟 Microsoft',
     icon: 'microsoft',
-    category: 'infrastructure',
+    category: 'cloud-office',
     stage: 'app',
     origin: 'builtin',
     group: {
@@ -439,7 +440,7 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     slug: 'gfw-proxy',
     name: '🌐 GFW 代理',
     icon: 'proxy',
-    category: 'infrastructure',
+    category: 'base',
     stage: 'proxy-fallback',
     origin: 'builtin',
     group: {
@@ -459,7 +460,7 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     slug: 'proxy-ip',
     name: '🧭 常用服务 IP',
     icon: 'proxy',
-    category: 'infrastructure',
+    category: 'base',
     stage: 'ip',
     origin: 'builtin',
     group: {
@@ -541,7 +542,7 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     slug: 'final-fallback',
     name: '🐟 漏网之鱼',
     icon: 'final',
-    category: 'other',
+    category: 'base',
     stage: 'final',
     origin: 'builtin',
     group: {

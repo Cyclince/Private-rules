@@ -15,7 +15,7 @@ export const zhCNCore = {
   'nav.subscriptions': '订阅',
   'nav.groupTemplates': '配置模板',
   'nav.catalog': '规则目录',
-  'nav.cards': '场景库',
+  'nav.cards': '策略组',
   'nav.templates': '模板',
   'nav.publications': '发布',
   'nav.settings': '设置',

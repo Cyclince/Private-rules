@@ -1,19 +1,30 @@
 import { z } from 'zod';
 import { ruleOptionsSchema, ruleTypeSchema } from './rule';
 
-/** Categories shared by rule catalog entries and app cards (design §8.3, §10.2). */
-export const CATALOG_CATEGORY_VALUES = [
-  'ai',
-  'streaming',
-  'social',
-  'gaming',
-  'advertising',
-  'domestic',
-  'infrastructure',
-  'other',
-] as const;
-export const catalogCategorySchema = z.enum(CATALOG_CATEGORY_VALUES);
-export type CatalogCategory = z.infer<typeof catalogCategorySchema>;
+// Category vocabulary lives in a dependency-free module so routes can import it without zod.
+export {
+  CATALOG_CATEGORY_VALUES,
+  CATEGORY_EMOJI,
+  LEGACY_CATEGORY_MAP,
+  LEGACY_CATALOG_CATEGORY_VALUES,
+  isPrimaryCatalogCategory,
+  normalizeCatalogCategory,
+} from '../app-categories';
+export type { CatalogCategory, LegacyCatalogCategory, PrimaryCatalogCategory } from '../app-categories';
+
+import {
+  CATALOG_CATEGORY_VALUES as PRIMARY_CATEGORY_VALUES,
+  LEGACY_CATALOG_CATEGORY_VALUES as LEGACY_CATEGORY_VALUES,
+  normalizeCatalogCategory as normalizeCategory,
+  type CatalogCategory as CategoryUnion,
+} from '../app-categories';
+
+/** Accepts both current and legacy ids on input, and always yields a current category. */
+export const catalogCategorySchema = z
+  .union([z.enum(PRIMARY_CATEGORY_VALUES), z.enum(LEGACY_CATEGORY_VALUES)])
+  // Output is typed as CatalogCategory (which still admits the legacy ids) so read paths and
+  // legacy comparisons keep type-checking; runtime values are always one of the 15 categories.
+  .transform((value): CategoryUnion => normalizeCategory(value) ?? 'other');
 
 /** Default route recommendation on rule catalog entries. */
 export const CATALOG_DEFAULT_ROUTE_VALUES = ['proxy', 'direct', 'reject'] as const;

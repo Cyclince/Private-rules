@@ -79,7 +79,7 @@ test.describe('M4.4b Template List & Visual Template Editor', () => {
         await page.goto('/admin/templates');
         await expect(page.getByTestId('templates-page')).toBeVisible();
         await expect(page.getByTestId('templates-new-btn')).toBeVisible();
-        await expect(page.getByTestId('templates-scenes-btn')).toBeVisible();
+        await expect(page.getByTestId('templates-groups-btn')).toBeVisible();
         await expect(page.getByTestId('templates-import-btn')).toBeVisible();
         await expectNoHorizontalOverflow(page);
 

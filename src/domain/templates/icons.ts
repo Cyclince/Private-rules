@@ -1,4 +1,5 @@
 import { rewriteGithubUrl } from '../../lib/github-mirror';
+import { CATEGORY_EMOJI } from '../../shared/app-categories';
 import type { CatalogCategory, GroupType, Matcher } from '../../shared/schemas/card';
 import { detectNodeRegions, getRegionDefinition } from '../nodes';
 
@@ -110,7 +111,116 @@ type ServiceIconRule = {
   packAliases: readonly string[];
 };
 
+/**
+ * Pack names this repository can verify offline: everything shipped in the built-in QureColor
+ * fallback pack plus names that pre-r2 mappings already referenced. New service rules may only
+ * use names from this list; services without a verified icon fall back to their category icon
+ * (design revision r2 §4.3). Enforced by tests/domain/templates-stages-icons-planner.test.ts.
+ */
+const VERIFIED_PACK_ICON_NAMES = [
+  'AI',
+  'Advertising',
+  'Airport',
+  'Apple',
+  'Australia',
+  'Auto',
+  'Available',
+  'Bilibili',
+  'Bot',
+  'Canada',
+  'ChatGPT',
+  'China',
+  'China_Map',
+  'Claude',
+  'Direct',
+  'Discord',
+  'Disney',
+  'Disney+',
+  'Domestic',
+  'Fallback',
+  'Final',
+  'Fish',
+  'France',
+  'Game',
+  'Gemini',
+  'Germany',
+  'GitHub',
+  'Global',
+  'GlobalMedia',
+  'Google',
+  'Google_Search',
+  'Home',
+  'Hong_Kong',
+  'Japan',
+  'Korea',
+  'LoadBalance',
+  'Media',
+  'Microsoft',
+  'Music',
+  'Netflix',
+  'OneDrive',
+  'OpenAI',
+  'PayPal',
+  'Proxy',
+  'Reject',
+  'Rocket',
+  'Round_Robin',
+  'RoundRobin',
+  'Server',
+  'Singapore',
+  'Social',
+  'Speedtest',
+  'Spotify',
+  'Steam',
+  'Streaming',
+  'Taiwan',
+  'Telegram',
+  'TikTok',
+  'Twitter',
+  'United_Kingdom',
+  'United_States',
+  'X',
+  'YouTube',
+  'bilibili',
+] as const;
+
+export const VERIFIED_PACK_ICON_NAME_SET: ReadonlySet<string> = new Set(VERIFIED_PACK_ICON_NAMES);
+
+/**
+ * Service word list for icon recognition (design revision r2 §4.2 example services).
+ * Order matters: specific brands (Apple Music, YouTube Music, iCloud) come before their
+ * umbrella brand (Apple, YouTube). `packAliases` only contains verified Qure names; an empty
+ * list means "no verified icon yet" and the category icon is used instead.
+ */
 const SERVICE_ICON_RULES: readonly ServiceIconRule[] = [
+  // --- Music (before the umbrella video brands) ---
+  {
+    key: 'apple-music',
+    emoji: '🎵',
+    pattern: /\bapple\s*music\b|苹果音乐|蘋果音樂/i,
+    packAliases: ['Apple', 'Music'],
+  },
+  {
+    key: 'youtube-music',
+    emoji: '🎵',
+    pattern: /\byoutube\s*music\b|油管音乐|油管音樂/i,
+    packAliases: ['YouTube', 'Music'],
+  },
+  { key: 'spotify', emoji: '🎵', pattern: /\bspotify\b|声田|聲田/i, packAliases: ['Spotify', 'Music'] },
+  // --- Apple services (before the generic Apple rule) ---
+  {
+    key: 'icloud',
+    emoji: '☁️',
+    pattern: /\bicloud\b|i云|i雲/i,
+    packAliases: ['Apple'],
+  },
+  {
+    key: 'app-store',
+    emoji: '🛍️',
+    pattern: /\bapp\s*store\b|应用商店|應用商店/i,
+    packAliases: ['Apple'],
+  },
+  // --- AI ---
   { key: 'openai', emoji: '🤖', pattern: /\b(openai|chatgpt|gpt)\b/i, packAliases: ['ChatGPT', 'OpenAI', 'Bot', 'AI'] },
   { key: 'claude', emoji: '🧠', pattern: /\b(claude|anthropic)\b/i, packAliases: ['Claude', 'Bot', 'AI'] },
   { key: 'gemini', emoji: '✨', pattern: /\b(gemini|bard)\b/i, packAliases: ['Gemini', 'Google', 'Bot', 'AI'] },
@@ -120,58 +230,166 @@ const SERVICE_ICON_RULES: readonly ServiceIconRule[] = [
     pattern: /\b(ai|copilot|perplexity|midjourney)\b|人工智能|AI\s*服务/i,
     packAliases: ['Bot', 'AI', 'ChatGPT'],
   },
+  // --- International streaming ---
   { key: 'youtube', emoji: '▶️', pattern: /\byoutube\b|油管/i, packAliases: ['YouTube', 'Media'] },
   { key: 'netflix', emoji: '🎬', pattern: /\bnetflix\b|奈飞|網飛|网飞/i, packAliases: ['Netflix', 'Media'] },
   { key: 'disney', emoji: '🏰', pattern: /\bdisney\+?\b|迪士尼/i, packAliases: ['Disney', 'Disney+', 'Media'] },
+  {
+    key: 'hbo',
+    emoji: '🎬',
+    pattern: /\bhbo(?:\s*max)?\b|hbo\s*go/i,
+    packAliases: ['Streaming', 'Media'],
+  },
+  {
+    key: 'prime-video',
+    emoji: '🎬',
+    pattern: /\bprime[-_\s]?video\b|亚马逊视频|亞馬遜視頻/i,
+    packAliases: ['Streaming'],
+  },
+  { key: 'tiktok', emoji: '🎵', pattern: /\btiktok\b|抖音/i, packAliases: ['TikTok', 'Media'] },
+  // --- Greater-China streaming ---
   {
     key: 'bilibili',
     emoji: '📺',
     pattern: /\bbilibili\b|哔哩哔哩|嗶哩嗶哩|b站/i,
     packAliases: ['bilibili', 'Bilibili'],
   },
-  { key: 'spotify', emoji: '🎵', pattern: /\bspotify\b/i, packAliases: ['Spotify', 'Music'] },
-  { key: 'tiktok', emoji: '🎵', pattern: /\btiktok\b|抖音/i, packAliases: ['TikTok', 'Media'] },
+  { key: 'bahamut', emoji: '📺', pattern: /巴哈姆特|\bbahamut\b/i, packAliases: ['Streaming', 'Taiwan'] },
+  {
+    key: 'tvb',
+    emoji: '📺',
+    pattern: /\btvb\b|无线电视|無綫電視|翡翠台/i,
+    packAliases: ['Streaming', 'Hong_Kong', 'Taiwan'],
+  },
+  // --- Social & messaging ---
   { key: 'telegram', emoji: '✈️', pattern: /\btelegram\b|\btg\b|电报|電報/i, packAliases: ['Telegram'] },
   { key: 'twitter', emoji: '𝕏', pattern: /\b(twitter|x\.com)\b|推特/i, packAliases: ['Twitter', 'X'] },
   { key: 'discord', emoji: '💬', pattern: /\bdiscord\b/i, packAliases: ['Discord'] },
+  { key: 'whatsapp', emoji: '💬', pattern: /\bwhatsapp\b|瓦次艾普/i, packAliases: [] },
+  { key: 'line', emoji: '💬', pattern: /\bline\b|ライン/i, packAliases: [] },
+  { key: 'instagram', emoji: '📸', pattern: /\binstagram\b|\big\b|インスタ/i, packAliases: [] },
+  { key: 'facebook', emoji: '👤', pattern: /\bfacebook\b|\bfb\b|脸书|臉書/i, packAliases: [] },
+  // --- Developer ---
   { key: 'github', emoji: '🐙', pattern: /\bgithub\b/i, packAliases: ['GitHub'] },
-  { key: 'google-fcm', emoji: '🔔', pattern: /\b(google[-_\s]?fcm|fcm)\b/i, packAliases: ['Google_Search', 'Google'] },
+  { key: 'gitlab', emoji: '🦊', pattern: /\bgitlab\b/i, packAliases: ['GitHub'] },
+  { key: 'docker', emoji: '🐳', pattern: /\bdocker\b|docker\s*hub/i, packAliases: ['GitHub'] },
+  { key: 'package-registry', emoji: '📦', pattern: /\bnpm\b|\bpypi\b|\bpip\b|包管理器/i, packAliases: ['GitHub'] },
+  // --- Cloud & office ---
+  {
+    key: 'google-fcm',
+    emoji: '🔔',
+    pattern: /\b(google[-_\s]?fcm|fcm)\b/i,
+    packAliases: ['Google_Search', 'Google'],
+  },
   { key: 'google', emoji: '🔍', pattern: /\bgoogle\b|谷歌/i, packAliases: ['Google_Search', 'Google'] },
-  { key: 'apple', emoji: '🍎', pattern: /\b(apple|icloud|appstore)\b|苹果|蘋果/i, packAliases: ['Apple'] },
+  { key: 'apple', emoji: '🍎', pattern: /\b(apple|appstore)\b|苹果|蘋果/i, packAliases: ['Apple'] },
   { key: 'onedrive', emoji: '☁️', pattern: /\bonedrive\b/i, packAliases: ['OneDrive', 'Microsoft'] },
+  { key: 'dropbox', emoji: '☁️', pattern: /\bdropbox\b/i, packAliases: ['OneDrive'] },
+  { key: 'notion', emoji: '📝', pattern: /\bnotion\b/i, packAliases: ['OneDrive'] },
   {
     key: 'microsoft',
     emoji: '🪟',
     pattern: /\b(microsoft|bing|outlook|office)\b|微软|微軟/i,
     packAliases: ['Microsoft'],
   },
+  // --- Gaming ---
   { key: 'steam', emoji: '🎮', pattern: /\bsteam\b/i, packAliases: ['Steam', 'Game'] },
+  { key: 'epic', emoji: '🎮', pattern: /\bepic\b|epic\s*games|虚幻|虛幻/i, packAliases: ['Game', 'Steam'] },
+  { key: 'playstation', emoji: '🎮', pattern: /\bplaystation\b|\bps[45]\b|索尼|sony/i, packAliases: ['Game', 'Steam'] },
+  { key: 'xbox', emoji: '🎮', pattern: /\bxbox\b|微软游戏|微軟遊戲/i, packAliases: ['Game', 'Microsoft'] },
+  { key: 'nintendo', emoji: '🎮', pattern: /\bnintendo\b|任天堂/i, packAliases: ['Game'] },
   {
     key: 'gaming',
     emoji: '🕹️',
-    pattern: /\b(game|gaming|epic|playstation|xbox|nintendo|blizzard)\b|游戏|遊戲/i,
+    pattern: /\b(game|gaming|blizzard)\b|游戏|遊戲/i,
     packAliases: ['Game', 'Steam'],
   },
-  { key: 'speedtest', emoji: '⏱️', pattern: /\b(speedtest|fast\.com)\b|测速|測速/i, packAliases: ['Speedtest'] },
+  // --- Finance & shopping ---
+  { key: 'paypal', emoji: '💳', pattern: /\bpaypal\b/i, packAliases: ['PayPal'] },
+  { key: 'stripe', emoji: '💳', pattern: /\bstripe\b/i, packAliases: ['PayPal'] },
+  {
+    key: 'banking',
+    emoji: '🏦',
+    pattern: /\b(bank|banking|visa|mastercard|swift)\b|银行|銀行|海外支付/i,
+    packAliases: ['PayPal'],
+  },
+  { key: 'amazon', emoji: '🛒', pattern: /\bamazon\b|亚马逊|亞馬遜/i, packAliases: ['Global'] },
+  { key: 'ebay', emoji: '🛒', pattern: /\bebay\b/i, packAliases: ['Global'] },
+  // --- Privacy & tools ---
   {
     key: 'advertising',
     emoji: '🛡️',
     pattern: /\b(adblock|adguard|ads?|reject)\b|广告|廣告|拦截|攔截/i,
     packAliases: ['Advertising', 'Reject'],
   },
-  { key: 'paypal', emoji: '💳', pattern: /\bpaypal\b/i, packAliases: ['PayPal'] },
+  { key: 'speedtest', emoji: '⏱️', pattern: /\b(speedtest|fast\.com)\b|测速|測速/i, packAliases: ['Speedtest'] },
+  {
+    key: 'bt',
+    emoji: '🔗',
+    pattern: /\b(bt|pt|bittorrent|torrent|qbit|transmission)\b|下载工具|下載工具|种子|種子/i,
+    packAliases: [],
+  },
+  {
+    key: 'crypto',
+    emoji: '🪙',
+    pattern: /\b(crypto|bitcoin|binance|coinbase|okx|bybit)\b|加密货币|加密貨幣|虚拟货币|虛擬貨幣/i,
+    packAliases: [],
+  },
 ];
 
+/**
+ * Category fallback icons for all 15 strategy-group categories (design revision r2 §4.2),
+ * plus the two legacy ids so pre-r2 records keep a sensible icon before normalisation.
+ */
 const CATEGORY_ICONS: Record<CatalogCategory, { key: string; emoji: string; packAliases: readonly string[] }> = {
-  ai: { key: 'ai', emoji: '✨', packAliases: ['Bot', 'ChatGPT', 'AI'] },
-  streaming: { key: 'streaming', emoji: '🎬', packAliases: ['Streaming', 'GlobalMedia', 'Media'] },
-  social: { key: 'social', emoji: '💬', packAliases: ['Telegram', 'Social'] },
-  gaming: { key: 'gaming', emoji: '🎮', packAliases: ['Game', 'Steam'] },
-  advertising: { key: 'advertising', emoji: '🛡️', packAliases: ['Advertising', 'Reject'] },
-  domestic: { key: 'domestic', emoji: '🇨🇳', packAliases: ['China_Map', 'China', 'Direct'] },
-  infrastructure: { key: 'infrastructure', emoji: '🌐', packAliases: ['Global', 'Proxy'] },
-  other: { key: 'other', emoji: '📦', packAliases: ['Final', 'Global'] },
+  base: { key: 'base', emoji: CATEGORY_EMOJI.base, packAliases: ['Proxy', 'Auto', 'Direct'] },
+  ai: { key: 'ai', emoji: CATEGORY_EMOJI.ai, packAliases: ['Bot', 'AI', 'ChatGPT'] },
+  social: { key: 'social', emoji: CATEGORY_EMOJI.social, packAliases: ['Telegram', 'Social'] },
+  streaming: { key: 'streaming', emoji: CATEGORY_EMOJI.streaming, packAliases: ['Streaming', 'GlobalMedia', 'Media'] },
+  'regional-streaming': {
+    key: 'regional-streaming',
+    emoji: CATEGORY_EMOJI['regional-streaming'],
+    packAliases: ['Streaming', 'Taiwan', 'Hong_Kong'],
+  },
+  music: { key: 'music', emoji: CATEGORY_EMOJI.music, packAliases: ['Spotify', 'Music'] },
+  gaming: { key: 'gaming', emoji: CATEGORY_EMOJI.gaming, packAliases: ['Game', 'Steam'] },
+  developer: { key: 'developer', emoji: CATEGORY_EMOJI.developer, packAliases: ['GitHub'] },
+  'cloud-office': {
+    key: 'cloud-office',
+    emoji: CATEGORY_EMOJI['cloud-office'],
+    packAliases: ['Microsoft', 'Google', 'OneDrive'],
+  },
+  apple: { key: 'apple', emoji: CATEGORY_EMOJI.apple, packAliases: ['Apple'] },
+  finance: { key: 'finance', emoji: CATEGORY_EMOJI.finance, packAliases: ['PayPal'] },
+  shopping: { key: 'shopping', emoji: CATEGORY_EMOJI.shopping, packAliases: ['Global', 'Proxy'] },
+  privacy: { key: 'privacy', emoji: CATEGORY_EMOJI.privacy, packAliases: ['Advertising', 'Reject'] },
+  domestic: { key: 'domestic', emoji: CATEGORY_EMOJI.domestic, packAliases: ['China_Map', 'China', 'Direct'] },
+  other: { key: 'other', emoji: CATEGORY_EMOJI.other, packAliases: ['Final', 'Global'] },
+  // Legacy ids kept for type completeness; normalised away before the UI (see card.ts).
+  advertising: { key: 'privacy', emoji: CATEGORY_EMOJI.privacy, packAliases: ['Advertising', 'Reject'] },
+  infrastructure: { key: 'developer', emoji: CATEGORY_EMOJI.developer, packAliases: ['GitHub'] },
 };
+
+/** Category fallback icon metadata for UI section headers (policy-group page, design r2 §4.2). */
+export function categoryIcon(category: CatalogCategory): { key: string; emoji: string } {
+  const entry = CATEGORY_ICONS[category];
+  return { key: entry.key, emoji: entry.emoji };
+}
+
+/** Legacy categories that must not win over region/role fallbacks (kept for r2 compatibility). */
+const GENERIC_CATEGORIES: ReadonlySet<CatalogCategory> = new Set<CatalogCategory>([
+  'other',
+  'infrastructure',
+  'base',
+  'shopping',
+]);
+
+/** Uses the category icon when a service has no verified pack name (design r2 §4.3). */
+function resolveServiceAliases(rule: ServiceIconRule, category?: CatalogCategory): readonly string[] {
+  if (rule.packAliases.length > 0) return rule.packAliases;
+  if (!category) return [];
+  return CATEGORY_ICONS[category].packAliases;
+}
 
 const ROLE_ICON_RULES: readonly ServiceIconRule[] = [
   { key: 'lan', emoji: '🏠', pattern: /\b(lan|private|local)\b|局域网|私有/i, packAliases: ['Direct', 'Home'] },
@@ -308,7 +526,7 @@ export function recognizeGroupIcon(
     }
     const role = ROLE_ICON_RULES.find((rule) => rule.pattern.test(combinedName));
     if (role) return { key: role.key, packAliases: role.packAliases };
-    if (input.category && input.category !== 'other' && input.category !== 'infrastructure') {
+    if (input.category && !GENERIC_CATEGORIES.has(input.category)) {
       const cat = CATEGORY_ICONS[input.category];
       return { key: cat.key, packAliases: cat.packAliases };
     }
@@ -332,12 +550,13 @@ export function recognizeGroupIcon(
   // Step 2a: Service match from name / slug
   const serviceMatch = SERVICE_ICON_RULES.find((rule) => rule.pattern.test(combinedName));
   if (serviceMatch) {
+    const packAliases = resolveServiceAliases(serviceMatch, input.category);
     return {
       key: serviceMatch.key,
       emoji: serviceMatch.emoji,
       source: 'service',
-      packAliases: serviceMatch.packAliases,
-      packIcon: matchPackIcon(serviceMatch.packAliases, packIcons),
+      packAliases,
+      packIcon: matchPackIcon(packAliases, packIcons),
     };
   }
 
@@ -357,7 +576,7 @@ export function recognizeGroupIcon(
   }
 
   // Step 2b: Non-generic category match (specific categories win over region/role fallback)
-  if (input.category && input.category !== 'other' && input.category !== 'infrastructure') {
+  if (input.category && !GENERIC_CATEGORIES.has(input.category)) {
     const cat = CATEGORY_ICONS[input.category];
     return {
       key: cat.key,
@@ -428,12 +647,13 @@ export function recognizeGroupIcon(
   if (matcherText) {
     const matcherService = SERVICE_ICON_RULES.find((rule) => rule.pattern.test(matcherText));
     if (matcherService) {
+      const packAliases = resolveServiceAliases(matcherService, input.category);
       return {
         key: matcherService.key,
         emoji: matcherService.emoji,
         source: 'matcher',
-        packAliases: matcherService.packAliases,
-        packIcon: matchPackIcon(matcherService.packAliases, packIcons),
+        packAliases,
+        packIcon: matchPackIcon(packAliases, packIcons),
       };
     }
     const matcherRole = ROLE_ICON_RULES.find((rule) => rule.pattern.test(matcherText));
