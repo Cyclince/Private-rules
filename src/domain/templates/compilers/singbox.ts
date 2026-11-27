@@ -28,7 +28,7 @@ import type {
 } from './types';
 
 /**
- * Minimum target `sing-box` official version: **1.12** (tentative; see design §11.5 & §20).
+ * Minimum target `sing-box` official version: **1.12** (see design §11.5 & §20).
  *
  * Uses sing-box 1.12 syntax throughout:
  * - Typed `dns.servers` (`https` / `tls` / `udp` / `tcp` / `quic` / `h3` / `local` / `dhcp` / `fakeip`),

@@ -248,7 +248,7 @@ Compose 已启用 `TRUST_PROXY`。不要允许不受信任的上游覆盖 `Host`
 | `mihomo.yaml` | mihomo / Clash Meta | A 类（`proxy-providers`） | 支持 `full` / `minimal` 与规则集远程引用 |
 | `stash.yaml` | Stash | A 类（`proxy-providers`） | 适配 Stash 语法与图标 |
 | `surge.conf` | Surge | A 类（`policy-path`） | 支持 `policy-regex-filter` 与 `RULE-SET` |
-| `singbox.json` | sing-box（暂定 1.12+） | B 类（服务端解析内联） | 6 种主流协议加密快照（30 分钟缓存 + 失败降级） |
+| `singbox.json` | sing-box（1.12+） | B 类（服务端解析内联） | 6 种主流协议加密快照（30 分钟缓存 + 失败降级） |
 | `loon.conf` | Loon | C 类（客户端管理节点） | 默认「仅规则资源」；完整配置为实验选项 |
 | `qx.conf` | Quantumult X | C 类（客户端管理节点） | 默认 `filter_remote`；完整配置为实验选项 |
 | `shadowrocket.conf` | Shadowrocket | C 类（客户端管理节点） | 输出配置且不覆盖客户端已有节点列表 |

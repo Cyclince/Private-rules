@@ -1,5 +1,5 @@
 import { readFile, stat } from 'node:fs/promises';
-import { extname, join, normalize, resolve } from 'node:path';
+import { extname, join, normalize, resolve, sep } from 'node:path';
 import type { AssetsPort } from '../../application/ports/assets';
 
 const contentTypes: Record<string, string> = {
@@ -9,16 +9,30 @@ const contentTypes: Record<string, string> = {
 
 export class NodeAssetsAdapter implements AssetsPort {
   private readonly root: string;
-  constructor(root: string) { this.root = resolve(root); }
+  private readonly rootPrefix: string;
+  constructor(root: string) {
+    this.root = resolve(root);
+    this.rootPrefix = this.root.endsWith(sep) ? this.root : `${this.root}${sep}`;
+  }
 
   async fetch(request: Request) {
-    const pathname = decodeURIComponent(new URL(request.url).pathname);
+    let pathname: string;
+    try {
+      pathname = decodeURIComponent(new URL(request.url).pathname);
+    } catch {
+      return new Response('Not Found', { status: 404 });
+    }
+    if (pathname.includes('\0') || pathname.includes('\\')) {
+      return new Response('Not Found', { status: 404 });
+    }
     const requested =
       pathname === '/' || pathname.startsWith('/admin') || pathname === '/pwa-install' || pathname === '/pwa-install/'
         ? 'index.html'
         : pathname.replace(/^\/+/, '');
     const candidate = resolve(join(this.root, normalize(requested)));
-    if (!candidate.startsWith(this.root)) return new Response('Not Found', { status: 404 });
+    if (candidate !== this.root && !candidate.startsWith(this.rootPrefix)) {
+      return new Response('Not Found', { status: 404 });
+    }
     try {
       if (!(await stat(candidate)).isFile()) throw new Error('not-file');
       const extension = extname(candidate).toLowerCase();

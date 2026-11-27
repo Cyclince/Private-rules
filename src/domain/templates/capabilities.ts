@@ -70,7 +70,7 @@ export type EmptyFallbackMechanism = 'compatible-builtin' | 'explicit-fallback-p
  * - `[General]` DNS: `dns-server`, `encrypted-dns-server`, `always-real-ip`; VIF always uses
  *   Fake-IP (NO `redir-host` mode, NO `respect-rules`).
  *
- * Official `sing-box` (https://sing-box.sagernet.org — minimum target version: **1.12**, tentative) audit notes:
+ * Official `sing-box` (https://sing-box.sagernet.org — minimum target version: **1.12**) audit notes:
  * - Outbounds (class B — no remote proxy-provider; nodes inlined from server-parsed snapshots):
  *   - `shadowsocks` (`method`, `password`, `plugin`: `obfs-local` | `v2ray-plugin`, `plugin_opts`),
  *   - `vmess` (`uuid`, `security`, `alter_id`, `packet_encoding`, `tls`, `transport`),
