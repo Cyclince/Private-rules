@@ -1,10 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ChevronDown, ChevronRight, ChevronUp } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, ChevronUp, Copy } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { ruleLinkForApp } from '../../shared/apps';
+import { AppSelector } from '../components/apps/AppSelector';
+import { useSelectedApp } from '../components/apps/app-selection';
 import { CategoryIcon } from '../components/subscriptions/CategoryIcon';
 import {
   getEnabledRuleCount,
+  linkCopyState,
   nextSortDirection,
   readStoredSubscriptionSort,
   resolveAccessPolicy,
@@ -21,6 +25,7 @@ import { EmptyState } from '../components/ui/empty-state';
 import { loadPageTranslations, useI18n, type MessageKey } from '../i18n';
 import { requireAuthBeforeLoad } from '../lib/auth-guard';
 import { rulesetsListQueryOptions } from '../lib/query-core';
+import { useToast } from '../lib/toast';
 
 export const Route = createFileRoute('/subscriptions/')({
   beforeLoad: async ({ context, location }) => {
@@ -50,7 +55,27 @@ function policyBadgeLabelKey(policy: AccessPolicy): MessageKey {
 
 function SubscriptionsIndexPage() {
   const { t } = useI18n();
+  const { notify } = useToast();
   const summaryQuery = useQuery(rulesetsListQueryOptions());
+  const { appId, app, selectApp } = useSelectedApp();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const summaryLinks = summaryQuery.data?.links;
+
+  const handleQuickCopy = async (categoryId: string, rawUrl: string) => {
+    try {
+      if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+        throw new Error('Clipboard unavailable');
+      }
+      await navigator.clipboard.writeText(rawUrl);
+      setCopiedId(categoryId);
+      notify({ title: t('subscriptions.copiedToast'), variant: 'success' });
+      window.setTimeout(() => {
+        setCopiedId((prev) => (prev === categoryId ? null : prev));
+      }, 2000);
+    } catch {
+      notify({ title: t('subscriptions.copyFailed'), variant: 'danger' });
+    }
+  };
 
   const [{ key: sortKey, direction: sortDirection }, setSortState] = useState<{
     key: CategorySortKey;
@@ -84,6 +109,15 @@ function SubscriptionsIndexPage() {
         <h2 className="text-2xl font-bold tracking-tight text-text sm:text-3xl">{t('subscriptions.title')}</h2>
         <p className="text-sm text-text-muted">{t('subscriptions.subtitle')}</p>
       </header>
+
+      <Card data-testid="subscriptions-app-card">
+        <CardContent className="p-5">
+          <AppSelector appId={appId} onChange={selectApp} testId="subscriptions-app-selector" />
+          <p data-testid="subscriptions-app-hint" className="mt-3 text-xs leading-relaxed text-text-muted">
+            {app ? t('subscriptions.appChosenHint').replace('{app}', app.name) : t('subscriptions.appPickHint')}
+          </p>
+        </CardContent>
+      </Card>
 
       <Card data-testid="subscriptions-list-card">
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -148,31 +182,65 @@ function SubscriptionsIndexPage() {
               {categories.map((category) => {
                 const policy = resolveAccessPolicy(category);
                 const enabledCount = getEnabledRuleCount(category);
+                const appLink = app ? ruleLinkForApp(app, summaryLinks?.[category.id] ?? []) : null;
+                const { displayUrl, canCopy } = linkCopyState(appLink);
+                const copied = copiedId === category.id;
                 return (
-                  <Link
+                  <div
                     key={category.id}
-                    to="/subscriptions/$id"
-                    params={{ id: category.id }}
-                    data-testid={`subscription-card-${category.id}`}
-                    className="motion-card group flex items-center gap-3.5 rounded-[var(--radius-md)] border border-border bg-surface p-4 hover:border-primary/50 hover:bg-surface-muted/40 focus-visible:outline-2 focus-visible:outline-primary"
+                    className="motion-card flex items-stretch overflow-hidden rounded-[var(--radius-md)] border border-border bg-surface hover:border-primary/50"
                   >
-                    <CategoryIcon icon={category.icon} name={category.name} size={44} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold text-text group-hover:text-primary">
-                        {category.name}
-                      </div>
-                      <div className="mt-0.5 text-xs text-text-muted">
-                        {enabledCount.toLocaleString()} {t('subscriptions.enabledRulesSuffix')}
-                      </div>
-                    </div>
-                    <Badge
-                      data-testid={`subscription-policy-badge-${category.id}`}
-                      className={`shrink-0 ${policyBadgeClass(policy)}`}
+                    <Link
+                      to="/subscriptions/$id"
+                      params={{ id: category.id }}
+                      data-testid={`subscription-card-${category.id}`}
+                      className="group flex min-w-0 flex-1 items-center gap-3.5 p-4 hover:bg-surface-muted/40 focus-visible:outline-2 focus-visible:outline-primary"
                     >
-                      {t(policyBadgeLabelKey(policy))}
-                    </Badge>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-                  </Link>
+                      <CategoryIcon icon={category.icon} name={category.name} size={44} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold text-text group-hover:text-primary">
+                          {category.name}
+                        </div>
+                        <div className="mt-0.5 text-xs text-text-muted">
+                          {enabledCount.toLocaleString()} {t('subscriptions.enabledRulesSuffix')}
+                        </div>
+                      </div>
+                      <Badge
+                        data-testid={`subscription-policy-badge-${category.id}`}
+                        className={`shrink-0 ${policyBadgeClass(policy)}`}
+                      >
+                        {t(policyBadgeLabelKey(policy))}
+                      </Badge>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                    </Link>
+                    {app ? (
+                      <div className="flex w-14 shrink-0 flex-col items-center justify-center gap-1 border-l border-border bg-surface-muted/30 p-1.5 sm:w-24">
+                        <Button
+                          size="sm"
+                          variant={copied ? 'secondary' : 'ghost'}
+                          disabled={!canCopy}
+                          data-testid={`copy-subscription-quick-${category.id}`}
+                          aria-label={canCopy ? t('subscriptions.copyShort') : t('subscriptions.quickCopyDisabled')}
+                          title={canCopy ? t('subscriptions.copyShort') : t('subscriptions.quickCopyDisabled')}
+                          onClick={() => void handleQuickCopy(category.id, displayUrl)}
+                          className="px-2"
+                        >
+                          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          <span className="hidden text-xs sm:inline">
+                            {copied ? t('common.copied') : t('subscriptions.copyShort')}
+                          </span>
+                        </Button>
+                        {!canCopy ? (
+                          <span
+                            data-testid={`subscription-quick-disabled-${category.id}`}
+                            className="text-center text-[10px] leading-tight text-text-muted"
+                          >
+                            {t('subscriptions.quickCopyDisabledShort')}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>

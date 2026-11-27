@@ -2,6 +2,13 @@ import { createHmac } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { E2E_ORIGIN } from '../helpers/e2e-env';
 
+async function openAdvancedFormats(page: Page) {
+  const details = page.getByTestId('subscription-other-formats');
+  const open = await details.evaluate((element) => (element as HTMLDetailsElement).open);
+  if (!open) await details.locator(':scope > summary').click();
+  await expect(page.getByTestId('subscription-format-groups')).toBeVisible();
+}
+
 const CSRF_HEADERS = { origin: E2E_ORIGIN, 'content-type': 'application/json' };
 
 async function createCategory(page: Page) {
@@ -78,6 +85,7 @@ test.describe('M3.3 1.0.x parity checklist compatibility suite', () => {
 
         const detailPage = page.getByTestId('subscription-detail-page');
         await expect(detailPage).toBeVisible();
+        await openAdvancedFormats(page);
         for (const groupId of ['yaml', 'list', 'json', 'txt']) {
           await page.getByTestId(`subscription-group-toggle-${groupId}`).click();
         }

@@ -39,6 +39,13 @@ async function createRulesetViaApi(page: Page, name: string) {
   return payload.data.categories.find((item) => item.name === name)!;
 }
 
+async function openAdvancedFormats(page: Page) {
+  const details = page.getByTestId('subscription-other-formats');
+  const open = await details.evaluate((element) => (element as HTMLDetailsElement).open);
+  if (!open) await details.locator(':scope > summary').click();
+  await expect(page.getByTestId('subscription-format-groups')).toBeVisible();
+}
+
 async function deleteRulesetViaApi(page: Page, id: string) {
   await page.request.delete(`/api/rulesets/${id}`, { headers: JSON_HEADERS });
 }
@@ -218,6 +225,7 @@ test.describe('M3.1 & M1b Rules Library, Rule Detail, Friendly Rules, Bulk Add, 
 
       // Switch policy to public and verify valid public link
       await page.getByTestId('subscription-access-select').selectOption('public');
+      await openAdvancedFormats(page);
       await page.getByTestId('subscription-group-toggle-yaml').click();
       const mihomoLink = page.getByTestId('subscription-link-url-mihomo');
       await expect(mihomoLink).toBeVisible();

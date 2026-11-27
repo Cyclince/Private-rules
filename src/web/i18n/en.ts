@@ -153,6 +153,39 @@ export const en: Messages = {
     'Open the proxy app on your phone or computer and compare it with the icons above. If you still cannot find it, routing rules alone will work for now.',
   'apps.picker.noAppTitle': 'No app installed yet?',
   'apps.picker.noAppBody': 'Here are a few common ones (names only, no download links):',
+  'apps.picker.yourApp': 'Your app',
+  'apps.picker.chooseApp': 'Choose your app',
+  'apps.ruleHowTo.shadowrocket':
+    '1. Open Shadowrocket and tap + in the top-right corner\n2. Paste the address and save it\n3. Select it on the home screen and turn the switch on',
+  'apps.ruleHowTo.quantumult-x':
+    '1. Open Quantumult X and go to Routing\n2. Add a remote resource, paste the address, then update it\n3. Turn the switch on from the home screen',
+  'apps.ruleHowTo.loon':
+    '1. Open Loon and go to Remote Rules\n2. Paste the address and update\n3. Select this configuration and turn it on',
+  'apps.ruleHowTo.surge':
+    '1. Open Surge and choose to download a configuration from a link\n2. Paste the address and save it\n3. Select this configuration and turn it on',
+  'apps.ruleHowTo.stash':
+    '1. Open Stash and download from a link under Configurations\n2. Paste the address and save it\n3. Select it and turn the switch on from the home screen',
+  'apps.ruleHowTo.egern':
+    '1. Open Egern and go to Configurations\n2. Add a remote link, paste the address, then update it\n3. Select this configuration and turn it on',
+  'apps.ruleHowTo.sing-box':
+    '1. Open sing-box and create a remote profile\n2. Paste the address and update it\n3. Select it and connect',
+  'apps.ruleHowTo.clash-verge-rev':
+    '1. Open Clash Verge Rev and go to Subscriptions\n2. Paste the address, save it and select it\n3. Turn on the system proxy switch',
+  'apps.ruleHowTo.clash-party':
+    '1. Open Clash Party and go to Subscriptions\n2. Paste the address, save it and select it\n3. Turn on the system proxy switch',
+  'apps.ruleHowTo.flclash':
+    '1. Open FlClash and go to Subscriptions\n2. Paste the address, update it and select it\n3. Turn the proxy switch on',
+  'apps.ruleHowTo.clash-meta-android':
+    '1. Open Clash Meta for Android and import from a link under Configurations\n2. Paste the address and save it\n3. Select it and turn the switch on',
+  'apps.ruleHowTo.karing': '1. Open Karing and add a remote address\n2. Paste the address and select it\n3. Connect',
+  'apps.ruleHowTo.surfboard':
+    '1. Open Surfboard and add a remote configuration\n2. Paste the address and save it\n3. Select it and use it',
+  'apps.ruleHowTo.openclash':
+    '1. Open the Configurations page in OpenClash\n2. Add the subscription address, paste it and update\n3. Select this configuration',
+  'apps.ruleHowTo.clashmi':
+    '1. Open ClashMi and go to Subscriptions\n2. Paste the address, update it and select it\n3. Turn the switch on',
+  'apps.ruleHowTo.hiddify':
+    '1. Open Hiddify and add a remote profile\n2. Paste the address and save it\n3. Select it and connect',
   'apps.howTo.shadowrocket':
     'Open Shadowrocket, tap + in the top-right corner, paste the link and save. Select it on the home screen and turn the switch on.',
   'apps.howTo.quantumult-x':
@@ -377,7 +410,7 @@ export const en: Messages = {
   // Subscription Center (/subscriptions & /subscriptions/$id)
   'subscriptions.eyebrow': 'SUBSCRIPTIONS',
   'subscriptions.title': 'Subscriptions',
-  'subscriptions.subtitle': 'Choose a rule and your client, then copy its subscription URL',
+  'subscriptions.subtitle': 'Pick the app you use, copy one link, and you are done',
   'subscriptions.selectRuleTitle': 'Select a rule',
   'subscriptions.selectRuleSubtitle': 'Access policy can be configured independently for each rule',
   'subscriptions.sortLabel': 'Sort rules',
@@ -394,7 +427,7 @@ export const en: Messages = {
   'subscriptions.goToRules': 'Go to Rules',
   'subscriptions.backToCenter': 'Back to Subscriptions',
   'subscriptions.detailTitleSuffix': 'Subscriptions',
-  'subscriptions.choose': 'Expand your client and copy its URL',
+  'subscriptions.choose': 'Pick your app and copy the one link that fits it',
   'subscriptions.notFoundTitle': 'Rule not found',
   'subscriptions.notFoundDesc': 'This rule may have been deleted, or the link is invalid.',
   'subscriptions.accessPolicyTitle': 'Rule access policy',
@@ -413,6 +446,19 @@ export const en: Messages = {
   'subscriptions.disabledNotice': 'No subscription links are currently available for this rule',
   'subscriptions.disabledRuleHint': 'This rule is currently disabled. Enable it on the Rules page first.',
   'subscriptions.missingTokenHint': 'Private access requires RULE_TOKEN to be configured on the server.',
+  'subscriptions.appPickHint': 'Pick the app you use; after that every rule has a one-click copy button.',
+  'subscriptions.appChosenHint': 'Remembered {app}, so you will not need to pick it again. Copy right from each card.',
+  'subscriptions.appLinkHint': 'Copy this link and paste it into the app; rule updates sync automatically.',
+  'subscriptions.copyAppLink': 'Copy subscription link',
+  'subscriptions.copyShort': 'Copy',
+  'subscriptions.quickCopyDisabled': 'Subscription links are disabled for this rule, so nothing can be copied yet',
+  'subscriptions.quickCopyDisabledShort': 'Disabled',
+  'subscriptions.appHowToTitle': 'How to use it in {app}',
+  'subscriptions.appLinkUnavailable':
+    '{app} has no usable subscription link right now. Try again later, or check the advanced options further down.',
+  'subscriptions.ownConfigTitle': 'I write my own config: show the snippet',
+  'subscriptions.otherFormatsTitle': 'Other formats (advanced)',
+  'subscriptions.otherFormatsHint': 'For people who need a specific file type. Most users never need to open this.',
   'subscriptions.copyButton': 'Copy subscription URL',
   'subscriptions.copiedToast': 'Subscription URL copied',
   'subscriptions.copyFailed': 'Copy failed, please copy manually',

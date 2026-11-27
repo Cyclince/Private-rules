@@ -1,6 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 import { E2E_ORIGIN } from '../helpers/e2e-env';
 
+async function openAdvancedFormats(page: Page) {
+  const details = page.getByTestId('subscription-other-formats');
+  const open = await details.evaluate((element) => (element as HTMLDetailsElement).open);
+  if (!open) await details.locator(':scope > summary').click();
+  await expect(page.getByTestId('subscription-format-groups')).toBeVisible();
+}
+
 const headers = { origin: E2E_ORIGIN, 'content-type': 'application/json' };
 async function signIn(page: Page) {
   expect((await page.request.post('/api/auth/login', { headers, data: { password: 'e2e-password' } })).status()).toBe(
@@ -142,6 +149,7 @@ test('subscription examples match current private/public addresses, file behavio
       }),
     );
     await page.goto(`/admin/subscriptions/${category.id}`);
+    await openAdvancedFormats(page);
     await page.getByTestId('subscription-group-toggle-yaml').click();
     await page.getByTestId('subscription-example-yaml').locator('summary').click();
     await page.getByTestId('subscription-example-client-yaml').selectOption('yaml-domain');

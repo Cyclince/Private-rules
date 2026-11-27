@@ -60,6 +60,10 @@ const NORMAL_PREFIXES = [
 // not in NORMAL_FILES. "策略组" itself is a user-facing term (design revision r2 §4.1).
 const ALLOWED_TECHNICAL_PREFIXES = [
   'subscriptions.examplePolicyHint', // Localized guidance within the configuration example, not ordinary copy.
+  // "其他格式（高级）" fold (design R2): group/format vocabulary lives behind one collapsed section.
+  'subscriptions.group',
+  'subscriptions.format',
+  'subscriptions.otherFormatsTitle', // The fold's own label is the required "其他格式（高级）" wording.
   'cards.', // Policy-group editor vocabulary (matcher kinds, rule syntax placeholders).
   'catalog.', // Community scene/rule library examples.
   'templates.editor',
@@ -141,6 +145,10 @@ describe('F7 ordinary-page Chinese copy', () => {
     expect(violations([['subscriptions.exampleTitle', '策略组']])).toEqual([]);
     expect(violations([['cards.subtitle', '策略组 = 一类网站走哪条线路']])).toEqual([]);
     expect(violations([['subscriptions.examplePolicyHint', '把 PROXY 换成策略组名称']])).toEqual([]);
+    // Only the advanced "other formats" fold may use format vocabulary.
+    expect(violations([['subscriptions.format.yaml-classical.desc', '原生 YAML 规则']])).toEqual([]);
+    expect(violations([['subscriptions.appLinkHint', '复制这条地址，粘贴到软件里即可']])).toEqual([]);
+    expect(violations([['subscriptions.appLinkHint', '复制这条 YAML 地址']])).toHaveLength(1);
     expect(violations([['templates.deleteConfirmBody', '发布配置']])).toHaveLength(1);
     expect(
       violations([

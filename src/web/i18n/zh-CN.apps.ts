@@ -23,6 +23,28 @@ export const zhCNApps = {
     '打开手机或电脑上的代理软件，对照上面的图标找一找；实在找不到也没关系，可以先只用分流规则。',
   'apps.picker.noAppTitle': '还没有装软件？',
   'apps.picker.noAppBody': '可以先看看这些常用的（这里只列名称，不提供下载）：',
+  'apps.picker.yourApp': '你的软件',
+  'apps.picker.chooseApp': '选择你用的软件',
+  'apps.ruleHowTo.shadowrocket':
+    '1. 打开 Shadowrocket，点右上角「+」\n2. 粘贴刚复制的地址并保存\n3. 回到首页选中它，打开顶部开关',
+  'apps.ruleHowTo.quantumult-x':
+    '1. 打开 Quantumult X，进入「分流」\n2. 添加远程资源并粘贴地址，然后更新\n3. 回到首页打开开关',
+  'apps.ruleHowTo.loon': '1. 打开 Loon，进入「远程规则」\n2. 粘贴地址并更新\n3. 选中这份配置，打开开关',
+  'apps.ruleHowTo.surge': '1. 打开 Surge，选择从地址下载配置\n2. 粘贴地址并保存\n3. 选中这份配置并开启',
+  'apps.ruleHowTo.stash': '1. 打开 Stash，在「配置」里从地址下载\n2. 粘贴地址并保存\n3. 选中它，回到首页打开开关',
+  'apps.ruleHowTo.egern': '1. 打开 Egern，进入「配置」\n2. 添加远程地址并粘贴，然后更新\n3. 选中这份配置并开启',
+  'apps.ruleHowTo.sing-box': '1. 打开 sing-box，新建远程配置\n2. 粘贴地址并更新\n3. 选中它并连接',
+  'apps.ruleHowTo.clash-verge-rev':
+    '1. 打开 Clash Verge Rev，进入「订阅」\n2. 粘贴地址并保存，选中它\n3. 打开「系统代理」开关',
+  'apps.ruleHowTo.clash-party': '1. 打开 Clash Party，进入「订阅」\n2. 粘贴地址并保存，选中它\n3. 打开「系统代理」开关',
+  'apps.ruleHowTo.flclash': '1. 打开 FlClash，进入「订阅」\n2. 粘贴地址并更新，选中它\n3. 打开代理开关',
+  'apps.ruleHowTo.clash-meta-android':
+    '1. 打开 Clash Meta for Android，在「配置」里从地址导入\n2. 粘贴地址并保存\n3. 选中它并打开开关',
+  'apps.ruleHowTo.karing': '1. 打开 Karing，添加远程地址\n2. 粘贴地址并选中\n3. 连接即可',
+  'apps.ruleHowTo.surfboard': '1. 打开 Surfboard，在「配置」里添加远程配置\n2. 粘贴地址并保存\n3. 选中它使用',
+  'apps.ruleHowTo.openclash': '1. 打开 OpenClash 的「配置文件」\n2. 添加订阅地址并粘贴，然后更新\n3. 选用这份配置',
+  'apps.ruleHowTo.clashmi': '1. 打开 ClashMi，进入「订阅」\n2. 粘贴地址并更新，选中它\n3. 打开开关',
+  'apps.ruleHowTo.hiddify': '1. 打开 Hiddify，添加远程配置\n2. 粘贴地址并保存\n3. 选中它并连接',
   'apps.howTo.shadowrocket': '打开 Shadowrocket，点右上角「+」，粘贴上面的链接并保存；回到首页选中它，再打开顶部开关。',
   'apps.howTo.quantumult-x': '打开 Quantumult X，在「分流」里添加远程资源，粘贴链接后更新；再回到首页开启开关。',
   'apps.howTo.loon': '打开 Loon，在远程规则里添加链接并更新，再选中这份配置。',

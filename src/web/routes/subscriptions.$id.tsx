@@ -2,11 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft, Check, ChevronDown, Copy, FileText, Info, Settings, ShieldAlert } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
+import { ruleLinkForApp } from '../../shared/apps';
+import { AppIcon } from '../components/apps/AppIcon';
+import { AppSelector } from '../components/apps/AppSelector';
+import { useSelectedApp } from '../components/apps/app-selection';
 import { CategoryIcon } from '../components/subscriptions/CategoryIcon';
 import { SubscriptionExample } from '../components/subscriptions/SubscriptionExample';
 import {
   accessPolicyToPatch,
   buildSubscriptionFormatGroups,
+  formatGroupForLink,
+  linkCopyState,
   preferHttpsLink,
   resolveAccessPolicy,
   type AccessPolicy,
@@ -61,6 +67,7 @@ function SubscriptionDetailPage() {
   const authQuery = useQuery(authMeQueryOptions());
   const summaryQuery = useQuery(rulesetsListQueryOptions());
 
+  const { appId, app, selectApp } = useSelectedApp();
   const isTelegram = isTelegramSession(authQuery.data);
   const canEditPolicy = !isTelegram;
 
@@ -180,6 +187,14 @@ function SubscriptionDetailPage() {
   const categoryEnabled = selectedCategory.enabled !== false;
   const hasAvailableLinks =
     categoryEnabled && accessPolicy !== 'disabled' && selectedLinks.some((link) => Boolean(link.recommendedUrl));
+  const appLink = app ? ruleLinkForApp(app, selectedLinks) : null;
+  const { displayUrl: appDisplayUrl, canCopy: canCopyAppLink } = linkCopyState(appLink);
+  const howToSteps = app
+    ? t(`apps.ruleHowTo.${app.id}` as MessageKey)
+        .split('\n')
+        .map((step) => step.replace(/^\s*\d+\.\s*/, '').trim())
+        .filter(Boolean)
+    : [];
 
   const bannerText =
     accessPolicy === 'token'
@@ -288,119 +303,223 @@ function SubscriptionDetailPage() {
           </CardHeader>
         </Card>
       ) : (
-        <div className="flex flex-col gap-3" data-testid="subscription-format-groups">
-          {groups.map((group) => {
-            const expanded = expandedGroups.has(group.id);
-            return (
-              <section
-                key={group.id}
-                data-format-group={group.id}
-                data-testid={`subscription-group-${group.id}`}
-                className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-sm"
+        <div className="flex flex-col gap-4">
+          <Card data-testid="subscription-app-card">
+            <CardContent className="p-5">
+              <AppSelector appId={appId} onChange={selectApp} testId="subscription-app-selector" />
+              <p
+                data-testid="subscription-app-empty"
+                className="mt-3 text-xs leading-relaxed text-text-muted"
+                hidden={Boolean(app)}
               >
-                <button
-                  type="button"
-                  aria-expanded={expanded}
-                  aria-controls={`subscription-format-${group.id}`}
-                  data-testid={`subscription-group-toggle-${group.id}`}
-                  onClick={() => toggleGroup(group.id)}
-                  className="flex w-full cursor-pointer items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-surface-muted/50 focus-visible:outline-2 focus-visible:outline-primary"
+                {t('subscriptions.appPickHint')}
+              </p>
+            </CardContent>
+          </Card>
+
+          {app && appLink && canCopyAppLink ? (
+            <Card data-testid="subscription-app-link" className="border-primary/40">
+              <CardHeader className="flex flex-row items-center gap-3 pb-3">
+                <AppIcon app={app} size="md" />
+                <div className="min-w-0">
+                  <CardTitle className="text-base" data-testid="subscription-app-link-title">
+                    {app.name}
+                  </CardTitle>
+                  <CardDescription className="mt-0.5">{t('subscriptions.appLinkHint')}</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <code
+                  ref={(el) => {
+                    if (el) urlRefs.current.set('app-link', el);
+                    else urlRefs.current.delete('app-link');
+                  }}
+                  data-testid="subscription-app-link-url"
+                  className="block break-all select-all rounded-[var(--radius-sm)] border border-border bg-surface-muted/70 px-2.5 py-1.5 font-mono text-[11px] text-text-muted"
                 >
-                  <span className="flex items-center gap-2.5">
-                    <strong className="text-sm font-semibold text-text sm:text-base">{t(group.titleKey)}</strong>
-                    <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-text-muted">
-                      {group.formats.length}
-                    </span>
-                  </span>
-                  <ChevronDown
-                    className={`h-4 w-4 shrink-0 text-text-muted transition-transform duration-150 ${
-                      expanded ? 'rotate-180 text-primary' : ''
-                    }`}
-                  />
-                </button>
+                  {appDisplayUrl}
+                </code>
+                <Button
+                  size="sm"
+                  variant={copiedId === 'app-link' ? 'secondary' : 'primary'}
+                  data-testid="copy-subscription-link-app"
+                  onClick={() => void handleCopy('app-link', appLink.recommendedUrl)}
+                  className="w-full sm:w-auto"
+                >
+                  {copiedId === 'app-link' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  <span>{copiedId === 'app-link' ? t('common.copied') : t('subscriptions.copyAppLink')}</span>
+                </Button>
 
-                {expanded ? (
-                  <div
-                    id={`subscription-format-${group.id}`}
-                    data-testid={`subscription-group-content-${group.id}`}
-                    className="border-t border-border bg-bg/40 p-4"
-                  >
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-                      {group.formats.map((format) => {
-                        const rawUrl = format.link.recommendedUrl;
-                        const displayUrl = rawUrl ? preferHttpsLink(rawUrl) : '';
-                        const isCopied = copiedId === format.id;
-                        const title = format.titleKey ? t(format.titleKey) : format.fallbackTitle;
-                        const description = format.descriptionKey
-                          ? t(format.descriptionKey)
-                          : format.fallbackDescription;
+                <div
+                  data-testid="subscription-app-howto"
+                  className="rounded-[var(--radius-md)] bg-surface-muted/50 p-3.5"
+                >
+                  <h4 className="text-sm font-semibold text-text">
+                    {t('subscriptions.appHowToTitle').replace('{app}', app.name)}
+                  </h4>
+                  <ol className="mt-2 flex list-decimal flex-col gap-1.5 pl-4 text-xs leading-relaxed text-text-muted">
+                    {howToSteps.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
 
-                        return (
-                          <article
-                            key={format.id}
-                            data-testid={`subscription-link-${format.id}`}
-                            className="flex flex-col justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-surface p-4 shadow-sm"
-                          >
-                            <div className="flex flex-col gap-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <span
-                                  className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] ${formatToneClass(format.tone)}`}
+          {app && (!appLink || !canCopyAppLink) ? (
+            <Card data-testid="subscription-app-unavailable" className="border-warning/40 bg-surface-muted/60">
+              <CardContent className="flex items-start gap-2.5 p-4 text-xs leading-relaxed text-text-muted">
+                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                <span>{t('subscriptions.appLinkUnavailable').replace('{app}', app.name)}</span>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {app && appLink && canCopyAppLink ? (
+            <details
+              data-testid="subscription-own-config"
+              className="rounded-[var(--radius-md)] border border-border bg-surface"
+            >
+              <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-text">
+                {t('subscriptions.ownConfigTitle')}
+              </summary>
+              <div className="border-t border-border p-4">
+                <SubscriptionExample
+                  group={formatGroupForLink(appLink)}
+                  name={selectedCategory.name}
+                  policyName={summaryQuery.data?.data.settings.policyName}
+                  testIdPrefix="subscription-own-example"
+                />
+              </div>
+            </details>
+          ) : null}
+
+          <details
+            data-testid="subscription-other-formats"
+            className="rounded-[var(--radius-md)] border border-border bg-surface"
+          >
+            <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-text">
+              {t('subscriptions.otherFormatsTitle')}
+            </summary>
+            <div className="border-t border-border p-4">
+              <p className="text-xs leading-relaxed text-text-muted">{t('subscriptions.otherFormatsHint')}</p>
+              <div className="mt-3 flex flex-col gap-3" data-testid="subscription-format-groups">
+                {groups.map((group) => {
+                  const expanded = expandedGroups.has(group.id);
+                  return (
+                    <section
+                      key={group.id}
+                      data-format-group={group.id}
+                      data-testid={`subscription-group-${group.id}`}
+                      className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-sm"
+                    >
+                      <button
+                        type="button"
+                        aria-expanded={expanded}
+                        aria-controls={`subscription-format-${group.id}`}
+                        data-testid={`subscription-group-toggle-${group.id}`}
+                        onClick={() => toggleGroup(group.id)}
+                        className="flex w-full cursor-pointer items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-surface-muted/50 focus-visible:outline-2 focus-visible:outline-primary"
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <strong className="text-sm font-semibold text-text sm:text-base">{t(group.titleKey)}</strong>
+                          <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-text-muted">
+                            {group.formats.length}
+                          </span>
+                        </span>
+                        <ChevronDown
+                          className={`h-4 w-4 shrink-0 text-text-muted transition-transform duration-150 ${
+                            expanded ? 'rotate-180 text-primary' : ''
+                          }`}
+                        />
+                      </button>
+
+                      {expanded ? (
+                        <div
+                          id={`subscription-format-${group.id}`}
+                          data-testid={`subscription-group-content-${group.id}`}
+                          className="border-t border-border bg-bg/40 p-4"
+                        >
+                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                            {group.formats.map((format) => {
+                              const rawUrl = format.link.recommendedUrl;
+                              const displayUrl = rawUrl ? preferHttpsLink(rawUrl) : '';
+                              const isCopied = copiedId === format.id;
+                              const title = format.titleKey ? t(format.titleKey) : format.fallbackTitle;
+                              const description = format.descriptionKey
+                                ? t(format.descriptionKey)
+                                : format.fallbackDescription;
+
+                              return (
+                                <article
+                                  key={format.id}
+                                  data-testid={`subscription-link-${format.id}`}
+                                  className="flex flex-col justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-surface p-4 shadow-sm"
                                 >
-                                  <FileText className="h-4 w-4" />
-                                </span>
-                                <code className="rounded-[var(--radius-sm)] bg-surface-muted px-2 py-0.5 font-mono text-xs text-text-muted">
-                                  {format.suffix}
-                                </code>
-                              </div>
+                                  <div className="flex flex-col gap-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span
+                                        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] ${formatToneClass(format.tone)}`}
+                                      >
+                                        <FileText className="h-4 w-4" />
+                                      </span>
+                                      <code className="rounded-[var(--radius-sm)] bg-surface-muted px-2 py-0.5 font-mono text-xs text-text-muted">
+                                        {format.suffix}
+                                      </code>
+                                    </div>
 
-                              <div>
-                                <h4 className="text-sm font-semibold text-text">{title}</h4>
-                                <p className="mt-0.5 text-xs leading-relaxed text-text-muted">{description}</p>
-                              </div>
+                                    <div>
+                                      <h4 className="text-sm font-semibold text-text">{title}</h4>
+                                      <p className="mt-0.5 text-xs leading-relaxed text-text-muted">{description}</p>
+                                    </div>
 
-                              <span className="truncate font-mono text-[11px] text-text-muted">
-                                {format.link.fileName}
-                              </span>
+                                    <span className="truncate font-mono text-[11px] text-text-muted">
+                                      {format.link.fileName}
+                                    </span>
 
-                              {displayUrl ? (
-                                <code
-                                  ref={(el) => {
-                                    if (el) urlRefs.current.set(format.id, el);
-                                    else urlRefs.current.delete(format.id);
-                                  }}
-                                  data-testid={`subscription-link-url-${format.id}`}
-                                  className="block break-all select-all rounded-[var(--radius-sm)] border border-border bg-surface-muted/70 px-2.5 py-1.5 font-mono text-[11px] text-text-muted"
-                                >
-                                  {displayUrl}
-                                </code>
-                              ) : null}
-                            </div>
+                                    {displayUrl ? (
+                                      <code
+                                        ref={(el) => {
+                                          if (el) urlRefs.current.set(format.id, el);
+                                          else urlRefs.current.delete(format.id);
+                                        }}
+                                        data-testid={`subscription-link-url-${format.id}`}
+                                        className="block break-all select-all rounded-[var(--radius-sm)] border border-border bg-surface-muted/70 px-2.5 py-1.5 font-mono text-[11px] text-text-muted"
+                                      >
+                                        {displayUrl}
+                                      </code>
+                                    ) : null}
+                                  </div>
 
-                            <Button
-                              size="sm"
-                              variant={isCopied ? 'secondary' : 'primary'}
-                              disabled={!displayUrl}
-                              data-testid={`copy-subscription-link-${format.id}`}
-                              onClick={() => void handleCopy(format.id, rawUrl)}
-                              className="w-full"
-                            >
-                              {isCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                              <span>{isCopied ? t('common.copied') : t('subscriptions.copyButton')}</span>
-                            </Button>
-                          </article>
-                        );
-                      })}
-                    </div>
-                    <SubscriptionExample
-                      group={group}
-                      name={selectedCategory.name}
-                      policyName={summaryQuery.data?.data.settings.policyName}
-                    />
-                  </div>
-                ) : null}
-              </section>
-            );
-          })}
+                                  <Button
+                                    size="sm"
+                                    variant={isCopied ? 'secondary' : 'primary'}
+                                    disabled={!displayUrl}
+                                    data-testid={`copy-subscription-link-${format.id}`}
+                                    onClick={() => void handleCopy(format.id, rawUrl)}
+                                    className="w-full"
+                                  >
+                                    {isCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                    <span>{isCopied ? t('common.copied') : t('subscriptions.copyButton')}</span>
+                                  </Button>
+                                </article>
+                              );
+                            })}
+                          </div>
+                          <SubscriptionExample
+                            group={group}
+                            name={selectedCategory.name}
+                            policyName={summaryQuery.data?.data.settings.policyName}
+                          />
+                        </div>
+                      ) : null}
+                    </section>
+                  );
+                })}
+              </div>
+            </div>
+          </details>
         </div>
       )}
     </div>

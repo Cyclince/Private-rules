@@ -335,6 +335,35 @@ function inferSuffix(link: ClientLink): string {
  * Groups summary endpoint `ClientLink[]` into the 4 client families matching
  * 1.0.7's subscription center hierarchy (YAML / LIST / JSON / TXT).
  */
+/** Builds the single-format group used by "我会自己写配置：查看引用片段" on the app-first view. */
+export function formatEntryForLink(link: ClientLink): FormatLinkEntry {
+  const meta = FORMAT_META[link.id];
+  const groupId = inferGroupId(link);
+  const groupDef = GROUP_DEFINITIONS.find((group) => group.id === groupId)!;
+  return {
+    id: link.id,
+    titleKey: meta?.titleKey,
+    fallbackTitle: link.name,
+    descriptionKey: meta?.descriptionKey,
+    fallbackDescription: link.description,
+    suffix: inferSuffix(link),
+    tone: meta?.tone ?? groupDef.defaultTone,
+    link,
+  };
+}
+
+export function formatGroupForLink(link: ClientLink): FormatLinkGroup {
+  const groupId = inferGroupId(link);
+  const groupDef = GROUP_DEFINITIONS.find((group) => group.id === groupId)!;
+  return { id: groupId, titleKey: groupDef.titleKey, formats: [formatEntryForLink(link)] };
+}
+
+/** Whether a link can be copied, used by the list page's quick-copy button and the detail card. */
+export function linkCopyState(link: ClientLink | null | undefined): { displayUrl: string; canCopy: boolean } {
+  const rawUrl = link?.recommendedUrl ?? '';
+  return { displayUrl: rawUrl ? preferHttpsLink(rawUrl) : '', canCopy: Boolean(rawUrl) };
+}
+
 export function buildSubscriptionFormatGroups(links: readonly ClientLink[]): FormatLinkGroup[] {
   const byId = new Map<string, ClientLink>();
   for (const link of links) {

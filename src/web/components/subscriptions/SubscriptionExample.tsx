@@ -9,10 +9,13 @@ export function SubscriptionExample({
   group,
   name,
   policyName,
+  testIdPrefix = 'subscription-example',
 }: {
   group: FormatLinkGroup;
   name: string;
   policyName?: string;
+  /** Overrides the test-id prefix so the app-first card and the advanced fold never collide. */
+  testIdPrefix?: string;
 }) {
   const { t } = useI18n();
   const { notify } = useToast();
@@ -51,7 +54,7 @@ export function SubscriptionExample({
   return (
     <details
       className="mt-4 rounded-[var(--radius-md)] border border-border bg-surface"
-      data-testid={`subscription-example-${group.id}`}
+      data-testid={`${testIdPrefix}-${group.id}`}
     >
       <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-text">
         {t('subscriptions.exampleTitle')}
@@ -63,7 +66,7 @@ export function SubscriptionExample({
             aria-label={t('subscriptions.exampleClient')}
             value={selected.format.id}
             onChange={(event) => setSelectedId(event.target.value)}
-            data-testid={`subscription-example-client-${group.id}`}
+            data-testid={`${testIdPrefix}-client-${group.id}`}
             className="max-w-full rounded-[var(--radius-sm)] border border-border bg-surface px-3 py-2 text-xs text-text"
           >
             {candidates.map(({ format }) => (
@@ -76,18 +79,18 @@ export function SubscriptionExample({
             size="sm"
             variant="outline"
             onClick={() => void handleCopy()}
-            data-testid={`subscription-example-copy-${group.id}`}
+            data-testid={`${testIdPrefix}-copy-${group.id}`}
           >
             {t('subscriptions.exampleCopy')}
           </Button>
         </div>
         {selected.example.language === 'json' ? (
-          <p data-testid="subscription-example-policy-hint-json" className="text-xs text-text-muted">
+          <p data-testid={`${testIdPrefix}-policy-hint-json`} className="text-xs text-text-muted">
             {policyHint}
           </p>
         ) : null}
         <pre className="max-w-full overflow-x-auto rounded-[var(--radius-sm)] bg-surface-muted p-3 text-xs text-text">
-          <code ref={codeRef} data-testid={`subscription-example-code-${group.id}`}>
+          <code ref={codeRef} data-testid={`${testIdPrefix}-code-${group.id}`}>
             {selected.example.code}
           </code>
         </pre>
