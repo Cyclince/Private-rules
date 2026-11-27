@@ -9,8 +9,10 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(({ className, in
   <div
     ref={ref}
     className={cn(
-      'rounded-[var(--radius-lg)] border border-border bg-surface text-text shadow-sm transition-[box-shadow,border-color] duration-[var(--motion-base)] ease-[var(--ease-out)]',
-      interactive && 'motion-card cursor-pointer',
+      'rounded-[var(--radius-lg)] border border-border bg-surface text-text shadow-sm',
+      interactive
+        ? 'motion-card cursor-pointer'
+        : 'transition-[box-shadow,border-color] duration-[var(--motion-base)] ease-[var(--ease-out)]',
       className,
     )}
     {...props}

@@ -416,8 +416,9 @@ function TemplatesListPage() {
             return (
               <Card
                 key={tpl.id}
+                interactive
                 data-testid={`template-card-${tpl.id}`}
-                className="flex flex-col justify-between transition-colors hover:border-primary/40"
+                className="relative flex flex-col justify-between hover:border-primary/40 focus-within:z-10"
               >
                 <CardContent className="flex flex-1 flex-col justify-between gap-4 p-4 sm:p-5">
                   <div className="flex flex-col gap-3">

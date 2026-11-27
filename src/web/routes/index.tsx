@@ -80,7 +80,7 @@ function formatTimestamp(iso: string | undefined, fallback: string): string {
 }
 
 const ACTION_CLASS =
-  'inline-flex h-9 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-primary';
+  'motion-btn motion-btn-lift inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed';
 
 function DashboardPage() {
   const { t, locale } = useI18n();
@@ -206,7 +206,7 @@ function DashboardPage() {
                   key={category.id}
                   to="/rules/$id"
                   params={{ id: category.id }}
-                  className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] px-2 py-1.5 text-sm text-text hover:bg-surface-muted"
+                  className="motion-card flex items-center justify-between gap-3 rounded-[var(--radius-sm)] px-2 py-1.5 text-sm text-text hover:bg-surface-muted"
                 >
                   <span className="min-w-0 truncate">{category.name}</span>
                   <span className="shrink-0 text-xs text-text-muted">{(category.ruleCount ?? 0).toLocaleString()}</span>

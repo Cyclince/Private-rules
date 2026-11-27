@@ -154,7 +154,7 @@ function SubscriptionsIndexPage() {
                     to="/subscriptions/$id"
                     params={{ id: category.id }}
                     data-testid={`subscription-card-${category.id}`}
-                    className="group flex items-center gap-3.5 rounded-[var(--radius-md)] border border-border bg-surface p-4 transition-all duration-150 hover:border-primary/50 hover:bg-surface-muted/40 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-primary"
+                    className="motion-card group flex items-center gap-3.5 rounded-[var(--radius-md)] border border-border bg-surface p-4 hover:border-primary/50 hover:bg-surface-muted/40 focus-visible:outline-2 focus-visible:outline-primary"
                   >
                     <CategoryIcon icon={category.icon} name={category.name} size={44} />
                     <div className="min-w-0 flex-1">

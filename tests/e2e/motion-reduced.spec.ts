@@ -34,6 +34,13 @@ async function expectNearZeroMotion(locator: Locator) {
   expect(parseMaxDurationMs(timing.transitionDuration)).toBeLessThanOrEqual(1);
 }
 
+async function expectNoHoverDisplacement(locator: Locator) {
+  await expectNearZeroMotion(locator);
+  await locator.hover();
+  const transform = await locator.evaluate((el) => getComputedStyle(el).transform);
+  expect(transform).toBe('none');
+}
+
 async function expectReducedTokens(page: Page) {
   const values = await page.evaluate(() => {
     const style = getComputedStyle(document.documentElement);
@@ -94,6 +101,11 @@ test.describe('M3.5 reduced-motion accessibility across key routes and overlays'
       await expectNearZeroMotion(page.getByTestId('desktop-sidebar'));
       await expectNearZeroMotion(page.getByTestId('app-main'));
       await expectNearZeroMotion(page.locator('.motion-page'));
+      await expectNoHoverDisplacement(page.getByTestId('dashboard-manage-rulesets'));
+      await expectNoHoverDisplacement(page.getByTestId('dashboard-new-template'));
+      await expectNoHoverDisplacement(
+        page.getByTestId('dashboard-ruleset-snapshot').getByRole('link', { name }).first(),
+      );
 
       // 2. Rules summary page + create rule dialog
       await page.getByTestId('desktop-sidebar').getByRole('link', { name: '规则' }).click();
@@ -124,10 +136,22 @@ test.describe('M3.5 reduced-motion accessibility across key routes and overlays'
       await expectNearZeroMotion(page.getByRole('menu'));
       await page.keyboard.press('Escape');
 
-      // 4. Subscriptions page transition
+      // 4. Subscriptions page transition & rule card
       await page.getByTestId('desktop-sidebar').getByRole('link', { name: '订阅' }).click();
       await expect(page).toHaveURL(/\/admin\/subscriptions$/);
       await expectNearZeroMotion(page.locator('.motion-page'));
+      await expectNoHoverDisplacement(page.getByTestId(`subscription-card-${ruleset.id}`));
+
+      // 5. Templates wizard client buttons, presets & node selection mode cards
+      await page.goto('/admin/templates/new');
+      await expect(page.getByTestId('wizard-step-1')).toBeVisible();
+      const clientCard = page.getByTestId('wizard-client-clash-verge-rev');
+      await expectNoHoverDisplacement(clientCard);
+      await clientCard.click();
+      await page.getByTestId('wizard-next-btn').click();
+      await expect(page.getByTestId('wizard-step-2')).toBeVisible();
+      await expectNoHoverDisplacement(page.getByTestId('wizard-preset-standard'));
+      await expectNoHoverDisplacement(page.getByTestId('wizard-group-mode-auto'));
     } finally {
       await request.delete(`/api/rulesets/${ruleset.id}`, { headers: JSON_HEADERS });
     }

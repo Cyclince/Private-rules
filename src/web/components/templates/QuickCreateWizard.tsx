@@ -422,7 +422,7 @@ export function QuickCreateWizard() {
                       data-testid={`wizard-client-${option.id}`}
                       aria-pressed={selected}
                       onClick={() => toggleClient(option.id)}
-                      className={`flex cursor-pointer items-start justify-between gap-3 rounded-[var(--radius-md)] border p-3.5 text-left transition-colors ${
+                      className={`motion-card flex cursor-pointer items-start justify-between gap-3 rounded-[var(--radius-md)] border p-3.5 text-left ${
                         selected
                           ? 'border-primary bg-primary/8 ring-1 ring-primary/30'
                           : 'border-border bg-surface hover:border-primary/40 hover:bg-surface-muted/50'
@@ -463,7 +463,7 @@ export function QuickCreateWizard() {
                       data-testid={testId}
                       aria-pressed={selected}
                       onClick={() => toggleClient(option.id)}
-                      className={`flex cursor-pointer items-start justify-between gap-3 rounded-[var(--radius-md)] border p-3.5 text-left transition-colors ${
+                      className={`motion-card flex cursor-pointer items-start justify-between gap-3 rounded-[var(--radius-md)] border p-3.5 text-left ${
                         selected
                           ? 'border-primary bg-primary/8 ring-1 ring-primary/30'
                           : 'border-border bg-surface hover:border-primary/40 hover:bg-surface-muted/50'
@@ -552,7 +552,7 @@ export function QuickCreateWizard() {
                       type="button"
                       data-testid={`wizard-preset-${tier}`}
                       onClick={() => applyPreset(tier)}
-                      className={`cursor-pointer rounded-[var(--radius-md)] border px-3 py-2 text-xs font-medium transition-colors ${
+                      className={`motion-card cursor-pointer rounded-[var(--radius-md)] border px-3 py-2 text-xs font-medium ${
                         isActive
                           ? 'border-primary bg-primary text-primary-foreground'
                           : 'border-border bg-surface text-text hover:bg-surface-muted'
@@ -697,7 +697,7 @@ export function QuickCreateWizard() {
                       data-testid={`wizard-group-mode-${mode}`}
                       aria-pressed={selected}
                       onClick={() => setGroupMode(mode)}
-                      className={`flex cursor-pointer flex-col gap-1 rounded-[var(--radius-md)] border p-3 text-left transition-colors ${
+                      className={`motion-card flex cursor-pointer flex-col gap-1 rounded-[var(--radius-md)] border p-3 text-left ${
                         selected
                           ? 'border-primary bg-primary/8 ring-1 ring-primary/30'
                           : 'border-border bg-surface hover:border-primary/40 hover:bg-surface-muted/50'

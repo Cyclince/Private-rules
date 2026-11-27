@@ -338,15 +338,20 @@ html.theme-transition input {
   }
 
   @media (hover: hover) and (pointer: fine) {
-    .motion-card:hover:not([aria-disabled='true']) {
+    .motion-card:hover:not(:disabled):not([aria-disabled='true']) {
       transform: translateY(-1px);
       box-shadow: var(--shadow-md);
     }
   }
 
-  .motion-card:active:not([aria-disabled='true']) {
+  .motion-card:active:not(:disabled):not([aria-disabled='true']) {
     transform: scale(0.97);
     transition-duration: var(--motion-fast);
+  }
+
+  .motion-card:disabled,
+  .motion-card[aria-disabled='true'] {
+    transform: none;
   }
 
   .motion-overlay[data-state='open'] {

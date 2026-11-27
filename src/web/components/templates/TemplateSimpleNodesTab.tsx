@@ -372,7 +372,7 @@ export function TemplateSimpleNodesTab({ view, readOnly, onGoToOutput }: Templat
                       groupModeMutation.mutate(mode);
                     }
                   }}
-                  className={`flex cursor-pointer flex-col gap-1 rounded-[var(--radius-md)] border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                  className={`motion-card flex cursor-pointer flex-col gap-1 rounded-[var(--radius-md)] border p-3 text-left disabled:cursor-not-allowed disabled:opacity-60 ${
                     selected
                       ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
                       : 'border-border bg-bg hover:border-primary/40 hover:bg-surface-muted/50'

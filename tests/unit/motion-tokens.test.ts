@@ -42,4 +42,29 @@ describe('M3.5 unified motion tokens and reduced-motion rules', () => {
     expect(reducedBlock).toMatch(/transition-duration\s*:\s*0(?:\.01)?ms\s*!important/);
     expect(reducedBlock).toMatch(/transform\s*:\s*none\s*!important/);
   });
+
+  it('guards disabled states on .motion-card and applies unified motion classes across M3.5b targets', async () => {
+    const css = await readFile(resolve(process.cwd(), 'src/web/theme/tokens.css'), 'utf8');
+    expect(css).toContain(".motion-card:hover:not(:disabled):not([aria-disabled='true'])");
+    expect(css).toContain(".motion-card:active:not(:disabled):not([aria-disabled='true'])");
+    expect(css).toMatch(
+      /\.motion-card:disabled,\s*\.motion-card\[aria-disabled='true'\]\s*\{\s*transform:\s*none;\s*\}/,
+    );
+
+    const [subs, templates, wizard, nodesTab, overview] = await Promise.all([
+      readFile(resolve(process.cwd(), 'src/web/routes/subscriptions.index.tsx'), 'utf8'),
+      readFile(resolve(process.cwd(), 'src/web/routes/templates.index.tsx'), 'utf8'),
+      readFile(resolve(process.cwd(), 'src/web/components/templates/QuickCreateWizard.tsx'), 'utf8'),
+      readFile(resolve(process.cwd(), 'src/web/components/templates/TemplateSimpleNodesTab.tsx'), 'utf8'),
+      readFile(resolve(process.cwd(), 'src/web/routes/index.tsx'), 'utf8'),
+    ]);
+
+    expect(subs).toContain('motion-card');
+    expect(templates).toMatch(/<Card[^>]*\binteractive\b/);
+    expect((wizard.match(/motion-card/g) ?? []).length).toBeGreaterThanOrEqual(4);
+    expect(nodesTab).toContain('motion-card');
+    expect(overview).toContain('motion-btn motion-btn-lift');
+    expect(overview).toContain('motion-card');
+    expect(overview).not.toContain('components/ui/button');
+  });
 });
