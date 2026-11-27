@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { TEMPLATE_CLIENT_IDS } from '../../../shared/clients';
 import type { AppCard, Condition } from '../../../shared/schemas/card';
 import { isRuleTypeSupported } from '../capabilities';
 import type { ResolvedTemplate } from '../model';
 import { buildDirectCandidates, insertModuleCard } from './helpers';
+import { requireModuleMetadata } from './metadata';
 import type { EnhancementModule } from './types';
 
 export const BT_DIRECT_CARD_ID = 'module-bt-direct';
@@ -47,17 +47,7 @@ const btDirectParamsSchema = z.object({
  * (most providers forbid it) and so PT traffic is never relayed through a shared node.
  */
 export const btDirectModule: EnhancementModule = {
-  id: 'bt-direct',
-  name: 'BT / PT 直连',
-  icon: '🧲',
-  group: 'direct',
-  description: '识别常见 BT 客户端进程与默认端口并直连，避免机场风控判定为 BT 流量，也避免 PT 上传走共享节点。',
-  defaultEnabled: false,
-  tierDefaults: { simple: false, advanced: false, pro: true },
-  order: 34,
-  affects: ['rules', 'groups'],
-  conflictsWith: [],
-  supportedClients: [...TEMPLATE_CLIENT_IDS],
+  ...requireModuleMetadata('bt-direct'),
   paramsSchema: btDirectParamsSchema,
   apply(template: ResolvedTemplate, ctx): ResolvedTemplate {
     const parsed = btDirectParamsSchema.parse(ctx.params ?? {});

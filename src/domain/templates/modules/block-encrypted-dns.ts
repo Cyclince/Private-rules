@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { TEMPLATE_CLIENT_IDS } from '../../../shared/clients';
 import type { AppCard, Condition } from '../../../shared/schemas/card';
 import type { ResolvedTemplate } from '../model';
+import { requireModuleMetadata } from './metadata';
 import type { EnhancementModule } from './types';
 
 export const BLOCK_ENCRYPTED_DNS_CARD_ID = 'module-block-encrypted-dns';
@@ -41,21 +41,7 @@ const blockEncryptedDnsParamsSchema = z.object({
  * endpoints so client applications cannot bypass the configured DNS.
  */
 export const blockEncryptedDnsModule: EnhancementModule = {
-  id: 'block-encrypted-dns',
-  name: '阻断加密 DNS',
-  icon: '🚫',
-  group: 'dns-privacy',
-  description: '在规则最前面拦截 853 端口与常见 DoH / DoT / DoQ 域名和 IP，迫使终端使用配置中的 DNS。',
-  defaultEnabled: false,
-  tierDefaults: { simple: false, advanced: false, pro: true },
-  order: 10,
-  affects: ['rules', 'groups'],
-  conflictsWith: ['dns-leak-guard'],
-  conflictReasons: {
-    'dns-leak-guard':
-      '「阻断加密 DNS」在规则最顶部拦截 DoH/DoT 域名与 IP，与开启 respect-rules 的「防 DNS 泄漏」同时启用会阻断内核自身的上游加密 DNS 查询。',
-  },
-  supportedClients: [...TEMPLATE_CLIENT_IDS],
+  ...requireModuleMetadata('block-encrypted-dns'),
   paramsSchema: blockEncryptedDnsParamsSchema,
   apply(template: ResolvedTemplate, ctx): ResolvedTemplate {
     const next = structuredClone(template);

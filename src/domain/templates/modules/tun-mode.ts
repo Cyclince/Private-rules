@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ResolvedTemplate } from '../model';
 import { upsertClientPatchSection } from './helpers';
+import { requireModuleMetadata } from './metadata';
 import type { EnhancementModule } from './types';
 
 export const TUN_MODE_MODULE_ID = 'tun-mode';
@@ -24,18 +25,7 @@ const tunModeParamsSchema = z.object({
  * The block is appended to `clientPatches.mihomo`, keeping the user's patch text intact.
  */
 export const tunModeModule: EnhancementModule = {
-  id: TUN_MODE_MODULE_ID,
-  name: 'TUN 模式（路由器 / 透明代理）',
-  icon: '🚇',
-  group: 'runtime',
-  description:
-    '为 OpenClash 等虚拟网关写入 mihomo 的 tun 段（auto-route、DNS 劫持）。图形客户端请用自带的 TUN 开关，默认不写。',
-  defaultEnabled: false,
-  tierDefaults: { simple: false, advanced: false, pro: false },
-  order: 60,
-  affects: ['runtime'],
-  conflictsWith: [],
-  supportedClients: ['mihomo'],
+  ...requireModuleMetadata(TUN_MODE_MODULE_ID),
   paramsSchema: tunModeParamsSchema,
   apply(template: ResolvedTemplate, ctx): ResolvedTemplate {
     const parsed = tunModeParamsSchema.parse(ctx.params ?? {});

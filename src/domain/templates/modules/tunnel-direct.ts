@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { TEMPLATE_CLIENT_IDS } from '../../../shared/clients';
 import type { AppCard, Condition, PolicyRef } from '../../../shared/schemas/card';
 import type { ResolvedTemplate } from '../model';
 import { getStageOrder } from '../stages';
+import { requireModuleMetadata } from './metadata';
 import type { EnhancementModule } from './types';
 
 export const TUNNEL_DIRECT_CARD_ID = 'module-tunnel-direct';
@@ -31,16 +31,7 @@ function findPreDirectInsertIndex(template: ResolvedTemplate): number {
  * and UDP/control ports into the `pre-direct` stage.
  */
 export const tunnelDirectModule: EnhancementModule = {
-  id: 'tunnel-direct',
-  name: '局域网与内网穿透直连',
-  icon: '🔗',
-  group: 'direct',
-  description: '在前置直连层加入 Tailscale、Cloudflare Tunnel、ZeroTier 等内网穿透与组网的域名、IP 与端口直连规则。',
-  defaultEnabled: false,
-  tierDefaults: { simple: false, advanced: true, pro: true },
-  order: 30,
-  affects: ['rules', 'groups', 'providers'],
-  supportedClients: [...TEMPLATE_CLIENT_IDS],
+  ...requireModuleMetadata('tunnel-direct'),
   paramsSchema: tunnelDirectParamsSchema,
   apply(template: ResolvedTemplate, ctx): ResolvedTemplate {
     const next = structuredClone(template);

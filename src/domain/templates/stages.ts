@@ -1,4 +1,5 @@
-import { STAGE_VALUES, type AppCard, type Stage } from '../../shared/schemas/card';
+import type { AppCard } from '../../shared/schemas/card';
+import { STAGE_VALUES, type Stage } from '../../shared/stages';
 import type { TemplateCardRef } from '../../shared/schemas/template';
 import { toCardMap, type CardLookup } from './model';
 

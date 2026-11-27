@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import type { TemplateClientId } from '../../../shared/clients';
 import type { AppCard, Condition } from '../../../shared/schemas/card';
 import type { ResolvedTemplate } from '../model';
 import { insertModuleCard } from './helpers';
+import { requireModuleMetadata } from './metadata';
 import type { EnhancementModule } from './types';
 
 export const DISABLE_QUIC_MODULE_ID = 'disable-quic';
@@ -13,14 +13,7 @@ export const DISABLE_QUIC_CARD_ID = 'module-disable-quic';
  * `network: ["udp"]`) combined with `DST-PORT,443` inside a logical `AND` rule.
  * Quantumult X supports neither transport protocol rules nor logical `AND` rules and is omitted.
  */
-export const DISABLE_QUIC_SUPPORTED_CLIENTS: readonly TemplateClientId[] = [
-  'mihomo',
-  'stash',
-  'surge',
-  'sing-box',
-  'loon',
-  'shadowrocket',
-];
+export const DISABLE_QUIC_SUPPORTED_CLIENTS = requireModuleMetadata(DISABLE_QUIC_MODULE_ID).supportedClients;
 
 const disableQuicParamsSchema = z.object({
   action: z.enum(['REJECT', 'REJECT-DROP']).optional(),
@@ -32,17 +25,7 @@ const disableQuicParamsSchema = z.object({
  * so apps fall back to TCP/TLS where domains and SNI are easier to inspect and route.
  */
 export const disableQuicModule: EnhancementModule = {
-  id: DISABLE_QUIC_MODULE_ID,
-  name: '禁用 QUIC',
-  icon: '🛑',
-  group: 'accuracy',
-  description: '拦截 UDP 443 的 QUIC 流量，促使浏览器与应用回退到 TCP / TLS，提升规则识别与分流准确度。',
-  defaultEnabled: false,
-  tierDefaults: { simple: false, advanced: false, pro: true },
-  order: 14,
-  affects: ['rules', 'groups'],
-  conflictsWith: [],
-  supportedClients: DISABLE_QUIC_SUPPORTED_CLIENTS,
+  ...requireModuleMetadata(DISABLE_QUIC_MODULE_ID),
   paramsSchema: disableQuicParamsSchema,
   apply(template: ResolvedTemplate, ctx): ResolvedTemplate {
     const parsed = disableQuicParamsSchema.parse(ctx.params ?? {});

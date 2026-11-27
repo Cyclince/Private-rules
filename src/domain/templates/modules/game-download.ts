@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { TEMPLATE_CLIENT_IDS } from '../../../shared/clients';
 import type { AppCard, Condition, PolicyRef } from '../../../shared/schemas/card';
 import type { ResolvedTemplate } from '../model';
 import { getStageOrder } from '../stages';
+import { requireModuleMetadata } from './metadata';
 import type { EnhancementModule } from './types';
 
 export const GAME_DOWNLOAD_DIRECT_CARD_ID = 'module-game-download-direct';
@@ -42,16 +42,7 @@ function findPreDirectInsertIndex(template: ResolvedTemplate): number {
  * Inserts Steam CDN and game platform download domains into the `pre-direct` stage.
  */
 export const gameDownloadDirectModule: EnhancementModule = {
-  id: 'game-download-direct',
-  name: '游戏下载直连',
-  icon: '🎮',
-  group: 'direct',
-  description: '在前置直连层加入 Steam CDN 与主流游戏平台下载域名直连，节省代理流量并提升下载速度。',
-  defaultEnabled: false,
-  tierDefaults: { simple: false, advanced: false, pro: true },
-  order: 20,
-  affects: ['rules', 'groups', 'providers'],
-  supportedClients: [...TEMPLATE_CLIENT_IDS],
+  ...requireModuleMetadata('game-download-direct'),
   paramsSchema: gameDownloadParamsSchema,
   apply(template: ResolvedTemplate, ctx): ResolvedTemplate {
     const next = structuredClone(template);

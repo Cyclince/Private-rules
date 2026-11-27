@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { TEMPLATE_CLIENT_IDS } from '../../../shared/clients';
 import type { AppCard, Condition } from '../../../shared/schemas/card';
 import type { ResolvedTemplate } from '../model';
 import { buildDirectCandidates, insertModuleCard } from './helpers';
+import { requireModuleMetadata } from './metadata';
 import type { EnhancementModule } from './types';
 
 export const DOMESTIC_APPS_DIRECT_CARD_ID = 'module-domestic-apps-direct';
@@ -60,18 +60,7 @@ const domesticAppsParamsSchema = z.object({
  * mis-grouped node can never break payments, logins or message delivery.
  */
 export const domesticAppsDirectModule: EnhancementModule = {
-  id: 'domestic-apps-direct',
-  name: '国内常用应用防误代理',
-  icon: '📱',
-  group: 'direct',
-  description:
-    '把微信、支付宝与主要银行的常用域名固定走直连，避免节点误分组导致支付、登录或消息收发失败（三档都推荐开启）。',
-  defaultEnabled: true,
-  tierDefaults: { simple: true, advanced: true, pro: true },
-  order: 26,
-  affects: ['rules', 'groups'],
-  conflictsWith: [],
-  supportedClients: [...TEMPLATE_CLIENT_IDS],
+  ...requireModuleMetadata('domestic-apps-direct'),
   paramsSchema: domesticAppsParamsSchema,
   apply(template: ResolvedTemplate, ctx): ResolvedTemplate {
     const parsed = domesticAppsParamsSchema.parse(ctx.params ?? {});

@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { lazy, Suspense, useMemo, useState } from 'react';
 import type { LintIssue } from '../../../domain/templates/lint';
-import { listEnhancementModules } from '../../../domain/templates/modules';
+import { listEnhancementModuleMetadata } from '../../../domain/templates/modules/metadata';
 import { getNormalizedBodyPools, nodePoolToRegionGroup } from '../../../domain/templates/pools';
 import {
   checkStageOrdering,
@@ -386,7 +386,7 @@ export function TemplateCanvas({
     return opts;
   }, [body.cards, body.pools, body.slots, cardMap, regionGroups]);
 
-  const enhancementModules = useMemo(() => listEnhancementModules(), []);
+  const enhancementModules = useMemo(() => listEnhancementModuleMetadata(), []);
   const moduleEnabledMap = useMemo(() => new Map(body.modules.map((m) => [m.id, m.enabled])), [body.modules]);
 
   const handleDragEnd = (event: DragEndEvent) => {

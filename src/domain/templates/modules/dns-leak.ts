@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { AppCard, PolicyRef } from '../../../shared/schemas/card';
 import type { ResolvedTemplate } from '../model';
+import { requireModuleMetadata } from './metadata';
 import type { EnhancementModule } from './types';
 
 export const DNS_LEAK_FINAL_CARD_ID = 'module-dns-leak-final';
@@ -61,22 +62,7 @@ function buildProxyOnlyCandidates(template: ResolvedTemplate, emptyFallback: 'RE
  * and replaces `final` with a dedicated proxy-only group that falls back to REJECT-DROP/REJECT.
  */
 export const dnsLeakGuardModule: EnhancementModule = {
-  id: 'dns-leak-guard',
-  name: '防 DNS 泄漏',
-  icon: '🛡️',
-  group: 'dns-privacy',
-  description:
-    '开启 DNS 规则跟随（respect-rules），移除系统 DNS，并将兜底出口改为不含 DIRECT 的专用代理组（为空时回退拦截）。',
-  defaultEnabled: true,
-  tierDefaults: { simple: true, advanced: true, pro: true },
-  order: 40,
-  affects: ['dns', 'groups', 'final'],
-  conflictsWith: ['block-encrypted-dns'],
-  conflictReasons: {
-    'block-encrypted-dns':
-      '防 DNS 泄漏会开启 respect-rules 使内核上游 DoH/DoT 查询走规则表，与「阻断加密 DNS」在顶部拦截 DoH/DoT 域名及 IP 冲突，会导致 DNS 死锁。',
-  },
-  supportedClients: ['mihomo', 'sing-box'],
+  ...requireModuleMetadata('dns-leak-guard'),
   paramsSchema: dnsLeakParamsSchema,
   apply(template: ResolvedTemplate, ctx): ResolvedTemplate {
     const next = structuredClone(template);

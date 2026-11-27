@@ -1,5 +1,5 @@
 import type { ComplexityTier, NodePool, NodePoolKind, RegionGroup, TemplateBody } from '../../shared/schemas/template';
-import { recognizeGroupIcon } from './icons';
+import { recognizeGroupEmoji } from './icons-emoji';
 
 const DEFAULT_POOL_ICON_BY_KIND: Readonly<Record<NodePoolKind, string>> = {
   region: '🌐',
@@ -49,7 +49,7 @@ const SLUG_TO_COMPLEXITY: Readonly<Record<string, ComplexityTier>> = {
 export function resolvePoolIcon(input: Pick<NodePool, 'name' | 'icon' | 'region' | 'type' | 'kind'>): string {
   const explicit = input.icon?.trim();
   if (explicit) return explicit;
-  const recognized = recognizeGroupIcon({
+  const recognized = recognizeGroupEmoji({
     name: input.name,
     region: input.region,
     groupType: input.kind === 'all' || input.kind === 'stability' ? input.type : undefined,

@@ -1,5 +1,6 @@
 import type { TemplateModuleBinding } from '../../../shared/schemas/template';
 import type { ResolvedTemplate } from '../model';
+import { requireModuleMetadata } from './metadata';
 import type { EnhancementModule } from './types';
 
 export const SNIFFER_MODULE_ID = 'sniffer';
@@ -55,18 +56,7 @@ export function shouldEmitSniffer(bindings: readonly TemplateModuleBinding[]): b
  * `{ id: 'sniffer', enabled: false }` omits `sniffer:` completely.
  */
 export const snifferModule: EnhancementModule = {
-  id: SNIFFER_MODULE_ID,
-  name: '流量嗅探',
-  icon: '🔍',
-  group: 'accuracy',
-  description:
-    '从 TLS / QUIC 握手还原域名，让端口复用与应用内流量也能命中域名规则；mihomo 默认开启，关闭时不写入嗅探段。',
-  defaultEnabled: true,
-  tierDefaults: { simple: false, advanced: true, pro: true },
-  order: 12,
-  affects: ['runtime'],
-  conflictsWith: [],
-  supportedClients: ['mihomo'],
+  ...requireModuleMetadata(SNIFFER_MODULE_ID),
   apply(template: ResolvedTemplate): ResolvedTemplate {
     // Single source of truth: keep the compiler's block, never append a second `sniffer:` key.
     return template;

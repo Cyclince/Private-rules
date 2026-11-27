@@ -1,6 +1,7 @@
 import { TEMPLATE_CLIENT_IDS, type TemplateClientId } from '../../../shared/clients';
 import type { Condition, InlineRule } from '../../../shared/schemas/card';
-import { detectRegexDialectIssues, getRegionDefinition, type RegexDialectWarning } from '../../nodes';
+import { detectRegexDialectIssues, type RegexDialectWarning } from '../../nodes/regex';
+import { getRegionDefinition } from '../../nodes/regions';
 import { resolveTemplateCards } from '../model';
 import { getNormalizedBodyPools } from '../pools';
 import type { LintIssue, LintSeverity, LintTemplateInput } from './types';

@@ -1,5 +1,5 @@
 import { toCardMap, type CardLookup } from '../../../domain/templates/model';
-import { validateModuleCombination } from '../../../domain/templates/modules';
+import { validateModuleCombinationMetadata } from '../../../domain/templates/modules/metadata';
 import type { ConflictResolution, OverlayConflict } from '../../../domain/templates/overlay';
 import { applyOverlay } from '../../../domain/templates/overlay';
 import { getStageOrder, sortCardsByStage } from '../../../domain/templates/stages';
@@ -158,7 +158,7 @@ export function checkModuleToggleConflict(
     ? currentModules.map((m) => (m.id === moduleId ? { ...m, enabled: true } : m))
     : [...currentModules, { id: moduleId, enabled: true }];
 
-  const result = validateModuleCombination(candidate);
+  const result = validateModuleCombinationMetadata(candidate);
   if (result.ok) return { allowed: true };
   const firstConflict = result.conflicts[0];
   if (firstConflict) {

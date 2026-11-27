@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { TEMPLATE_CLIENT_IDS } from '../../../shared/clients';
 import type { AppCard, Condition } from '../../../shared/schemas/card';
 import type { ResolvedTemplate } from '../model';
 import { insertModuleCard } from './helpers';
+import { requireModuleMetadata } from './metadata';
 import type { EnhancementModule } from './types';
 
 export const PRIVACY_TRACKER_BLOCK_CARD_ID = 'module-privacy-tracker-block';
@@ -55,17 +55,7 @@ const privacyTrackerParamsSchema = z.object({
  * domains so analytics SDKs cannot follow the user through direct or proxied traffic.
  */
 export const privacyTrackerBlockModule: EnhancementModule = {
-  id: 'privacy-tracker-block',
-  name: '隐私跟踪拦截',
-  icon: '🕵️',
-  group: 'dns-privacy',
-  description: '在规则最前面拦截常见统计、归因与崩溃上报域名（不含系统与厂商推送通道），减少应用对使用行为的采集。',
-  defaultEnabled: false,
-  tierDefaults: { simple: false, advanced: false, pro: true },
-  order: 8,
-  affects: ['rules', 'groups'],
-  conflictsWith: [],
-  supportedClients: [...TEMPLATE_CLIENT_IDS],
+  ...requireModuleMetadata('privacy-tracker-block'),
   paramsSchema: privacyTrackerParamsSchema,
   apply(template: ResolvedTemplate, ctx): ResolvedTemplate {
     const parsed = privacyTrackerParamsSchema.parse(ctx.params ?? {});

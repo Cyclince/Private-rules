@@ -13,17 +13,15 @@ import { PRIVACY_TRACKER_BLOCK_CARD_ID, privacyTrackerBlockModule } from './priv
 import { MIHOMO_DEFAULT_SNIFFER_PATCH, SNIFFER_MODULE_ID, shouldEmitSniffer, snifferModule } from './sniffer';
 import { TUN_PATCH_KEY, TUN_MODE_MODULE_ID, tunModeModule } from './tun-mode';
 import { TUNNEL_DIRECT_CARD_ID, tunnelDirectModule } from './tunnel-direct';
+import { MODULE_GROUP_DEFINITIONS, validateModuleCombinationMetadata } from './metadata';
 import {
   MODULE_GROUPS,
   ModuleConflictError,
   type ApplyModulesResult,
   type EnhancementModule,
-  type ModuleConflict,
   type ModuleGroup,
   type ModuleGroupBucket,
-  type ModuleGroupDefinition,
   type ModuleSkipRecord,
-  type ModuleValidationError,
   type ModuleValidationResult,
 } from './types';
 
@@ -43,6 +41,7 @@ export {
   TUN_MODE_MODULE_ID,
   TUN_PATCH_KEY,
   MODULE_GROUPS,
+  MODULE_GROUP_DEFINITIONS,
   ModuleConflictError,
   applePushDirectModule,
   blockEncryptedDnsModule,
@@ -62,6 +61,7 @@ export type {
   ApplyModulesResult,
   EnhancementModule,
   EnhancementModuleAffect,
+  EnhancementModuleMetadata,
   ModuleCompileContext,
   ModuleConflict,
   ModuleGroup,
@@ -72,38 +72,6 @@ export type {
   ModuleValidationError,
   ModuleValidationResult,
 } from './types';
-
-/** Ordered definitions of enhancement module UI groups (design §5.2). */
-export const MODULE_GROUP_DEFINITIONS: readonly ModuleGroupDefinition[] = [
-  {
-    id: 'dns-privacy',
-    name: 'DNS 与隐私',
-    icon: '🛡️',
-    description: '控制上游 DNS 行为、防止请求泄漏、阻断应用绕过加密 DNS，并拦截常见跟踪与遥测域名。',
-    order: 10,
-  },
-  {
-    id: 'accuracy',
-    name: '识别准确度',
-    icon: '🔍',
-    description: '从加密流量还原域名、减少不必要的 DNS 触发，提升域名与 IP 规则分流准确度。',
-    order: 20,
-  },
-  {
-    id: 'direct',
-    name: '直连优化',
-    icon: '🏠',
-    description: '将内网穿透、系统推送、国内常用应用与大流量下载直连分流。',
-    order: 30,
-  },
-  {
-    id: 'runtime',
-    name: '运行',
-    icon: '⚙️',
-    description: '客户端运行时参数，例如路由器 / 透明代理下的 TUN 模式。',
-    order: 40,
-  },
-];
 
 /** All built-in enhancement modules in deterministic execution order (design §5.2). */
 export const ENHANCEMENT_MODULES: readonly EnhancementModule[] = [
@@ -206,11 +174,6 @@ export function listEnhancementModulesByGroup(
     }));
 }
 
-function toRegistryMap(registry?: readonly EnhancementModule[]): Map<string, EnhancementModule> {
-  if (!registry) return MODULE_MAP;
-  return new Map(registry.map((mod) => [mod.id, mod]));
-}
-
 /**
  * Validates a set of template module bindings for unknown modules, invalid
  * parameters, and mutually conflicting enabled modules (design §10.12).
@@ -219,66 +182,16 @@ export function validateModuleCombination(
   bindings: readonly TemplateModuleBinding[],
   registry?: readonly EnhancementModule[],
 ): ModuleValidationResult {
-  const regMap = toRegistryMap(registry);
-  const enabledBindings = bindings.filter((b) => b.enabled);
-  const enabledSet = new Set(enabledBindings.map((b) => b.id));
-  const conflicts: ModuleConflict[] = [];
-  const errors: ModuleValidationError[] = [];
-  const seenConflictPairs = new Set<string>();
+  return validateModuleCombinationMetadata(bindings, registry ?? ENHANCEMENT_MODULES, (mod, params) => {
+    if (!mod.paramsSchema) return null;
+    const check = mod.paramsSchema.safeParse(params);
+    return check.success ? null : check.error.issues.map((i) => i.message).join('; ');
+  });
+}
 
-  for (const binding of enabledBindings) {
-    const mod = regMap.get(binding.id);
-    if (!mod) {
-      errors.push({
-        code: 'UNKNOWN_MODULE',
-        moduleId: binding.id,
-        message: `未知的增强模块：${binding.id}。`,
-      });
-      continue;
-    }
-
-    if (mod.paramsSchema && binding.params !== undefined) {
-      const check = mod.paramsSchema.safeParse(binding.params);
-      if (!check.success) {
-        errors.push({
-          code: 'INVALID_MODULE_PARAMS',
-          moduleId: mod.id,
-          message: `增强模块 ${mod.name}（${mod.id}）参数无效：${check.error.issues.map((i) => i.message).join('; ')}`,
-        });
-      }
-    }
-
-    for (const conflictId of mod.conflictsWith ?? []) {
-      if (!enabledSet.has(conflictId)) continue;
-      const pairKey = [mod.id, conflictId].sort().join('::');
-      if (seenConflictPairs.has(pairKey)) continue;
-      seenConflictPairs.add(pairKey);
-
-      const other = regMap.get(conflictId);
-      const reason =
-        mod.conflictReasons?.[conflictId] ??
-        other?.conflictReasons?.[mod.id] ??
-        `增强模块「${mod.name}」与「${other?.name ?? conflictId}」互斥，不能同时启用。`;
-
-      conflicts.push({
-        moduleA: mod.id,
-        moduleB: conflictId,
-        reason,
-      });
-      errors.push({
-        code: 'MODULE_CONFLICT',
-        moduleId: mod.id,
-        conflictWith: conflictId,
-        message: reason,
-      });
-    }
-  }
-
-  return {
-    ok: errors.length === 0,
-    conflicts,
-    errors,
-  };
+function toRegistryMap(registry?: readonly EnhancementModule[]): Map<string, EnhancementModule> {
+  if (!registry) return MODULE_MAP;
+  return new Map(registry.map((mod) => [mod.id, mod]));
 }
 
 export type ApplyEnhancementModulesOptions = {

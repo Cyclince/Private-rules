@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { TEMPLATE_CLIENT_IDS } from '../../../shared/clients';
 import type { AppCard, Condition } from '../../../shared/schemas/card';
 import type { ResolvedTemplate } from '../model';
 import { buildDirectCandidates, insertModuleCard } from './helpers';
+import { requireModuleMetadata } from './metadata';
 import type { EnhancementModule } from './types';
 
 export const APPLE_PUSH_DIRECT_CARD_ID = 'module-apple-push-direct';
@@ -31,17 +31,7 @@ const applePushParamsSchema = z.object({
  * actually resolves directly).
  */
 export const applePushDirectModule: EnhancementModule = {
-  id: 'apple-push-direct',
-  name: 'Apple 推送直连',
-  icon: '🍎',
-  group: 'direct',
-  description: '把 APNs 推送域名（push.apple.com 等）放到前置直连层，iPhone 推送不再绕代理，到达更及时。',
-  defaultEnabled: false,
-  tierDefaults: { simple: false, advanced: true, pro: true },
-  order: 22,
-  affects: ['rules', 'groups'],
-  conflictsWith: [],
-  supportedClients: [...TEMPLATE_CLIENT_IDS],
+  ...requireModuleMetadata('apple-push-direct'),
   paramsSchema: applePushParamsSchema,
   apply(template: ResolvedTemplate, ctx): ResolvedTemplate {
     const parsed = applePushParamsSchema.parse(ctx.params ?? {});

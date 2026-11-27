@@ -31,10 +31,11 @@ export const CATALOG_DEFAULT_ROUTE_VALUES = ['proxy', 'direct', 'reject'] as con
 export const catalogDefaultRouteSchema = z.enum(CATALOG_DEFAULT_ROUTE_VALUES);
 export type CatalogDefaultRoute = z.infer<typeof catalogDefaultRouteSchema>;
 
+import { STAGE_VALUES, type Stage } from '../stages';
+
 /** Fixed 7-layer rule stratification stages (design §10.10). */
-export const STAGE_VALUES = ['pre-direct', 'app', 'proxy-fallback', 'ip', 'domestic', 'port', 'final'] as const;
+export { STAGE_VALUES, type Stage };
 export const stageSchema = z.enum(STAGE_VALUES);
-export type Stage = z.infer<typeof stageSchema>;
 
 /** Supported strategy group types (design §10.2). */
 export const GROUP_TYPE_VALUES = ['select', 'url-test', 'fallback', 'load-balance'] as const;

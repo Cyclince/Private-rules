@@ -26,7 +26,7 @@ export type ModuleCompileContext = {
   params?: Record<string, unknown>;
 };
 
-export type EnhancementModule = {
+export type EnhancementModuleMetadata = {
   id: string;
   name: string;
   icon: string;
@@ -40,6 +40,9 @@ export type EnhancementModule = {
   conflictsWith?: readonly string[];
   conflictReasons?: Readonly<Record<string, string>>;
   supportedClients: readonly TemplateClientId[];
+};
+
+export type EnhancementModule = EnhancementModuleMetadata & {
   paramsSchema?: z.ZodType<Record<string, unknown>>;
   apply(template: ResolvedTemplate, ctx: ModuleCompileContext): ResolvedTemplate;
   /**
