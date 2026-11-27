@@ -22,6 +22,7 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { EmptyState } from '../components/ui/empty-state';
+import { QrCodeButton } from '../components/ui/QrCodeButton';
 import { SkeletonSwap } from '../components/ui/skeleton';
 import { loadPageTranslations, useI18n, type MessageKey } from '../i18n';
 import { requireAuthBeforeLoad } from '../lib/auth-guard';
@@ -253,6 +254,17 @@ function SubscriptionsIndexPage() {
                               {copied ? t('common.copied') : t('subscriptions.copyShort')}
                             </span>
                           </Button>
+                          {/* Phone scan shortcut beside the copy button; icon-only on phones to keep 390px tidy. */}
+                          <QrCodeButton
+                            url={displayUrl}
+                            title={app.name}
+                            size="sm"
+                            variant="ghost"
+                            compact
+                            disabled={!canCopy}
+                            testId={`qr-subscription-quick-${category.id}`}
+                            className="px-2"
+                          />
                           {!canCopy ? (
                             <span
                               data-testid={`subscription-quick-disabled-${category.id}`}

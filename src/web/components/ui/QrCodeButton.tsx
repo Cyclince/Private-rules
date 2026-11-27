@@ -14,6 +14,11 @@ export type QrCodeButtonProps = {
   className?: string;
   disabled?: boolean;
   testId?: string;
+  /**
+   * Hides the text label below the `sm` breakpoint so the button fits the narrow
+   * quick-action columns on phones; the aria-label still names the action.
+   */
+  compact?: boolean;
 };
 
 /** Button that lazily loads the local QR code dialog on first click without entering the first-screen bundle. */
@@ -26,6 +31,7 @@ export function QrCodeButton({
   className,
   disabled = false,
   testId,
+  compact = false,
 }: QrCodeButtonProps) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -52,7 +58,7 @@ export function QrCodeButton({
         className={className}
       >
         <QrCode className="h-3.5 w-3.5" />
-        <span>{buttonText}</span>
+        <span className={compact ? 'hidden sm:inline' : undefined}>{buttonText}</span>
       </Button>
       {loaded ? (
         <Suspense fallback={null}>

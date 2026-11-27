@@ -13,6 +13,7 @@ import { AppIcon } from '../apps/AppIcon';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
+import { QrCodeButton } from '../ui/QrCodeButton';
 import { ClientImportButton } from './ClientImportButton';
 
 const AddClientDialog = lazy(() => import('./AddClientDialog').then((m) => ({ default: m.AddClientDialog })));
@@ -195,6 +196,16 @@ export function TemplateSimpleOutputTab({ view, readOnly }: TemplateSimpleOutput
                         {isCopied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
                         <span>{isCopied ? t('wizard.doneCopiedBtn') : t('wizard.doneCopyBtn')}</span>
                       </Button>
+
+                      {/* Phone scan shortcut next to the copy link; the dialog loads lazily on click. */}
+                      <QrCodeButton
+                        url={link.url ?? ''}
+                        title={link.displayName}
+                        size="sm"
+                        variant="outline"
+                        disabled={!link.url}
+                        testId={`output-qr-${link.client}`}
+                      />
 
                       <ClientImportButton
                         client={link.client}

@@ -195,3 +195,136 @@ test.describe('Q1 QR Code Dialog on Subscription Detail, Wizard Done, and Reduce
     }
   });
 });
+
+async function expectNoHorizontalOverflow(page: Page) {
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+}
+
+type OutputView = { outputs: Array<{ links: Array<{ client: string; url: string | null }> }> };
+
+test.describe('Q2 QR Code Dialog on Template Output Tab and Subscription Center Cards', () => {
+  test('template output tab shows a QR button beside every copy link and opens the local dialog at 390px', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await installClipboardSpy(page);
+    await signInAdmin(page);
+
+    const suffix = Date.now().toString(36);
+    let templateId: string | null = null;
+    try {
+      const qcRes = await page.request.post('/api/templates/quick-create', {
+        data: {
+          name: `QR-输出 ${suffix}`,
+          complexity: 'simple',
+          clients: ['mihomo', 'shadowrocket'],
+          clientDisplayNames: ['Clash Verge Rev', 'Shadowrocket'],
+          clientLabels: { mihomo: 'Clash Verge Rev', shadowrocket: 'Shadowrocket' },
+          groupMode: 'auto',
+        },
+        headers: JSON_HEADERS,
+      });
+      expect(qcRes.status()).toBe(201);
+      templateId = ((await qcRes.json()) as { template: { id: string } }).template.id;
+
+      const viewRes = await page.request.get(`/api/templates/${templateId}/simple`);
+      expect(viewRes.status()).toBe(200);
+      const view = (await viewRes.json()) as OutputView;
+      const links = view.outputs.flatMap((output) => output.links);
+      const mihomoUrl = links.find((link) => link.client === 'mihomo')?.url;
+      const rocketUrl = links.find((link) => link.client === 'shadowrocket')?.url;
+      expect(mihomoUrl).toBeTruthy();
+      expect(rocketUrl).toBeTruthy();
+
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/admin/templates/${templateId}`);
+      await expect(page.getByTestId('template-detail-page')).toBeVisible();
+      await page.getByTestId('template-tab-output').click();
+      await expect(page.getByTestId('simple-output-tab')).toBeVisible();
+
+      // The QR shortcut sits next to the copy link of each software card.
+      const mihomoQr = page.getByTestId('output-qr-mihomo');
+      await expect(mihomoQr).toBeVisible();
+      await expect(mihomoQr).toHaveAttribute('aria-label', '二维码');
+      await expect(mihomoQr).toBeEnabled();
+      await expect(page.getByTestId('output-copy-mihomo')).toBeVisible();
+      await expect(page.getByTestId('output-qr-shadowrocket')).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+
+      await assertQrDialogWorks(page, mihomoQr, mihomoUrl!);
+      await expectNoHorizontalOverflow(page);
+
+      // Every card carries its own URL, and Escape also closes the dialog.
+      await assertQrDialogWorks(page, page.getByTestId('output-qr-shadowrocket'), rocketUrl!);
+      await mihomoQr.click();
+      await expect(page.getByTestId('qr-code-dialog')).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(page.getByTestId('qr-code-dialog')).toBeHidden();
+      await expectNoHorizontalOverflow(page);
+    } finally {
+      if (templateId) {
+        await page.request.delete(`/api/templates/${templateId}`, { headers: JSON_HEADERS }).catch(() => {});
+      }
+    }
+  });
+
+  test('subscription center rule cards add a QR button beside quick copy once a software is picked', async ({
+    page,
+  }) => {
+    await installClipboardSpy(page);
+    await signInAdmin(page);
+
+    const suffix = Date.now().toString(36);
+    const ruleName = `QR-Center-${suffix}`;
+    const createRes = await page.request.post('/api/rulesets', {
+      data: { name: ruleName, tokenLinksEnabled: true, publicLinksEnabled: true },
+      headers: JSON_HEADERS,
+    });
+    expect(createRes.status()).toBe(201);
+    const createdPayload = (await createRes.json()) as {
+      data: { categories: Array<{ id: string; name: string }> };
+    };
+    const seeded = createdPayload.data.categories.find((c) => c.name === ruleName)!;
+
+    try {
+      const summaryRes = await page.request.get('/api/rulesets?summary=1');
+      const summary = (await summaryRes.json()) as {
+        links: Record<string, Array<{ id: string; recommendedUrl: string }>>;
+      };
+      const expectedRocketUrl = (summary.links[seeded.id] ?? []).find(
+        (link) => link.id === 'shadowrocket',
+      )?.recommendedUrl;
+      expect(expectedRocketUrl).toBeTruthy();
+
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto('/admin/subscriptions');
+      await expect(page.getByTestId('subscriptions-page')).toBeVisible();
+
+      // No software picked yet -> no QR shortcut, only the "pick your software" hint.
+      await expect(page.getByTestId(`qr-subscription-quick-${seeded.id}`)).toHaveCount(0);
+      await expectNoHorizontalOverflow(page);
+
+      await page.getByTestId('app-picker-platform-iphone').click();
+      await page.getByTestId('app-option-shadowrocket').click();
+
+      const quickQr = page.getByTestId(`qr-subscription-quick-${seeded.id}`);
+      await expect(quickQr).toBeVisible();
+      await expect(quickQr).toHaveAttribute('aria-label', '二维码');
+      await expect(page.getByTestId(`copy-subscription-quick-${seeded.id}`)).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+
+      await assertQrDialogWorks(page, quickQr, expectedRocketUrl!);
+      await expectNoHorizontalOverflow(page);
+
+      // The desktop width keeps the label and stays inside the action column.
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await expect(quickQr).toHaveText('二维码');
+      await expectNoHorizontalOverflow(page);
+    } finally {
+      await page.request.delete(`/api/rulesets/${seeded.id}`, { headers: JSON_HEADERS }).catch(() => {});
+    }
+  });
+});
