@@ -10,6 +10,7 @@ import {
   previewTemplateById,
   probeTemplateById,
   quickCreateTemplate,
+  type PreviewSubscriptionBatchResult,
   type PreviewSubscriptionResult,
   type QuickCreateTemplateResult,
 } from '../../src/application/templates';
@@ -385,6 +386,97 @@ describe('M2a quick-create & preview-subscription integration tests', () => {
           await harness.cleanup();
         }
       });
+
+      it('creates multi-airport subscriptions with default/deduped names, perProvider combineMode, encrypted bindings per publication, and rejects >10', async () => {
+        const harness = await createBackendHarness(backendKind);
+        try {
+          const urlA = 'https://provider-a.example.test/sub?token=SECRET_ALPHA_111';
+          const urlB = 'https://provider-b.example.test/sub?token=SECRET_BETA_222';
+          const urlC = 'https://provider-c.example.test/sub?token=SECRET_GAMMA_333';
+
+          const res = await harness.adminRequest('/api/templates/quick-create', {
+            method: 'POST',
+            body: JSON.stringify({
+              name: '多机场全家桶',
+              clients: ['mihomo', 'sing-box'],
+              groupMode: 'region',
+              combineMode: 'perProvider',
+              subscriptions: [
+                { name: '主力', url: urlA, userAgent: 'clash.meta/1.19' },
+                { name: '主力', url: urlB },
+                { url: urlC },
+              ],
+              detectedRegions: ['HK', 'JP'],
+            }),
+          });
+          expect(res.status).toBe(201);
+          const rawText = await res.text();
+          // Security: never leak plaintext URLs or ciphertext
+          expect(rawText).not.toContain('SECRET_ALPHA_111');
+          expect(rawText).not.toContain('SECRET_BETA_222');
+          expect(rawText).not.toContain('SECRET_GAMMA_333');
+          expect(rawText).not.toContain('subscriptionUrlEnc');
+
+          const body = JSON.parse(rawText) as QuickCreateTemplateResult;
+          expect(body.combineMode).toBe('perProvider');
+          expect(body.hasSubscription).toBe(true);
+          expect(body.subscriptions.map((s) => ({ slotId: s.slotId, name: s.name }))).toEqual([
+            { slotId: 'slot-main', name: '主力' },
+            { slotId: 'slot-2', name: '主力 (2)' },
+            { slotId: 'slot-3', name: '机场 3' },
+          ]);
+          expect(body.resolvedBody.combineMode).toBe('perProvider');
+          expect(body.resolvedBody.slots.map((s) => s.id)).toEqual(['slot-main', 'slot-2', 'slot-3']);
+
+          // Every publication must have all 3 slots encrypted & bound
+          const repos = createRepositories(harness.env.DB);
+          expect(body.publications).toHaveLength(2);
+          for (const pub of body.publications) {
+            const bindings = await repos.nodeBindings.listByPublication(pub.id);
+            expect(bindings.map((b) => b.slotId).sort()).toEqual(['slot-2', 'slot-3', 'slot-main']);
+            const mainBinding = bindings.find((b) => b.slotId === 'slot-main');
+            expect(mainBinding?.userAgent).toBe('clash.meta/1.19');
+          }
+
+          // Mihomo preview compiles with visible per-airport groups
+          const compiled = await previewTemplateById(harness.env, body.template.id, {
+            client: 'mihomo',
+            baseUrl: 'https://rules.example.com',
+          });
+          const doc = parseYaml(compiled.content) as Record<string, unknown>;
+          const groups = doc['proxy-groups'] as Array<Record<string, unknown>>;
+          expect(groups.find((g) => g.name === '主力')?.hidden).toBeUndefined();
+          expect(groups.find((g) => g.name === '主力 (2)')?.hidden).toBeUndefined();
+          expect(groups.find((g) => g.name === '机场 3')?.hidden).toBeUndefined();
+          expect(groups.find((g) => g.name === '🌐 全部节点')?.hidden).toBeUndefined();
+
+          // >10 subscriptions must be rejected with 400
+          const tooManyRes = await harness.adminRequest('/api/templates/quick-create', {
+            method: 'POST',
+            body: JSON.stringify({
+              name: '超限机场',
+              clients: ['mihomo'],
+              subscriptions: Array.from({ length: 11 }, (_, idx) => ({
+                name: `机场 ${idx + 1}`,
+                url: `https://sub-${idx + 1}.example.test/link`,
+              })),
+            }),
+          });
+          expect(tooManyRes.status).toBe(400);
+
+          // Query param `subscriptions` rejected with 400
+          const queryParamRes = await harness.adminRequest(
+            '/api/templates/quick-create?subscriptions=https://leak.example.test/sub',
+            {
+              method: 'POST',
+              body: JSON.stringify({ name: 'QueryLeak', clients: ['mihomo'] }),
+            },
+          );
+          expect(queryParamRes.status).toBe(400);
+        } finally {
+          await harness.cleanup();
+        }
+      });
     });
   }
 
@@ -501,6 +593,114 @@ describe('M2a quick-create & preview-subscription integration tests', () => {
           },
         );
         expect(queryRes.status).toBe(400);
+      } finally {
+        await harness.cleanup();
+      }
+    });
+
+    it('supports batch preview-subscription (up to 10 items) with partial failures isolated and no URL logging', async () => {
+      const harness = await createBackendHarness('SQLite');
+      try {
+        const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        const okUrl = 'https://ok-airport.example/sub?token=BATCH_SECRET_OK_1';
+        const uaUrl = 'https://ua-airport.example/sub?token=BATCH_SECRET_UA_2';
+        const timeoutUrl = 'https://slow-airport.example/sub?token=BATCH_SECRET_TO_3';
+
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+          const target = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+          if (target === okUrl) {
+            return new Response(SAMPLE_CLASH_SUBSCRIPTION_YAML, {
+              status: 200,
+              headers: { 'content-type': 'text/yaml; charset=utf-8' },
+            });
+          }
+          if (target === uaUrl) {
+            return new Response('Forbidden', { status: 403 });
+          }
+          const abortErr = new Error('The operation was aborted');
+          abortErr.name = 'AbortError';
+          throw abortErr;
+        });
+
+        const res = await harness.adminRequest('/api/templates/preview-subscription', {
+          method: 'POST',
+          body: JSON.stringify({
+            subscriptions: [
+              { name: '主力', url: okUrl },
+              { name: '主力', url: uaUrl },
+              { url: 'http://127.0.0.1:8080/ssrf-blocked' },
+              { name: '慢速机场', url: timeoutUrl },
+            ],
+          }),
+        });
+        expect(res.status).toBe(200);
+        const rawText = await res.text();
+        expect(rawText).not.toContain('BATCH_SECRET_OK_1');
+        expect(rawText).not.toContain('BATCH_SECRET_UA_2');
+        expect(rawText).not.toContain('BATCH_SECRET_TO_3');
+
+        const payload = JSON.parse(rawText) as PreviewSubscriptionBatchResult;
+        expect(payload.items).toHaveLength(4);
+        expect(payload.items[0]).toMatchObject({
+          name: '主力',
+          ok: true,
+          nodeCount: 4,
+        });
+        expect(payload.items[0].regions[0]).toMatchObject({ code: 'HK', count: 2 });
+        expect(payload.items[1]).toMatchObject({
+          name: '主力 (2)',
+          ok: false,
+          nodeCount: 0,
+          regions: [],
+          errorCode: 'NEEDS_USER_AGENT',
+        });
+        expect(payload.items[2]).toMatchObject({
+          name: '机场 3',
+          ok: false,
+          nodeCount: 0,
+          regions: [],
+          errorCode: 'LINK_INVALID',
+        });
+        expect(payload.items[3]).toMatchObject({
+          name: '慢速机场',
+          ok: false,
+          nodeCount: 0,
+          regions: [],
+          errorCode: 'TIMEOUT',
+        });
+        expect(payload.totalNodeCount).toBe(4);
+        expect(payload.regionCounts).toEqual({ HK: 2, JP: 1, US: 1 });
+
+        // >10 items rejected with 400
+        const tooMany = await harness.adminRequest('/api/templates/preview-subscription', {
+          method: 'POST',
+          body: JSON.stringify({
+            subscriptions: Array.from({ length: 11 }, (_, i) => ({
+              url: `https://sub-${i}.example/sub`,
+            })),
+          }),
+        });
+        expect(tooMany.status).toBe(400);
+
+        // Query param `subscriptions` rejected with 400
+        const queryLeak = await harness.adminRequest(
+          '/api/templates/preview-subscription?subscriptions=https://leak.example/sub',
+          {
+            method: 'POST',
+            body: JSON.stringify({ subscriptions: [{ url: okUrl }] }),
+          },
+        );
+        expect(queryLeak.status).toBe(400);
+
+        for (const spy of [logSpy, warnSpy, errSpy]) {
+          const logged = spy.mock.calls.flat().map(String).join('\n');
+          expect(logged).not.toContain('BATCH_SECRET_OK_1');
+          expect(logged).not.toContain('BATCH_SECRET_UA_2');
+          expect(logged).not.toContain('BATCH_SECRET_TO_3');
+        }
       } finally {
         await harness.cleanup();
       }

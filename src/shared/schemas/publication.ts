@@ -56,7 +56,7 @@ export const publicationFormSchema = z.object({
   access: publicationAccessSchema,
   output: optionalOutputProfile,
   experimentalFullConfig: z.boolean().optional().default(false),
-  inheritSlotBindings: z.boolean().optional().default(false),
+  inheritSlotBindings: z.boolean().optional().default(true),
 });
 export type PublicationFormValues = z.infer<typeof publicationFormSchema>;
 

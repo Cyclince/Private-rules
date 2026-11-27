@@ -1,13 +1,14 @@
 import type { TemplateClientId } from '../../shared/clients';
 import type { AppCard, PolicyRef } from '../../shared/schemas/card';
 import type {
+  NodeCombineMode,
   QuickCreatePreviewSummary,
   QuickCreateScenarioInput,
   WizardGroupMode,
   WizardRouteTarget,
   WizardScenarioId,
 } from '../../shared/schemas/quick-create';
-import type { RegionGroup, TemplateBody, TemplateCardRef } from '../../shared/schemas/template';
+import type { NodeSlot, RegionGroup, TemplateBody, TemplateCardRef } from '../../shared/schemas/template';
 import { getRegionDefinition } from '../nodes/regions';
 import { DEFAULT_HEALTH_CHECK } from './model';
 
@@ -172,7 +173,7 @@ export function buildRegionGroupId(code: string): string {
   return `region-${code.trim().toLowerCase()}`;
 }
 
-export function buildRegionGroupForCode(code: string): RegionGroup | null {
+export function buildRegionGroupForCode(code: string, slotId: string | null = 'slot-main'): RegionGroup | null {
   const normalized = code.trim().toUpperCase();
   const def = getRegionDefinition(normalized);
   if (!def) return null;
@@ -181,9 +182,80 @@ export function buildRegionGroupForCode(code: string): RegionGroup | null {
     name: `${def.flag} ${def.nameZh}节点`,
     region: def.code,
     type: 'url-test',
-    slotId: 'slot-main',
+    ...(slotId ? { slotId } : {}),
     test: { ...DEFAULT_HEALTH_CHECK },
   };
+}
+
+/**
+ * Normalizes and deduplicates an airport subscription display name.
+ * Blank names default to `机场 1`, `机场 2`, ... skipping already-used names.
+ */
+export function normalizeSubscriptionName(
+  rawName: string | undefined,
+  index: number,
+  usedLowerNames: Set<string>,
+): string {
+  const trimmed = rawName?.trim();
+  if (!trimmed) {
+    let seq = index + 1;
+    let candidate = `机场 ${seq}`;
+    while (usedLowerNames.has(candidate.toLowerCase())) {
+      seq += 1;
+      candidate = `机场 ${seq}`;
+    }
+    usedLowerNames.add(candidate.toLowerCase());
+    return candidate;
+  }
+
+  if (!usedLowerNames.has(trimmed.toLowerCase())) {
+    usedLowerNames.add(trimmed.toLowerCase());
+    return trimmed;
+  }
+
+  let suffix = 2;
+  let candidate = `${trimmed} (${suffix})`;
+  while (usedLowerNames.has(candidate.toLowerCase())) {
+    suffix += 1;
+    candidate = `${trimmed} (${suffix})`;
+  }
+  usedLowerNames.add(candidate.toLowerCase());
+  return candidate;
+}
+
+/**
+ * Allocates a stable, human-readable slot ID.
+ * Keeps `slot-main` for the first slot on an empty list to stay compatible
+ * with legacy single-slot templates; subsequent slots use `slot-2`, `slot-3`, ...
+ */
+export function allocateSubscriptionSlotId(existingSlotIds: Set<string>): string {
+  if (existingSlotIds.size === 0 && !existingSlotIds.has('slot-main')) {
+    existingSlotIds.add('slot-main');
+    return 'slot-main';
+  }
+  let seq = 2;
+  let candidate = `slot-${seq}`;
+  while (existingSlotIds.has(candidate)) {
+    seq += 1;
+    candidate = `slot-${seq}`;
+  }
+  existingSlotIds.add(candidate);
+  return candidate;
+}
+
+/**
+ * Builds normalized, deduplicated `NodeSlot[]` from quick-create subscription entries.
+ * First subscription gets `slot-main`; subsequent ones get `slot-2`, `slot-3`, ...
+ */
+export function buildNormalizedQuickCreateSlots(subscriptions: ReadonlyArray<{ name?: string }>): NodeSlot[] {
+  const usedLowerNames = new Set<string>();
+  const usedSlotIds = new Set<string>();
+  return subscriptions.map((sub, idx) => ({
+    id: allocateSubscriptionSlotId(usedSlotIds),
+    name: normalizeSubscriptionName(sub.name, idx, usedLowerNames),
+    excludeInfo: true,
+    udp: true,
+  }));
 }
 
 export function buildCoreRegionGroups(): RegionGroup[] {
@@ -433,6 +505,7 @@ export function resolveWizardRegionGroups(options: {
   hasSubscription: boolean;
   detectedRegions?: readonly string[];
   requiredRegionCodes?: readonly string[];
+  slotId?: string | null;
 }): RegionGroup[] {
   const codes: string[] = [];
   const seen = new Set<string>();
@@ -457,7 +530,10 @@ export function resolveWizardRegionGroups(options: {
     addCode(code);
   }
 
-  return codes.map((code) => buildRegionGroupForCode(code)).filter((item): item is RegionGroup => item !== null);
+  const targetSlotId = options.slotId === undefined ? 'slot-main' : options.slotId;
+  return codes
+    .map((code) => buildRegionGroupForCode(code, targetSlotId))
+    .filter((item): item is RegionGroup => item !== null);
 }
 
 /**
@@ -537,11 +613,14 @@ export type BuildQuickCreateTemplateBodyInput = {
   scenarios: readonly QuickCreateScenarioInput[];
   rulesets: readonly QuickCreateResolvedRuleset[];
   groupMode: WizardGroupMode;
+  combineMode?: NodeCombineMode;
+  slots?: readonly NodeSlot[];
   hasSubscription: boolean;
   detectedRegions?: readonly string[];
   clientDisplayNames?: readonly string[];
   clientLabels?: Partial<Record<TemplateClientId, string>>;
   previewSummary?: QuickCreatePreviewSummary;
+  subscriptionPreviews?: Record<string, QuickCreatePreviewSummary>;
 };
 
 export type BuildQuickCreateTemplateBodyResult = {
@@ -589,11 +668,19 @@ export function buildQuickCreateTemplateBody(
     if (code) requiredRegionCodes.push(code);
   }
 
+  const effectiveSlots: NodeSlot[] = input.slots
+    ? structuredClone([...input.slots])
+    : structuredClone(input.standardBaseBody.slots);
+  const singleMainSlot = effectiveSlots.length === 1 && effectiveSlots[0].id === 'slot-main';
+  const combineMode: NodeCombineMode = input.combineMode ?? 'merge';
+  const slotRefs: PolicyRef[] = effectiveSlots.map((slot) => ({ kind: 'slot', slotId: slot.id }));
+
   const regionGroups = resolveWizardRegionGroups({
     groupMode: input.groupMode,
     hasSubscription: input.hasSubscription,
     detectedRegions: input.detectedRegions,
     requiredRegionCodes,
+    slotId: singleMainSlot ? 'slot-main' : null,
   });
   const availableRegionGroupIds = regionGroups.map((group) => group.id);
   const availableRegionSet = new Set(availableRegionGroupIds);
@@ -639,11 +726,26 @@ export function buildQuickCreateTemplateBody(
   const filterExistingRegions = (candidates: readonly PolicyRef[]): PolicyRef[] =>
     candidates.filter((ref) => ref.kind !== 'region' || availableRegionSet.has(ref.regionGroupId));
 
+  const buildAutoSelectRef = (): TemplateCardRef => {
+    if (singleMainSlot) {
+      return { cardId: 'auto-select', enabled: true };
+    }
+    return {
+      cardId: 'auto-select',
+      enabled: true,
+      overrides: {
+        group: {
+          candidates: slotRefs,
+        },
+      },
+    };
+  };
+
   const buildProxySelectRef = (): TemplateCardRef => {
     const candidates: PolicyRef[] =
       input.groupMode === 'select'
         ? dedupePolicyRefs([
-            { kind: 'slot', slotId: 'slot-main' },
+            ...slotRefs,
             { kind: 'card', cardId: 'auto-select' },
             ...regionRefs,
             { kind: 'builtin', id: 'DIRECT' },
@@ -652,13 +754,13 @@ export function buildQuickCreateTemplateBody(
           ? dedupePolicyRefs([
               { kind: 'card', cardId: 'auto-select' },
               ...regionRefs,
-              { kind: 'slot', slotId: 'slot-main' },
+              ...slotRefs,
               { kind: 'builtin', id: 'DIRECT' },
             ])
           : dedupePolicyRefs([
               { kind: 'card', cardId: 'auto-select' },
               ...regionRefs,
-              { kind: 'slot', slotId: 'slot-main' },
+              ...slotRefs,
               { kind: 'builtin', id: 'DIRECT' },
             ]);
     return {
@@ -676,7 +778,7 @@ export function buildQuickCreateTemplateBody(
   // 3. Assemble final ordered cards:
   //    [auto-select, proxy-select] -> [user ruleset cards in input order] -> [enabled built-in cards in 7-layer order]
   const cards: TemplateCardRef[] = [
-    { cardId: 'auto-select', enabled: true },
+    buildAutoSelectRef(),
     buildProxySelectRef(),
     ...generatedCards.map((card): TemplateCardRef => ({ cardId: card.id, enabled: true })),
   ];
@@ -741,14 +843,17 @@ export function buildQuickCreateTemplateBody(
   const baseBody = structuredClone(input.standardBaseBody);
   const body: TemplateBody = {
     ...baseBody,
+    slots: effectiveSlots,
     regionGroups,
     cards,
     groupMode: 'select',
+    combineMode,
     final: { kind: 'card', cardId: 'final-fallback' },
     output: 'full',
     wizardMeta: {
       createdByWizard: true,
       groupMode: input.groupMode,
+      combineMode,
       ...(input.clientDisplayNames && input.clientDisplayNames.length > 0
         ? { clientDisplayNames: [...input.clientDisplayNames] }
         : {}),
@@ -758,6 +863,9 @@ export function buildQuickCreateTemplateBody(
       scenarios: normalizedScenarios,
       rulesets: input.rulesets.map((rs) => ({ rulesetId: rs.rulesetId, route: rs.route })),
       ...(input.previewSummary ? { previewSummary: input.previewSummary } : {}),
+      ...(input.subscriptionPreviews && Object.keys(input.subscriptionPreviews).length > 0
+        ? { subscriptionPreviews: structuredClone(input.subscriptionPreviews) }
+        : {}),
     },
   };
 

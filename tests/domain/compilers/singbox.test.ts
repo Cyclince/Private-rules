@@ -18,7 +18,7 @@ import {
   type AppCard,
   type TemplateBody,
 } from '../../../src/domain/templates';
-import type { OutputProfile } from '../../../src/shared/clients';
+import { SUPPORTED_TEMPLATE_CLIENTS, type OutputProfile } from '../../../src/shared/clients';
 import type { TemplateGroupMode } from '../../../src/shared/schemas/template';
 
 const FIXED_GENERATED_AT = '2026-01-01T00:00:00.000Z';
@@ -728,5 +728,111 @@ describe('compileSingbox — special characters, DNS leak guard, rulesets, compa
     expect(formatSingboxDuration(28800)).toBe('8h');
     expect(formatSingboxDuration(300)).toBe('5m');
     expect(formatSingboxDuration(90)).toBe('1m30s');
+  });
+
+  it('deduplicates multi-airport colliding node names with "机场名 · 节点名", supports perProvider groups, and compiles cleanly with zero slots across all compilers', () => {
+    const sharedNodes: ParsedNode[] = [
+      {
+        name: '🇭🇰 香港 01',
+        type: 'ss',
+        server: 'hk-a.example.com',
+        port: 443,
+        cipher: 'aes-128-gcm',
+        password: 'pw-a',
+      },
+      {
+        name: '🇯🇵 日本 01',
+        type: 'trojan',
+        server: 'jp-a.example.com',
+        port: 443,
+        password: 'pw-a',
+      },
+    ];
+    const backupNodes: ParsedNode[] = [
+      {
+        name: '🇭🇰 香港 01',
+        type: 'ss',
+        server: 'hk-b.example.com',
+        port: 443,
+        cipher: 'aes-128-gcm',
+        password: 'pw-b',
+      },
+      {
+        name: '🇺🇸 美国 01',
+        type: 'trojan',
+        server: 'us-b.example.com',
+        port: 443,
+        password: 'pw-b',
+      },
+    ];
+
+    const tpl = buildStarterTemplate('all', { output: 'minimal' });
+    tpl.baseBody.combineMode = 'perProvider';
+    tpl.baseBody.slots = [
+      { id: 'slot-main', name: '主力机场', excludeInfo: true, udp: true },
+      { id: 'slot-2', name: '备用机场', excludeInfo: true, udp: true },
+    ];
+
+    const compiled = compileSingbox({
+      body: tpl.baseBody,
+      cards: BUILTIN_CARDS,
+      catalogIndex: BUILTIN_CATALOG,
+      baseUrl: FIXED_BASE_URL,
+      slotBindings: {
+        'slot-main': { kind: 'snapshot', nodes: sharedNodes },
+        'slot-2': { kind: 'snapshot', nodes: backupNodes },
+      },
+    });
+    const doc = JSON.parse(compiled.content) as ParsedSingboxDoc;
+    const nodeTags = doc.outbounds.filter((o) => o.type === 'shadowsocks' || o.type === 'trojan').map((o) => o.tag);
+
+    expect(nodeTags).toEqual([
+      '主力机场 · 🇭🇰 香港 01',
+      '主力机场 · 🇯🇵 日本 01',
+      '备用机场 · 🇭🇰 香港 01',
+      '备用机场 · 🇺🇸 美国 01',
+    ]);
+    // All outbound tags are strictly unique
+    expect(new Set(doc.outbounds.map((o) => o.tag)).size).toBe(doc.outbounds.length);
+
+    // Region groups still match original node names across both airports
+    const hkGroup = doc.outbounds.find((o) => o.tag.includes('香港'));
+    expect(hkGroup?.outbounds).toEqual(['主力机场 · 🇭🇰 香港 01', '备用机场 · 🇭🇰 香港 01']);
+
+    // perProvider emits one url-test group per airport + 🌐 全部节点 and wires them into proxy-select
+    const mainProvider = doc.outbounds.find((o) => o.tag === '主力机场');
+    const backupProvider = doc.outbounds.find((o) => o.tag === '备用机场');
+    const allNodesGroup = doc.outbounds.find((o) => o.tag === '🌐 全部节点');
+    expect(mainProvider).toMatchObject({
+      type: 'urltest',
+      outbounds: ['主力机场 · 🇭🇰 香港 01', '主力机场 · 🇯🇵 日本 01'],
+    });
+    expect(backupProvider).toMatchObject({
+      type: 'urltest',
+      outbounds: ['备用机场 · 🇭🇰 香港 01', '备用机场 · 🇺🇸 美国 01'],
+    });
+    expect(allNodesGroup).toMatchObject({
+      type: 'selector',
+      outbounds: nodeTags,
+    });
+    const proxySelect = doc.outbounds.find((o) => o.tag === '🚀 节点选择');
+    expect(proxySelect?.outbounds).toContain('主力机场');
+    expect(proxySelect?.outbounds).toContain('备用机场');
+    expect(proxySelect?.outbounds).toContain('🌐 全部节点');
+
+    // Deleting the last slot compiles cleanly across ALL supported compilers
+    const emptyBody: TemplateBody = {
+      ...buildStarterTemplate('standard', { output: 'full' }).baseBody,
+      slots: [],
+    };
+    for (const client of SUPPORTED_TEMPLATE_CLIENTS) {
+      const result = compileTemplate(client, {
+        body: emptyBody,
+        cards: BUILTIN_CARDS,
+        catalogIndex: BUILTIN_CATALOG,
+        baseUrl: FIXED_BASE_URL,
+      });
+      expect(result.content.length).toBeGreaterThan(0);
+    }
   });
 });

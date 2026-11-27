@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { appCardOverrideSchema, groupHealthCheckSchema, groupTypeSchema, policyRefSchema } from './card';
 import { outputProfileSchema, templateClientIdSchema } from './publication';
-import { templateWizardMetaSchema } from './quick-create';
+import { nodeCombineModeSchema, templateWizardMetaSchema } from './quick-create';
 
 /** Origins supported for template `base_kind` (design §8.3). */
 export const TEMPLATE_BASE_KIND_VALUES = ['blank', 'acl4ssr-ini', 'mihomo-yaml', 'builtin'] as const;
@@ -113,6 +113,8 @@ export const templateBodySchema = z.object({
   regionGroups: z.array(regionGroupSchema),
   cards: z.array(templateCardRefSchema),
   groupMode: templateGroupModeSchema,
+  /** Multi-airport node combination mode (`merge` default, or `perProvider` for visible per-airport groups). */
+  combineMode: nodeCombineModeSchema.optional(),
   final: policyRefSchema,
   output: outputProfileSchema,
   dns: dnsProfileSchema,
@@ -241,6 +243,10 @@ export const templateOverlayOpSchema = z.discriminatedUnion('op', [
     op: z.literal('setLegacyGeodata'),
     legacyGeodata: z.boolean(),
   }),
+  z.object({
+    op: z.literal('setCombineMode'),
+    combineMode: nodeCombineModeSchema,
+  }),
 ]);
 export type TemplateOverlayOp = z.output<typeof templateOverlayOpSchema>;
 
@@ -273,6 +279,7 @@ export const backupTemplateBodySchema = z
     regionGroups: z.array(regionGroupSchema).optional(),
     cards: z.array(templateCardRefSchema).optional(),
     groupMode: templateGroupModeSchema.optional(),
+    combineMode: nodeCombineModeSchema.optional(),
     final: policyRefSchema.optional(),
     output: outputProfileSchema.optional(),
     dns: dnsProfileSchema.optional(),

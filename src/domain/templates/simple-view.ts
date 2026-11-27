@@ -1,11 +1,13 @@
 import type { AppCard, PolicyRef } from '../../shared/schemas/card';
 import type {
+  NodeCombineMode,
+  QuickCreatePreviewSummary,
   QuickCreateScenarioInput,
   WizardGroupMode,
   WizardRouteTarget,
   WizardScenarioId,
 } from '../../shared/schemas/quick-create';
-import type { RegionGroup, TemplateBody, TemplateCardRef } from '../../shared/schemas/template';
+import type { NodeSlot, RegionGroup, TemplateBody, TemplateCardRef } from '../../shared/schemas/template';
 import { getRegionDefinition } from '../nodes/regions';
 import {
   ALWAYS_ENABLED_CARD_IDS,
@@ -180,9 +182,6 @@ function deriveGroupMode(body: TemplateBody, cardMap: ReadonlyMap<string, AppCar
 }
 
 function hasTemplateLevelAdvancedCustomizations(body: TemplateBody): boolean {
-  if (body.slots.length > 1 || (body.slots.length === 1 && body.slots[0].id !== 'slot-main')) {
-    return true;
-  }
   if (
     body.clientPatches &&
     Object.values(body.clientPatches).some((v) => typeof v === 'string' && v.trim().length > 0)
@@ -364,6 +363,9 @@ export type ApplySimpleTemplatePatchInput = {
     scenarios?: readonly QuickCreateScenarioInput[];
     rulesets?: readonly QuickCreateResolvedRuleset[];
     groupMode?: WizardGroupMode;
+    slots?: readonly NodeSlot[];
+    combineMode?: NodeCombineMode;
+    subscriptionPreviews?: Record<string, QuickCreatePreviewSummary>;
   };
   hasSubscription: boolean;
   detectedRegions?: readonly string[];
@@ -489,6 +491,13 @@ export function applySimpleTemplatePatch(input: ApplySimpleTemplatePatchInput): 
     }
   }
 
+  const slotsChanged = input.patch.slots !== undefined;
+  const nextSlots: NodeSlot[] = slotsChanged ? structuredClone([...input.patch.slots!]) : currentBody.slots;
+  const nextSlotIdSet = new Set(nextSlots.map((slot) => slot.id));
+  const singleMainSlot = nextSlots.length === 1 && nextSlots[0].id === 'slot-main';
+  const regionSlotId = singleMainSlot ? 'slot-main' : null;
+  const slotRefs: PolicyRef[] = nextSlots.map((slot) => ({ kind: 'slot', slotId: slot.id }));
+
   // Resolve next regionGroups
   let nextRegionGroups: RegionGroup[];
   if (groupModeChanged) {
@@ -497,6 +506,7 @@ export function applySimpleTemplatePatch(input: ApplySimpleTemplatePatchInput): 
       hasSubscription: input.hasSubscription,
       detectedRegions: input.detectedRegions,
       requiredRegionCodes,
+      slotId: regionSlotId,
     });
     const byId = new Map<string, RegionGroup>(baseGroups.map((g) => [g.id, g]));
     // Keep any preserved custom region groups
@@ -510,12 +520,25 @@ export function applySimpleTemplatePatch(input: ApplySimpleTemplatePatchInput): 
     nextRegionGroups = [...currentBody.regionGroups];
     const existingIds = new Set(nextRegionGroups.map((g) => g.id));
     for (const code of requiredRegionCodes) {
-      const built = buildRegionGroupForCode(code);
+      const built = buildRegionGroupForCode(code, regionSlotId);
       if (built && !existingIds.has(built.id)) {
         existingIds.add(built.id);
         nextRegionGroups.push(built);
       }
     }
+  }
+
+  // Clean dangling or single-slot pinned slotIds on regionGroups when slots changed
+  if (slotsChanged) {
+    nextRegionGroups = nextRegionGroups.map((rg) => {
+      if (!rg.slotId) return rg;
+      if (!nextSlotIdSet.has(rg.slotId) || (nextSlots.length > 1 && rg.slotId === 'slot-main')) {
+        const cleaned = { ...rg };
+        delete cleaned.slotId;
+        return cleaned;
+      }
+      return rg;
+    });
   }
 
   const availableRegionGroupIds = nextRegionGroups.map((g) => g.id);
@@ -604,8 +627,28 @@ export function applySimpleTemplatePatch(input: ApplySimpleTemplatePatchInput): 
     return { cardId, enabled: true };
   };
 
+  const buildAutoSelectRef = (existingRef?: TemplateCardRef): TemplateCardRef => {
+    if (!slotsChanged && existingRef) {
+      return existingRef;
+    }
+    if (singleMainSlot) {
+      return { cardId: 'auto-select', enabled: existingRef?.enabled ?? true };
+    }
+    return {
+      cardId: 'auto-select',
+      enabled: existingRef?.enabled ?? true,
+      overrides: {
+        ...existingRef?.overrides,
+        group: {
+          ...existingRef?.overrides?.group,
+          candidates: slotRefs,
+        },
+      },
+    };
+  };
+
   const buildProxySelectRef = (existingRef?: TemplateCardRef): TemplateCardRef => {
-    if (!groupModeChanged && existingRef) {
+    if (!groupModeChanged && !slotsChanged && existingRef) {
       if (existingRef.overrides?.group?.candidates) {
         const filtered = filterExistingRegions(existingRef.overrides.group.candidates);
         return {
@@ -624,7 +667,7 @@ export function applySimpleTemplatePatch(input: ApplySimpleTemplatePatchInput): 
     const candidates: PolicyRef[] =
       nextGroupMode === 'select'
         ? dedupePolicyRefs([
-            { kind: 'slot', slotId: 'slot-main' },
+            ...slotRefs,
             { kind: 'card', cardId: 'auto-select' },
             ...regionRefs,
             { kind: 'builtin', id: 'DIRECT' },
@@ -632,7 +675,7 @@ export function applySimpleTemplatePatch(input: ApplySimpleTemplatePatchInput): 
         : dedupePolicyRefs([
             { kind: 'card', cardId: 'auto-select' },
             ...regionRefs,
-            { kind: 'slot', slotId: 'slot-main' },
+            ...slotRefs,
             { kind: 'builtin', id: 'DIRECT' },
           ]);
     return {
@@ -656,11 +699,15 @@ export function applySimpleTemplatePatch(input: ApplySimpleTemplatePatchInput): 
   }
 
   const needsHubs =
-    existingHubRefs.size > 0 || desiredScenarioCardIds.size > 0 || nextRulesetRefs.length > 0 || groupModeChanged;
+    existingHubRefs.size > 0 ||
+    desiredScenarioCardIds.size > 0 ||
+    nextRulesetRefs.length > 0 ||
+    groupModeChanged ||
+    slotsChanged;
 
   const hubCards: TemplateCardRef[] = [];
   if (needsHubs) {
-    hubCards.push(existingHubRefs.get('auto-select') ?? { cardId: 'auto-select', enabled: true });
+    hubCards.push(buildAutoSelectRef(existingHubRefs.get('auto-select')));
     hubCards.push(buildProxySelectRef(existingHubRefs.get('proxy-select')));
   }
 
@@ -747,20 +794,37 @@ export function applySimpleTemplatePatch(input: ApplySimpleTemplatePatchInput): 
 
   const finalCards: TemplateCardRef[] = [...hubCards, ...nextRulesetRefs, ...mergedRest];
 
+  const nextCombineMode: NodeCombineMode | undefined =
+    input.patch.combineMode ?? currentBody.combineMode ?? currentBody.wizardMeta?.combineMode;
+
+  let nextWizardMeta = currentBody.wizardMeta;
+  if (nextWizardMeta) {
+    const nextSubPreviews = input.patch.subscriptionPreviews ?? nextWizardMeta.subscriptionPreviews;
+    const cleanedSubPreviews = nextSubPreviews
+      ? Object.fromEntries(Object.entries(nextSubPreviews).filter(([slotId]) => nextSlotIdSet.has(slotId)))
+      : undefined;
+    nextWizardMeta = {
+      ...nextWizardMeta,
+      groupMode: nextGroupMode,
+      ...(nextCombineMode ? { combineMode: nextCombineMode } : {}),
+      scenarios: nextScenarios,
+      rulesets: nextRulesetInputs.map((rs) => ({ rulesetId: rs.rulesetId, route: rs.route })),
+      ...(nextSlotIdSet.has('slot-main') && nextWizardMeta.previewSummary
+        ? { previewSummary: nextWizardMeta.previewSummary }
+        : { previewSummary: undefined }),
+      ...(cleanedSubPreviews && Object.keys(cleanedSubPreviews).length > 0
+        ? { subscriptionPreviews: cleanedSubPreviews }
+        : { subscriptionPreviews: undefined }),
+    };
+  }
+
   const nextBody: TemplateBody = {
     ...currentBody,
+    slots: nextSlots,
     regionGroups: nextRegionGroups,
     cards: finalCards,
-    ...(currentBody.wizardMeta
-      ? {
-          wizardMeta: {
-            ...currentBody.wizardMeta,
-            groupMode: nextGroupMode,
-            scenarios: nextScenarios,
-            rulesets: nextRulesetInputs.map((rs) => ({ rulesetId: rs.rulesetId, route: rs.route })),
-          },
-        }
-      : {}),
+    ...(nextCombineMode ? { combineMode: nextCombineMode } : {}),
+    ...(nextWizardMeta ? { wizardMeta: nextWizardMeta } : {}),
   };
 
   return { body: nextBody, generatedCards };

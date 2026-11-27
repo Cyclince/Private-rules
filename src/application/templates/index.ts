@@ -898,12 +898,16 @@ export async function previewTemplateById(
 export {
   previewSubscription,
   quickCreateTemplate,
+  type PreviewSubscriptionBatchItemResult,
+  type PreviewSubscriptionBatchResult,
   type PreviewSubscriptionOptions,
   type PreviewSubscriptionRegionStat,
   type PreviewSubscriptionResult,
   type QuickCreatePublicationLink,
+  type QuickCreateSubscriptionSummary,
   type QuickCreateTemplateOptions,
   type QuickCreateTemplateResult,
+  type QuickCreateTemplateServiceInput,
 } from './quick-create';
 export {
   getSimpleTemplateView,
@@ -912,6 +916,7 @@ export {
   type SimpleTemplateNodesView,
   type SimpleTemplateOutputItem,
   type SimpleTemplateOutputLink,
+  type SimpleTemplateSubscriptionItem,
   type SimpleTemplateView,
   type SimpleTemplateViewOptions,
 } from './simple-view';

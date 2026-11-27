@@ -501,4 +501,217 @@ describe.each(['SQLite', 'D1'] as const)('B3 Simple Template View & Patch API (%
     );
     expect(tgPatch.status).toBe(403);
   });
+
+  it('supports multi-airport simple-view CRUD (add, rename, replaceUrl, combineMode, remove last slot), auto-binds new clients, and deduplicates sing-box nodes', async () => {
+    const h = await createBackendHarness(backendKind);
+    harnesses.push(h);
+
+    const url1 = 'https://airport-one.example.test/sub?token=MULTI_SECRET_1';
+    const url2 = 'https://airport-two.example.test/sub?token=MULTI_SECRET_2';
+    const url2New = 'https://airport-two-new.example.test/sub?token=MULTI_SECRET_2_NEW';
+
+    const created = await quickCreateTemplate(
+      h.env,
+      {
+        name: '多机场管理测试',
+        clients: ['mihomo'],
+        scenarios: [
+          { id: 'domestic-direct', enabled: true },
+          { id: 'ai', enabled: true, route: 'proxy' },
+        ],
+        rulesets: [],
+        groupMode: 'auto',
+        combineMode: 'merge',
+        subscriptions: [{ name: '主力机场', url: url1 }],
+      },
+      { baseUrl: 'https://rules.example.com', ruleToken: 'm2b-secret-token' },
+    );
+    const templateId = created.template.id;
+    const mihomoPubId = created.publications[0].id;
+    const repos = createRepositories(h.env.DB);
+    const secret = await resolveSessionSecret(h.env);
+
+    // Seed an encrypted full node snapshot for slot-main so GET /simple reads snapshot without outbound fetch
+    const mockReport = {
+      format: 'clash',
+      totalCount: 2,
+      parsedCount: 2,
+      skippedCount: 0,
+      unsupportedProtocols: {},
+      warnings: [],
+    };
+    const snapNodes1 = {
+      v: 1,
+      kind: 'full',
+      nodes: [
+        { name: '🇭🇰 香港 01', type: 'ss', server: 'hk1.a.test', port: 443, cipher: 'aes-128-gcm', password: 'p1' },
+        { name: '🇯🇵 日本 01', type: 'trojan', server: 'jp1.a.test', port: 443, password: 'p1' },
+      ],
+      report: mockReport,
+    };
+    const encSnap1 = await encryptNodeSecret(JSON.stringify(snapNodes1), secret, snapshotAad(mihomoPubId, 'slot-main'));
+    await repos.nodeBindings.upsertNodeSnapshot({
+      publicationId: mihomoPubId,
+      slotId: 'slot-main',
+      nodesEnc: encSnap1,
+      fetchedAt: '2026-04-01T00:00:00.000Z',
+      expiresAt: '2099-01-01T00:00:00.000Z',
+    });
+
+    // Ensure GET /simple never performs outbound fetches
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    const getRes1 = await h.adminRequest(`/api/templates/${templateId}/simple`);
+    expect(getRes1.status).toBe(200);
+    const getText1 = await getRes1.text();
+    expect(getText1).not.toContain('MULTI_SECRET_1');
+    expect(getText1).not.toContain('subscriptionUrlEnc');
+    const view1 = JSON.parse(getText1) as SimpleTemplateView;
+    expect(view1.nodes.combineMode).toBe('merge');
+    expect(view1.nodes.subscriptions).toHaveLength(1);
+    expect(view1.nodes.subscriptions[0]).toMatchObject({
+      slotId: 'slot-main',
+      name: '主力机场',
+      bound: true,
+      nodeCount: 2,
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    // PATCH 1: Add second airport + switch combineMode to perProvider
+    const patchAdd = await h.adminRequest(`/api/templates/${templateId}/simple`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        combineMode: 'perProvider',
+        addSubscriptions: [{ name: '备用机场', url: url2 }],
+      }),
+    });
+    expect(patchAdd.status).toBe(200);
+    const patchAddText = await patchAdd.text();
+    expect(patchAddText).not.toContain('MULTI_SECRET_2');
+    const patchAddJson = JSON.parse(patchAddText) as { view: SimpleTemplateView; version: number };
+    expect(patchAddJson.version).toBe(2);
+    expect(patchAddJson.view.nodes.combineMode).toBe('perProvider');
+    expect(
+      patchAddJson.view.nodes.subscriptions.map((s) => ({ slotId: s.slotId, name: s.name, bound: s.bound })),
+    ).toEqual([
+      { slotId: 'slot-main', name: '主力机场', bound: true },
+      { slotId: 'slot-2', name: '备用机场', bound: true },
+    ]);
+
+    // Seed an encrypted full snapshot for slot-2 with colliding node name "🇭🇰 香港 01"
+    const snapNodes2 = {
+      v: 1,
+      kind: 'full',
+      nodes: [
+        { name: '🇭🇰 香港 01', type: 'ss', server: 'hk1.b.test', port: 443, cipher: 'aes-128-gcm', password: 'p2' },
+        { name: '🇺🇸 美国 01', type: 'trojan', server: 'us1.b.test', port: 443, password: 'p2' },
+      ],
+      report: mockReport,
+    };
+    const encSnap2 = await encryptNodeSecret(JSON.stringify(snapNodes2), secret, snapshotAad(mihomoPubId, 'slot-2'));
+    await repos.nodeBindings.upsertNodeSnapshot({
+      publicationId: mihomoPubId,
+      slotId: 'slot-2',
+      nodesEnc: encSnap2,
+      fetchedAt: '2026-04-01T00:00:00.000Z',
+      expiresAt: '2099-01-01T00:00:00.000Z',
+    });
+
+    // Add a new client publication (sing-box) WITHOUT explicitly passing inheritSlotBindings -> auto-binds ALL subscriptions!
+    const addSingboxRes = await h.adminRequest('/api/publications', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slug: 'multi-singbox',
+        templateId,
+        clients: ['sing-box'],
+        access: 'token',
+      }),
+    });
+    expect(addSingboxRes.status).toBe(201);
+    const singboxPubId = ((await addSingboxRes.json()) as { publication: { id: string } }).publication.id;
+    const singboxBindings = await repos.nodeBindings.listByPublication(singboxPubId);
+    expect(singboxBindings.map((b) => b.slotId).sort()).toEqual(['slot-2', 'slot-main']);
+
+    // Deliver sing-box config -> uses inherited snapshots (zero outbound fetch) and deduplicates "🇭🇰 香港 01" as "机场名 · 节点名"
+    const sbConfigRes = await h.app.request('/t/m2b-secret-token/multi-singbox/singbox.json', {}, h.env);
+    expect(sbConfigRes.status).toBe(200);
+    const sbDoc = (await sbConfigRes.json()) as {
+      outbounds: Array<{ type: string; tag: string; outbounds?: string[] }>;
+    };
+    const sbNodeTags = sbDoc.outbounds.filter((o) => o.type === 'shadowsocks' || o.type === 'trojan').map((o) => o.tag);
+    expect(sbNodeTags).toEqual([
+      '主力机场 · 🇭🇰 香港 01',
+      '主力机场 · 🇯🇵 日本 01',
+      '备用机场 · 🇭🇰 香港 01',
+      '备用机场 · 🇺🇸 美国 01',
+    ]);
+    expect(sbDoc.outbounds.some((o) => o.tag === '主力机场' && o.type === 'urltest')).toBe(true);
+    expect(sbDoc.outbounds.some((o) => o.tag === '备用机场' && o.type === 'urltest')).toBe(true);
+    expect(sbDoc.outbounds.some((o) => o.tag === '🌐 全部节点' && o.type === 'selector')).toBe(true);
+
+    // PATCH 2: Rename slot-2 and replace its URL across all publications (invalidating stale snapshot)
+    const patchRenameReplace = await h.adminRequest(`/api/templates/${templateId}/simple`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        renameSubscriptions: [{ slotId: 'slot-2', name: '高速备用' }],
+        replaceSubscriptionUrls: [{ slotId: 'slot-2', url: url2New }],
+      }),
+    });
+    expect(patchRenameReplace.status).toBe(200);
+    const patchRRJson = (await patchRenameReplace.json()) as { view: SimpleTemplateView; version: number };
+    expect(patchRRJson.version).toBe(3);
+    expect(patchRRJson.view.nodes.subscriptions.find((s) => s.slotId === 'slot-2')?.name).toBe('高速备用');
+    // Stale snapshot for slot-2 was dropped on both publications
+    expect(await repos.nodeBindings.findNodeSnapshot(mihomoPubId, 'slot-2')).toBeNull();
+    expect(await repos.nodeBindings.findNodeSnapshot(singboxPubId, 'slot-2')).toBeNull();
+
+    // PATCH 3: Query param guard rejects ?subscriptions=...
+    const queryLeakPatch = await h.adminRequest(
+      `/api/templates/${templateId}/simple?subscriptions=https://leak.example.test/sub`,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ combineMode: 'merge' }),
+      },
+    );
+    expect(queryLeakPatch.status).toBe(400);
+
+    // PATCH 4: Delete ALL slots (including last slot) -> removes bindings & snapshots across all pubs, and still compiles!
+    const patchRemoveAll = await h.adminRequest(`/api/templates/${templateId}/simple`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        removeSlotIds: ['slot-main', 'slot-2'],
+      }),
+    });
+    expect(patchRemoveAll.status).toBe(200);
+    const patchRemJson = (await patchRemoveAll.json()) as { view: SimpleTemplateView; version: number };
+    expect(patchRemJson.version).toBe(4);
+    expect(patchRemJson.view.nodes.subscriptions).toEqual([]);
+    expect(patchRemJson.view.nodes.bound).toBe(false);
+
+    // Both publications have zero remaining bindings and zero remaining snapshots
+    expect(await repos.nodeBindings.listByPublication(mihomoPubId)).toEqual([]);
+    expect(await repos.nodeBindings.listByPublication(singboxPubId)).toEqual([]);
+    expect(await repos.nodeBindings.findNodeSnapshot(mihomoPubId, 'slot-main')).toBeNull();
+    expect(await repos.nodeBindings.findNodeSnapshot(singboxPubId, 'slot-main')).toBeNull();
+
+    // Both mihomo and sing-box deliveries still compile cleanly after deleting last slot
+    const mihomoEmptyRes = await h.app.request(
+      `/t/m2b-secret-token/${created.publications[0].slug}/mihomo.yaml`,
+      {},
+      h.env,
+    );
+    expect(mihomoEmptyRes.status).toBe(200);
+    const mihomoEmptyDoc = parseYaml(await mihomoEmptyRes.text()) as Record<string, unknown>;
+    expect(mihomoEmptyDoc['proxy-providers']).toBeUndefined();
+
+    const singboxEmptyRes = await h.app.request('/t/m2b-secret-token/multi-singbox/singbox.json', {}, h.env);
+    expect(singboxEmptyRes.status).toBe(200);
+    const singboxEmptyDoc = (await singboxEmptyRes.json()) as { outbounds: Array<{ tag: string }> };
+    expect(singboxEmptyDoc.outbounds.some((o) => o.tag === 'direct')).toBe(true);
+  });
 });

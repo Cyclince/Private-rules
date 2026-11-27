@@ -494,6 +494,12 @@ export function applyOverlay(baseBody: TemplateBody, overlay: readonly TemplateO
         appliedCount += 1;
         return;
       }
+
+      case 'setCombineMode': {
+        resolved.combineMode = op.combineMode;
+        appliedCount += 1;
+        return;
+      }
     }
   });
 

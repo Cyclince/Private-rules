@@ -1342,6 +1342,8 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
   }
 
   const body: TemplateBody = resolved.body;
+  const multiSlot = body.slots.length > 1;
+  const perProviderMode = multiSlot && (body.combineMode ?? body.wizardMeta?.combineMode) === 'perProvider';
   const dnsLeakGuardActive = Boolean(body.dns.custom?.dnsLeakGuard || appliedModules.includes('dns-leak-guard'));
   const activeCards = resolved.cards.filter((c) => c.enabled);
 
@@ -1419,6 +1421,16 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
     cardTagById.set(card.cardId, tag);
   }
 
+  const airportTagBySlotId = new Map<string, string>();
+  let allNodesTag: string | null = null;
+  if (perProviderMode) {
+    for (const slot of body.slots) {
+      const slotTag = allocateOutboundTag(slot.name, `Provider-${slot.id}`, { slotId: slot.id });
+      airportTagBySlotId.set(slot.id, slotTag);
+    }
+    allNodesTag = allocateOutboundTag('🌐 全部节点', 'All-Nodes');
+  }
+
   // 4. Inline parsed nodes from B-class slot snapshots (filtering by slot.excludeInfo & slot.filter)
   const slotNodesById = new Map<string, InlinedNodeEntry[]>();
   const allInlinedNodes: InlinedNodeEntry[] = [];
@@ -1494,9 +1506,12 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
     const filteredNodes = filterNodes(rawNodes, undefined, {
       excludeInfo: slot.excludeInfo !== false,
     });
+    const slotPrefix = multiSlot ? sanitizeSingboxTag(slot.name, slot.id) : '';
 
     for (const node of filteredNodes) {
-      const tag = allocateOutboundTag(node.name, 'Node');
+      const candidateName =
+        multiSlot && !node.name.startsWith(`${slotPrefix} · `) ? `${slotPrefix} · ${node.name}` : node.name;
+      const tag = allocateOutboundTag(candidateName, 'Node');
       const mapped = mapParsedNodeToSingboxOutbound(node, tag, {
         slotId: slot.id,
         slotUdp: slot.udp,
@@ -1521,7 +1536,12 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
 
   for (const rg of body.regionGroups) {
     const tag = regionTagById.get(rg.id)!;
-    const targetSlots = rg.slotId ? [rg.slotId] : body.slots.map((s) => s.id);
+    const targetSlots =
+      multiSlot && (!rg.slotId || rg.slotId === 'slot-main' || !slotById.has(rg.slotId))
+        ? body.slots.map((s) => s.id)
+        : rg.slotId
+          ? [rg.slotId]
+          : body.slots.map((s) => s.id);
     const regionFilter: NodeFilter = {
       regions: [rg.region],
       ...(rg.extraInclude ? { include: rg.extraInclude } : {}),
@@ -1583,6 +1603,39 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
     regionOutbounds.push(groupObj);
   }
 
+  // 5b. Build per-provider & all-nodes groups when combineMode === 'perProvider'
+  const airportOutbounds: SingboxOutbound[] = [];
+  if (perProviderMode) {
+    for (const slot of body.slots) {
+      const slotTag = airportTagBySlotId.get(slot.id);
+      if (!slotTag) continue;
+      const slotNodeTags = (slotNodesById.get(slot.id) ?? []).map((n) => n.tag);
+      const members = slotNodeTags.length > 0 ? slotNodeTags : [DIRECT_TAG];
+      airportOutbounds.push(
+        buildSingboxGroupOutbound({
+          tag: slotTag,
+          groupType: 'url-test',
+          outbounds: members,
+          location: { slotId: slot.id },
+          items,
+        }),
+      );
+    }
+    if (allNodesTag) {
+      const allNodeTags = allInlinedNodes.map((n) => n.tag);
+      const members = allNodeTags.length > 0 ? allNodeTags : [DIRECT_TAG];
+      airportOutbounds.push(
+        buildSingboxGroupOutbound({
+          tag: allNodesTag,
+          groupType: 'select',
+          outbounds: members,
+          location: undefined,
+          items,
+        }),
+      );
+    }
+  }
+
   // 6. Build AppCard outbounds
   // Pre-compute whether a card group actually has any real proxy path (important for dns-leak-guard empty handling)
   const cardOutbounds: SingboxOutbound[] = [];
@@ -1610,6 +1663,21 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
           }
           break;
         case 'slot': {
+          if (multiSlot && !ref.filter && (card.cardId === 'auto-select' || card.cardId === 'proxy-select')) {
+            if (card.cardId === 'proxy-select' && perProviderMode) {
+              for (const slotTag of airportTagBySlotId.values()) {
+                outbounds.push(slotTag);
+              }
+              if (allNodesTag) outbounds.push(allNodesTag);
+              if (allInlinedNodes.length > 0) hasRealProxy = true;
+            } else {
+              for (const entry of allInlinedNodes) {
+                outbounds.push(entry.tag);
+                hasRealProxy = true;
+              }
+            }
+            break;
+          }
           if (!slotById.has(ref.slotId)) {
             items.push({
               code: 'MISSING_SLOT_REFERENCE',
@@ -1680,6 +1748,17 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
           break;
         }
       }
+    }
+
+    if (card.cardId === 'proxy-select' && perProviderMode) {
+      const providerTags = [...airportTagBySlotId.values(), ...(allNodesTag ? [allNodesTag] : [])];
+      const directIdx = outbounds.indexOf(DIRECT_TAG);
+      if (directIdx >= 0) {
+        outbounds.splice(directIdx, 0, ...providerTags);
+      } else {
+        outbounds.push(...providerTags);
+      }
+      if (allInlinedNodes.length > 0) hasRealProxy = true;
     }
 
     return {
@@ -2024,10 +2103,11 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
     );
   }
 
-  // 10. Assemble ordered `outbounds`: card groups -> region groups -> inlined nodes -> direct
+  // 10. Assemble ordered `outbounds`: card groups -> region groups -> per-provider groups -> inlined nodes -> direct
   const outbounds: SingboxOutbound[] = [
     ...cardOutbounds,
     ...regionOutbounds,
+    ...airportOutbounds,
     ...allInlinedNodes.map((n) => n.outbound),
     { type: 'direct', tag: DIRECT_TAG },
   ];

@@ -721,4 +721,42 @@ describe('compileMihomo — beta.3 reference template features (T1)', () => {
     expect(legacyRules).toContain('GEOIP,CN,🧪 规则来源测试,no-resolve');
     expect(legacyRules).toContain('GEOIP,UNKNOWN-REGION-IP,🧪 规则来源测试,no-resolve');
   });
+
+  it('reveals per-airport groups and all-nodes group when combineMode=perProvider and compiles cleanly with zero slots', () => {
+    const multiTpl = buildStarterTemplate('standard', { output: 'minimal' });
+    multiTpl.baseBody.combineMode = 'perProvider';
+    multiTpl.baseBody.slots = [
+      { id: 'slot-main', name: '主力机场', excludeInfo: true, udp: true },
+      { id: 'slot-2', name: '备用机场', excludeInfo: true, udp: true },
+    ];
+    const perProviderCompiled = compileMihomo({
+      body: multiTpl.baseBody,
+      cards: BUILTIN_CARDS,
+      catalogIndex: BUILTIN_CATALOG,
+      baseUrl: FIXED_BASE_URL,
+      slotBindings: {
+        'slot-main': { kind: 'http', url: 'https://airport-a.example.com/sub' },
+        'slot-2': { kind: 'http', url: 'https://airport-b.example.com/sub' },
+      },
+    });
+    const perProviderDoc = parseYaml(perProviderCompiled.content) as Record<string, unknown>;
+    const groups = perProviderDoc['proxy-groups'] as Array<Record<string, unknown>>;
+    expect(groups.find((g) => g.name === '主力机场')?.hidden).toBeUndefined();
+    expect(groups.find((g) => g.name === '备用机场')?.hidden).toBeUndefined();
+    expect(groups.find((g) => g.name === '🌐 全部节点')?.hidden).toBeUndefined();
+
+    // Deleting the last slot leaves template compilable without throwing
+    const emptyTpl = buildStarterTemplate('standard', { output: 'full' });
+    emptyTpl.baseBody.slots = [];
+    const emptyCompiled = compileMihomo({
+      body: emptyTpl.baseBody,
+      cards: BUILTIN_CARDS,
+      catalogIndex: BUILTIN_CATALOG,
+      baseUrl: FIXED_BASE_URL,
+    });
+    const emptyDoc = parseYaml(emptyCompiled.content) as Record<string, unknown>;
+    expect(emptyDoc['proxy-providers']).toBeUndefined();
+    expect(Array.isArray(emptyDoc['proxy-groups'])).toBe(true);
+    expect(Array.isArray(emptyDoc.rules)).toBe(true);
+  });
 });

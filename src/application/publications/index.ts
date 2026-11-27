@@ -366,7 +366,9 @@ export async function createPublication(
     updatedAt: timestamp,
   });
 
-  if (input.inheritSlotBindings && input.access !== 'public') {
+  if (input.inheritSlotBindings !== false && input.access !== 'public') {
+    const { resolvedBody } = await loadResolvedBodyForPublication(env, template, input.pinnedVersion);
+    const activeSlotIds = new Set(resolvedBody.slots.map((slot) => slot.id));
     const siblings = (await repos.publications.listAll()).filter(
       (pub) => pub.templateId === template.id && pub.id !== pubId,
     );
@@ -374,6 +376,7 @@ export async function createPublication(
     for (const sibling of siblings) {
       const siblingBindings = await repos.nodeBindings.listByPublication(sibling.id);
       for (const row of siblingBindings) {
+        if (!activeSlotIds.has(row.slotId)) continue;
         if (!inheritedBySlot.has(row.slotId)) {
           inheritedBySlot.set(row.slotId, row);
         }

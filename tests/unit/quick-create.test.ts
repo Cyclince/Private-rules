@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { BUILTIN_CARDS, buildStarterTemplate } from '../../src/builtin';
 import {
+  allocateSubscriptionSlotId,
   ALWAYS_ENABLED_CARD_IDS,
+  buildNormalizedQuickCreateSlots,
   buildQuickCreateTemplateBody,
   buildRouteCandidates,
   CORE_REGION_CODES,
@@ -10,6 +12,7 @@ import {
   getPresetScenarioSelection,
   inferDefaultRouteForRulesetName,
   mapWizardClientSelection,
+  normalizeSubscriptionName,
   resolveWizardRegionGroups,
   WIZARD_SCENARIO_DEFINITIONS,
 } from '../../src/domain/templates/quick-create';
@@ -217,6 +220,50 @@ describe('M2a quick-create pure domain logic', () => {
       expect(body.wizardMeta?.createdByWizard).toBe(true);
       expect(body.wizardMeta?.groupMode).toBe('auto');
       expect(body.wizardMeta?.clientDisplayNames).toEqual(['Clash Verge']);
+    });
+
+    it('allocates stable slot IDs (slot-main first, then slot-2..), defaults names to 机场 N with dedup, and wires combineMode', () => {
+      const usedNames = new Set<string>();
+      expect(normalizeSubscriptionName(undefined, 0, usedNames)).toBe('机场 1');
+      expect(normalizeSubscriptionName('  ', 1, usedNames)).toBe('机场 2');
+      expect(normalizeSubscriptionName('主力机场', 2, usedNames)).toBe('主力机场');
+      expect(normalizeSubscriptionName('主力机场', 3, usedNames)).toBe('主力机场 (2)');
+
+      const usedIds = new Set<string>();
+      expect(allocateSubscriptionSlotId(usedIds)).toBe('slot-main');
+      expect(allocateSubscriptionSlotId(usedIds)).toBe('slot-2');
+      expect(allocateSubscriptionSlotId(usedIds)).toBe('slot-3');
+
+      const slots = buildNormalizedQuickCreateSlots([{ name: '主力' }, { name: '主力' }, {}]);
+      expect(slots.map((s) => ({ id: s.id, name: s.name }))).toEqual([
+        { id: 'slot-main', name: '主力' },
+        { id: 'slot-2', name: '主力 (2)' },
+        { id: 'slot-3', name: '机场 3' },
+      ]);
+
+      const { body } = buildQuickCreateTemplateBody({
+        standardBaseBody,
+        builtinCards: BUILTIN_CARDS,
+        scenarios: getDefaultWizardScenarios(),
+        rulesets: [],
+        groupMode: 'region',
+        combineMode: 'perProvider',
+        slots,
+        hasSubscription: true,
+        detectedRegions: ['HK', 'JP'],
+      });
+
+      expect(body.combineMode).toBe('perProvider');
+      expect(body.wizardMeta?.combineMode).toBe('perProvider');
+      expect(body.slots.map((s) => s.id)).toEqual(['slot-main', 'slot-2', 'slot-3']);
+      // Multi-slot region groups omit slotId so they span all airports
+      expect(body.regionGroups.every((rg) => rg.slotId === undefined)).toBe(true);
+      const autoCard = body.cards.find((c) => c.cardId === 'auto-select');
+      expect(autoCard?.overrides?.group?.candidates).toEqual([
+        { kind: 'slot', slotId: 'slot-main' },
+        { kind: 'slot', slotId: 'slot-2' },
+        { kind: 'slot', slotId: 'slot-3' },
+      ]);
     });
   });
 });

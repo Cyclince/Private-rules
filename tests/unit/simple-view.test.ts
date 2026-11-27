@@ -250,4 +250,43 @@ describe('B3 domain simple-view mapping and patching', () => {
     expect(remapped.scenarios.find((s) => s.id === 'telegram')?.route).toBe('direct');
     expect(remapped.rulesets.map((r) => r.rulesetId)).toEqual(['rs-ads', 'rs-emby']);
   });
+
+  it('patches multi-slot subscriptions, combineMode, and deleting the last slot while keeping custom config intact', () => {
+    const standard = buildStarterTemplate('standard');
+    const body: TemplateBody = structuredClone(standard.baseBody);
+    body.slots = [
+      { id: 'slot-main', name: '主力机场', excludeInfo: true, udp: true },
+      { id: 'slot-2', name: '备用机场', excludeInfo: true, udp: true },
+    ];
+    body.combineMode = 'merge';
+
+    const cardMap = buildCardMap();
+    // Multi-airport slots alone should NOT trigger hasCustomizations
+    expect(mapTemplateToSimpleRouting(body, cardMap, rulesetMap).hasCustomizations).toBe(false);
+
+    // Add custom DNS + clientPatches and verify they are preserved across slot & combineMode mutations
+    body.dns = { ...body.dns, respectRules: true };
+    body.clientPatches = { mihomo: 'allow-lan: false\n' };
+
+    // Switch combineMode to perProvider and delete all slots
+    const patched = applySimpleTemplatePatch({
+      currentBody: body,
+      cardMap,
+      builtinCards: BUILTIN_CARDS,
+      rulesetMap,
+      patch: {
+        combineMode: 'perProvider',
+        slots: [],
+      },
+      hasSubscription: false,
+    });
+
+    expect(patched.body.combineMode).toBe('perProvider');
+    expect(patched.body.slots).toEqual([]);
+    // Custom DNS and clientPatches remain verbatim
+    expect(patched.body.dns.respectRules).toBe(true);
+    expect(patched.body.clientPatches).toEqual({ mihomo: 'allow-lan: false\n' });
+    // No dangling slotId left on regionGroups or hub cards
+    expect(patched.body.regionGroups.every((rg) => rg.slotId === undefined)).toBe(true);
+  });
 });

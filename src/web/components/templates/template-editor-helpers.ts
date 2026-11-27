@@ -382,6 +382,8 @@ export function formatOverlayOpSummary(op: TemplateOverlayOp): string {
       return `updateSlot(${op.slotId})`;
     case 'setGroupMode':
       return `setGroupMode(${op.groupMode})`;
+    case 'setCombineMode':
+      return `setCombineMode(${op.combineMode})`;
     case 'setFinal':
       return `setFinal(${formatPolicyShort(op.final)})`;
     case 'setOutput':

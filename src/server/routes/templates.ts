@@ -194,6 +194,18 @@ function parseVersionParam(raw: string): number {
   return value;
 }
 
+const FORBIDDEN_SUBSCRIPTION_QUERY_PARAMS = ['subscriptionUrl', 'url', 'subscriptions'] as const;
+
+async function rejectSubscriptionQueryParams(c: { req: { url: string } }, next: () => Promise<void>): Promise<void> {
+  const url = new URL(c.req.url);
+  for (const param of FORBIDDEN_SUBSCRIPTION_QUERY_PARAMS) {
+    if (url.searchParams.has(param)) {
+      throw new AppError('VALIDATION_FAILED', '订阅地址禁止通过 URL 参数传递，请使用 JSON 请求体提交。');
+    }
+  }
+  await next();
+}
+
 export const templateRoutes = new Hono<AppBindings>()
   .get('/api/templates', requireAuth, validate('query', listTemplatesQuerySchema), async (c) => {
     const query = c.req.valid('query');
@@ -215,13 +227,7 @@ export const templateRoutes = new Hono<AppBindings>()
     '/api/templates/quick-create',
     requireAuth,
     rejectTelegramWrite,
-    async (c, next) => {
-      const url = new URL(c.req.url);
-      if (url.searchParams.has('subscriptionUrl') || url.searchParams.has('url')) {
-        throw new AppError('VALIDATION_FAILED', '订阅地址禁止通过 URL 参数传递，请使用 JSON 请求体提交。');
-      }
-      await next();
-    },
+    rejectSubscriptionQueryParams,
     validate('json', quickCreateTemplateSchema),
     async (c) => {
       const baseUrl = externalBaseUrl(c);
@@ -239,13 +245,7 @@ export const templateRoutes = new Hono<AppBindings>()
     requireAuth,
     rejectTelegramWrite,
     persistentRateLimit('template-preview-sub', 15),
-    async (c, next) => {
-      const url = new URL(c.req.url);
-      if (url.searchParams.has('subscriptionUrl') || url.searchParams.has('url')) {
-        throw new AppError('VALIDATION_FAILED', '订阅地址禁止通过 URL 参数传递，请使用 JSON 请求体提交。');
-      }
-      await next();
-    },
+    rejectSubscriptionQueryParams,
     validate('json', previewSubscriptionSchema),
     async (c) => {
       const result = await previewSubscription(c.req.valid('json'));
@@ -279,6 +279,7 @@ export const templateRoutes = new Hono<AppBindings>()
     '/api/templates/:id/simple',
     requireAuth,
     rejectTelegramWrite,
+    rejectSubscriptionQueryParams,
     validate('json', simpleTemplatePatchSchema),
     async (c) => {
       const templateId = c.req.param('id');

@@ -7,7 +7,13 @@ import {
   toNodePreview,
 } from '../../domain/nodes';
 import { id, slugify } from '../../domain/rules/slug';
-import { applyOverlay, buildQuickCreateTemplateBody, type QuickCreateResolvedRuleset } from '../../domain/templates';
+import {
+  applyOverlay,
+  buildNormalizedQuickCreateSlots,
+  buildQuickCreateTemplateBody,
+  normalizeSubscriptionName,
+  type QuickCreateResolvedRuleset,
+} from '../../domain/templates';
 import { encryptNodeSecret, maskSubscriptionUrl } from '../../infrastructure/crypto/node-secrets';
 import {
   DEFAULT_FETCH_MAX_BYTES,
@@ -19,10 +25,15 @@ import {
 import { resolveSessionSecret } from '../../lib/runtime-secrets';
 import { isTemplateClientSupported, TEMPLATE_CLIENTS, type TemplateClientId } from '../../shared/clients';
 import { AppError } from '../../shared/errors';
-import type {
-  PreviewSubscriptionErrorCode,
-  PreviewSubscriptionInput,
-  QuickCreateTemplateInput,
+import {
+  MAX_TEMPLATE_SUBSCRIPTIONS,
+  type NodeCombineMode,
+  type PreviewSubscriptionBatchInput,
+  type PreviewSubscriptionErrorCode,
+  type PreviewSubscriptionInput,
+  type PreviewSubscriptionSingleInput,
+  type QuickCreatePreviewSummary,
+  type QuickCreateTemplateInput,
 } from '../../shared/schemas/quick-create';
 import type { TemplateBody, TemplateRecord } from '../../shared/schemas/template';
 import type { Env } from '../../types';
@@ -32,6 +43,12 @@ import { now } from '../rulesets';
 
 const DEFAULT_PREVIEW_USER_AGENT = 'clash.meta/1.19.0';
 const UA_REQUIRED_HTTP_STATUSES = new Set([401, 403, 406, 451]);
+
+export type QuickCreateSubscriptionSummary = {
+  slotId: string;
+  name: string;
+  maskedUrl: string;
+};
 
 export type QuickCreatePublicationLink = {
   id: string;
@@ -53,12 +70,18 @@ export type QuickCreateTemplateOptions = {
   extraBatchStatements?: DatabaseStatement[];
 };
 
+export type QuickCreateTemplateServiceInput = Omit<QuickCreateTemplateInput, 'combineMode'> & {
+  combineMode?: NodeCombineMode;
+};
+
 export type QuickCreateTemplateResult = {
   template: TemplateRecord;
   resolvedBody: TemplateBody;
   publications: QuickCreatePublicationLink[];
   ruleTokenConfigured: boolean;
   hasSubscription: boolean;
+  combineMode: NodeCombineMode;
+  subscriptions: QuickCreateSubscriptionSummary[];
 };
 
 export type PreviewSubscriptionOptions = {
@@ -86,6 +109,28 @@ export type PreviewSubscriptionResult = {
   checkedAt: string;
 };
 
+export type PreviewSubscriptionBatchItemResult = {
+  name: string;
+  ok: boolean;
+  nodeCount: number;
+  regions: PreviewSubscriptionRegionStat[];
+  regionCounts: Record<string, number>;
+  errorCode?: PreviewSubscriptionErrorCode;
+  error?: string;
+  checkedAt: string;
+  format?: string;
+  totalParsedCount?: number;
+  infoNodeCount?: number;
+};
+
+export type PreviewSubscriptionBatchResult = {
+  items: PreviewSubscriptionBatchItemResult[];
+  totalNodeCount: number;
+  regions: PreviewSubscriptionRegionStat[];
+  regionCounts: Record<string, number>;
+  checkedAt: string;
+};
+
 function allocateUniqueSlug(base: string, taken: Set<string>, fallback: string): string {
   const cleanBase = slugify(base).toLowerCase().slice(0, 64) || fallback;
   if (!taken.has(cleanBase)) {
@@ -104,7 +149,7 @@ function allocateUniqueSlug(base: string, taken: Set<string>, fallback: string):
   return unique;
 }
 
-function validateWizardSubscriptionUrl(rawUrl: string): string {
+export function validateWizardSubscriptionUrl(rawUrl: string): string {
   const trimmed = rawUrl.trim();
   // eslint-disable-next-line no-control-regex
   if (!trimmed || /[\r\n\0\x00-\x1f\x7f\s]/.test(trimmed)) {
@@ -116,7 +161,8 @@ function validateWizardSubscriptionUrl(rawUrl: string): string {
     return validateRemoteSourceUrl(trimmed);
   } catch (error) {
     if (error instanceof AppError) {
-      throw new AppError(error.code, error.message, {
+      const sanitized = sanitizeNodeFetchErrorMessage(error.message, trimmed);
+      throw new AppError(error.code, sanitized || '订阅链接格式无效，请检查后重试。', {
         previewErrorCode: 'LINK_INVALID' satisfies PreviewSubscriptionErrorCode,
       });
     }
@@ -126,10 +172,10 @@ function validateWizardSubscriptionUrl(rawUrl: string): string {
   }
 }
 
-function validateOptionalUserAgent(value?: string): string {
-  if (!value) return DEFAULT_PREVIEW_USER_AGENT;
+export function validateSubscriptionUserAgent(value?: string | null): string | null {
+  if (!value) return null;
   const trimmed = value.trim();
-  if (!trimmed) return DEFAULT_PREVIEW_USER_AGENT;
+  if (!trimmed) return null;
   // eslint-disable-next-line no-control-regex
   if (trimmed.length > 256 || /[\r\n\0\x00-\x1f\x7f]/.test(trimmed)) {
     throw new AppError('VALIDATION_FAILED', 'User-Agent 格式无效。', {
@@ -137,6 +183,27 @@ function validateOptionalUserAgent(value?: string): string {
     });
   }
   return trimmed;
+}
+
+function resolvePreviewUserAgent(value?: string | null): string {
+  return validateSubscriptionUserAgent(value) ?? DEFAULT_PREVIEW_USER_AGENT;
+}
+
+function buildRegionStatsFromCounts(counts: Readonly<Record<string, number>>): PreviewSubscriptionRegionStat[] {
+  const stats: PreviewSubscriptionRegionStat[] = [];
+  for (const [rawCode, count] of Object.entries(counts)) {
+    if (!Number.isFinite(count) || count <= 0) continue;
+    const code = rawCode.toUpperCase();
+    const def = getRegionDefinition(code);
+    stats.push({
+      code,
+      name: def?.nameZh ?? code,
+      emoji: def?.flag ?? '🌐',
+      count,
+    });
+  }
+  stats.sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
+  return stats;
 }
 
 function buildQuickCreateSubscriptionUrl(options: {
@@ -154,23 +221,24 @@ function buildQuickCreateSubscriptionUrl(options: {
 }
 
 /**
- * B1: `POST /api/templates/quick-create`
+ * B1 + R3: `POST /api/templates/quick-create`
  *
  * Atomically creates:
  * 1. User app cards for referenced rule sets (prepended in exact input order)
  * 2. Template (starting from built-in "标准模板", marked with `wizardMeta.createdByWizard`) + v1 snapshot
  * 3. One token-protected publication per deduplicated client (Loon / Quantumult X keep rules-only default)
- * 4. Optional encrypted `slot-main` node binding per publication
+ * 4. Optional encrypted node bindings for all subscriptions (up to 10) across every publication
  *
  * All database writes execute in a single `env.DB.batch([...])` transaction so any failure rolls back completely.
  */
 export async function quickCreateTemplate(
   env: Env,
-  input: QuickCreateTemplateInput,
+  input: QuickCreateTemplateServiceInput,
   options: QuickCreateTemplateOptions = {},
 ): Promise<QuickCreateTemplateResult> {
   const repos = createRepositories(env.DB);
   const timestamp = now();
+  const combineMode: NodeCombineMode = input.combineMode ?? 'merge';
 
   // Deduplicate target clients while preserving order
   const uniqueClients: TemplateClientId[] = [];
@@ -185,7 +253,7 @@ export async function quickCreateTemplate(
   }
 
   // Deduplicate referenced rulesets while preserving exact user order
-  const dedupedRulesetInputs: QuickCreateTemplateInput['rulesets'] = [];
+  const dedupedRulesetInputs: QuickCreateTemplateServiceInput['rulesets'] = [];
   const seenRulesetIds = new Set<string>();
   for (const item of input.rulesets) {
     if (seenRulesetIds.has(item.rulesetId)) continue;
@@ -193,13 +261,46 @@ export async function quickCreateTemplate(
     dedupedRulesetInputs.push(item);
   }
 
-  // Validate subscription URL (SSRF + syntax) and resolve encryption key upfront before DB writes
-  let normalizedSubscriptionUrl: string | undefined;
-  let sessionSecret: string | undefined;
-  if (input.subscriptionUrl) {
-    normalizedSubscriptionUrl = validateWizardSubscriptionUrl(input.subscriptionUrl);
-    sessionSecret = await resolveSessionSecret(env);
+  // Normalize subscriptions list (supports both `subscriptions[]` and legacy `subscriptionUrl`)
+  const rawSubscriptions =
+    input.subscriptions && input.subscriptions.length > 0
+      ? input.subscriptions
+      : input.subscriptionUrl
+        ? [{ url: input.subscriptionUrl, previewSummary: input.previewSummary }]
+        : [];
+
+  if (rawSubscriptions.length > MAX_TEMPLATE_SUBSCRIPTIONS) {
+    throw new AppError('VALIDATION_FAILED', `最多支持 ${MAX_TEMPLATE_SUBSCRIPTIONS} 条机场订阅。`);
   }
+
+  // Validate all subscription URLs (SSRF + syntax) and userAgents upfront before any DB work
+  const validatedSubscriptions: Array<{
+    url: string;
+    maskedUrl: string;
+    userAgent: string | null;
+    name?: string;
+    previewSummary?: QuickCreatePreviewSummary;
+  }> = [];
+
+  for (let i = 0; i < rawSubscriptions.length; i += 1) {
+    const item = rawSubscriptions[i];
+    const normalizedUrl = validateWizardSubscriptionUrl(item.url);
+    const userAgent = validateSubscriptionUserAgent('userAgent' in item ? item.userAgent : undefined);
+    const previewSummary = item.previewSummary ?? (rawSubscriptions.length === 1 ? input.previewSummary : undefined);
+    validatedSubscriptions.push({
+      url: normalizedUrl,
+      maskedUrl: maskSubscriptionUrl(normalizedUrl),
+      userAgent,
+      name: 'name' in item ? item.name : undefined,
+      previewSummary,
+    });
+  }
+
+  const sessionSecret = validatedSubscriptions.length > 0 ? await resolveSessionSecret(env) : undefined;
+  const normalizedSlots =
+    validatedSubscriptions.length > 0
+      ? buildNormalizedQuickCreateSlots(validatedSubscriptions.map((sub) => ({ name: sub.name })))
+      : [];
 
   // Load existing slugs & verify all referenced rulesets exist
   const [existingCards, existingTemplates, existingPublications, resolvedCategories] = await Promise.all([
@@ -239,13 +340,55 @@ export async function quickCreateTemplate(
   const templateId = id();
   const templateSlug = allocateUniqueSlug(templateName, takenTemplateSlugs, 'template');
 
-  // Derive detected regions from explicit list or previewSummary
-  const detectedRegions =
-    input.detectedRegions && input.detectedRegions.length > 0
-      ? input.detectedRegions
-      : input.previewSummary
-        ? Object.keys(input.previewSummary.regions)
-        : undefined;
+  // Build per-slot preview summaries & merged detected regions
+  const subscriptionPreviews: Record<string, QuickCreatePreviewSummary> = {};
+  const mergedRegionCounts: Record<string, number> = {};
+  let aggregatedNodeCount = 0;
+  let hasAggregatedPreview = false;
+  let latestPreviewCheckedAt: string | undefined;
+
+  for (let i = 0; i < normalizedSlots.length; i += 1) {
+    const slot = normalizedSlots[i];
+    const sub = validatedSubscriptions[i];
+    if (!sub.previewSummary) continue;
+    subscriptionPreviews[slot.id] = sub.previewSummary;
+    if (sub.previewSummary.status !== 'error') {
+      hasAggregatedPreview = true;
+      aggregatedNodeCount += sub.previewSummary.nodeCount;
+      for (const [code, count] of Object.entries(sub.previewSummary.regions)) {
+        const upper = code.toUpperCase();
+        mergedRegionCounts[upper] = (mergedRegionCounts[upper] ?? 0) + count;
+      }
+      if (
+        sub.previewSummary.checkedAt &&
+        (!latestPreviewCheckedAt || sub.previewSummary.checkedAt > latestPreviewCheckedAt)
+      ) {
+        latestPreviewCheckedAt = sub.previewSummary.checkedAt;
+      }
+    }
+  }
+
+  const effectivePreviewSummary: QuickCreatePreviewSummary | undefined =
+    input.previewSummary ??
+    (hasAggregatedPreview
+      ? {
+          nodeCount: aggregatedNodeCount,
+          regions: mergedRegionCounts,
+          status: 'ok',
+          ...(latestPreviewCheckedAt ? { checkedAt: latestPreviewCheckedAt } : {}),
+        }
+      : undefined);
+
+  const detectedRegionSet = new Set<string>();
+  if (input.detectedRegions && input.detectedRegions.length > 0) {
+    for (const code of input.detectedRegions) detectedRegionSet.add(code.toUpperCase());
+  } else {
+    if (input.previewSummary) {
+      for (const code of Object.keys(input.previewSummary.regions)) detectedRegionSet.add(code.toUpperCase());
+    }
+    for (const code of Object.keys(mergedRegionCounts)) detectedRegionSet.add(code);
+  }
+  const detectedRegions = detectedRegionSet.size > 0 ? Array.from(detectedRegionSet) : undefined;
 
   const standardStarter = buildStarterTemplate('standard');
   const { body, generatedCards } = buildQuickCreateTemplateBody({
@@ -254,39 +397,67 @@ export async function quickCreateTemplate(
     scenarios: input.scenarios,
     rulesets: resolvedRulesets,
     groupMode: input.groupMode,
-    hasSubscription: Boolean(normalizedSubscriptionUrl),
+    combineMode,
+    slots: normalizedSlots.length > 0 ? normalizedSlots : undefined,
+    hasSubscription: validatedSubscriptions.length > 0,
     detectedRegions,
     clientDisplayNames: input.clientDisplayNames,
     clientLabels: input.clientLabels,
-    previewSummary: input.previewSummary,
+    previewSummary: effectivePreviewSummary,
+    subscriptionPreviews: Object.keys(subscriptionPreviews).length > 0 ? subscriptionPreviews : undefined,
   });
 
   const resolvedBody = applyOverlay(body, []).resolved;
 
-  // Prepare per-client publications and encrypted slot-main bindings
+  // Prepare per-client publications and encrypted bindings for every subscription
   const preparedPublications: Array<{
     id: string;
     slug: string;
     client: TemplateClientId;
-    encryptedSubscriptionUrl?: string;
+    bindings: Array<{
+      slotId: string;
+      encryptedSubscriptionUrl: string;
+      userAgent: string | null;
+      lastFetchedAt: string | null;
+      lastStatus: string | null;
+      lastNodeCount: number | null;
+    }>;
   }> = [];
 
   for (const client of uniqueClients) {
     const pubId = id();
     const pubSlug = allocateUniqueSlug(`${templateSlug}-${client}`, takenPublicationSlugs, client);
-    let encryptedSubscriptionUrl: string | undefined;
-    if (normalizedSubscriptionUrl && sessionSecret) {
-      encryptedSubscriptionUrl = await encryptNodeSecret(
-        normalizedSubscriptionUrl,
-        sessionSecret,
-        bindingAad(pubId, 'slot-main'),
-      );
+    const bindings: Array<{
+      slotId: string;
+      encryptedSubscriptionUrl: string;
+      userAgent: string | null;
+      lastFetchedAt: string | null;
+      lastStatus: string | null;
+      lastNodeCount: number | null;
+    }> = [];
+
+    if (validatedSubscriptions.length > 0 && sessionSecret) {
+      for (let i = 0; i < validatedSubscriptions.length; i += 1) {
+        const sub = validatedSubscriptions[i];
+        const slot = normalizedSlots[i];
+        const encryptedSubscriptionUrl = await encryptNodeSecret(sub.url, sessionSecret, bindingAad(pubId, slot.id));
+        const summary = sub.previewSummary;
+        bindings.push({
+          slotId: slot.id,
+          encryptedSubscriptionUrl,
+          userAgent: sub.userAgent,
+          lastFetchedAt: summary ? (summary.checkedAt ?? timestamp) : null,
+          lastStatus: summary ? (summary.status === 'error' ? 'error' : 'ok') : null,
+          lastNodeCount: summary && summary.status !== 'error' ? summary.nodeCount : null,
+        });
+      }
     }
+
     preparedPublications.push({
       id: pubId,
       slug: pubSlug,
       client,
-      encryptedSubscriptionUrl,
+      bindings,
     });
   }
 
@@ -332,19 +503,6 @@ export async function quickCreateTemplate(
     ).bind(templateId, 1, resolvedBodyJson, 'quick-create', timestamp),
   );
 
-  const bindingFetchedAt =
-    normalizedSubscriptionUrl && input.previewSummary ? (input.previewSummary.checkedAt ?? timestamp) : null;
-  const bindingStatus =
-    normalizedSubscriptionUrl && input.previewSummary
-      ? input.previewSummary.status === 'error'
-        ? 'error'
-        : 'ok'
-      : null;
-  const bindingNodeCount =
-    normalizedSubscriptionUrl && input.previewSummary && input.previewSummary.status !== 'error'
-      ? input.previewSummary.nodeCount
-      : null;
-
   for (const pub of preparedPublications) {
     statements.push(
       env.DB.prepare(
@@ -365,7 +523,7 @@ export async function quickCreateTemplate(
       ),
     );
 
-    if (pub.encryptedSubscriptionUrl) {
+    for (const binding of pub.bindings) {
       statements.push(
         env.DB.prepare(
           `INSERT INTO node_bindings
@@ -373,12 +531,12 @@ export async function quickCreateTemplate(
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           pub.id,
-          'slot-main',
-          pub.encryptedSubscriptionUrl,
-          null,
-          bindingFetchedAt,
-          bindingStatus,
-          bindingNodeCount,
+          binding.slotId,
+          binding.encryptedSubscriptionUrl,
+          binding.userAgent,
+          binding.lastFetchedAt,
+          binding.lastStatus,
+          binding.lastNodeCount,
         ),
       );
     }
@@ -403,7 +561,7 @@ export async function quickCreateTemplate(
     updatedAt: timestamp,
   };
 
-  const maskedUrl = normalizedSubscriptionUrl ? maskSubscriptionUrl(normalizedSubscriptionUrl) : undefined;
+  const firstMaskedUrl = validatedSubscriptions[0]?.maskedUrl;
   const effectiveToken = options.ruleToken;
 
   const publications: QuickCreatePublicationLink[] = preparedPublications.map((pub) => {
@@ -423,32 +581,33 @@ export async function quickCreateTemplate(
         slug: pub.slug,
         client: pub.client,
       }),
-      ...(maskedUrl ? { maskedSubscriptionUrl: maskedUrl } : {}),
+      ...(firstMaskedUrl ? { maskedSubscriptionUrl: firstMaskedUrl } : {}),
     };
   });
+
+  const subscriptions: QuickCreateSubscriptionSummary[] = normalizedSlots.map((slot, index) => ({
+    slotId: slot.id,
+    name: slot.name,
+    maskedUrl: validatedSubscriptions[index].maskedUrl,
+  }));
 
   return {
     template,
     resolvedBody,
     publications,
     ruleTokenConfigured: Boolean(effectiveToken),
-    hasSubscription: Boolean(normalizedSubscriptionUrl),
+    hasSubscription: validatedSubscriptions.length > 0,
+    combineMode,
+    subscriptions,
   };
 }
 
-/**
- * B2: `POST /api/templates/preview-subscription`
- *
- * Fetches and parses an airport subscription URL on the fly without persisting
- * anything to the database and without logging the raw subscription URL.
- * Returns total node count and region statistics, or a plain-language error code.
- */
-export async function previewSubscription(
-  input: PreviewSubscriptionInput,
+async function previewSingleSubscription(
+  input: PreviewSubscriptionSingleInput,
   options: PreviewSubscriptionOptions = {},
 ): Promise<PreviewSubscriptionResult> {
   const validatedUrl = validateWizardSubscriptionUrl(input.subscriptionUrl);
-  const userAgent = validateOptionalUserAgent(input.userAgent);
+  const userAgent = resolvePreviewUserAgent(input.userAgent);
 
   let responseText: string;
   try {
@@ -545,6 +704,114 @@ export async function previewSubscription(
     format: parsed.report.format,
     regions,
     regionCounts,
+    checkedAt: now(),
+  };
+}
+
+/**
+ * B2 + R3: `POST /api/templates/preview-subscription`
+ *
+ * Fetches and parses up to 10 airport subscription URLs on the fly without persisting
+ * anything to the database and without logging raw subscription URLs.
+ * - Batch payload (`{ subscriptions }`): returns per-item `{ name, ok, nodeCount, regions, errorCode }`
+ *   where a single subscription failure never breaks the remaining items.
+ * - Legacy single payload (`{ subscriptionUrl }`): preserves exact single-item result & error contract.
+ */
+export async function previewSubscription(
+  input: PreviewSubscriptionSingleInput,
+  options?: PreviewSubscriptionOptions,
+): Promise<PreviewSubscriptionResult>;
+export async function previewSubscription(
+  input: PreviewSubscriptionBatchInput,
+  options?: PreviewSubscriptionOptions,
+): Promise<PreviewSubscriptionBatchResult>;
+export async function previewSubscription(
+  input: PreviewSubscriptionInput,
+  options?: PreviewSubscriptionOptions,
+): Promise<PreviewSubscriptionResult | PreviewSubscriptionBatchResult>;
+export async function previewSubscription(
+  input: PreviewSubscriptionInput,
+  options: PreviewSubscriptionOptions = {},
+): Promise<PreviewSubscriptionResult | PreviewSubscriptionBatchResult> {
+  if (!('subscriptions' in input)) {
+    return previewSingleSubscription(input, options);
+  }
+
+  if (input.subscriptions.length === 0) {
+    throw new AppError('VALIDATION_FAILED', '请至少提供一条订阅地址。');
+  }
+  if (input.subscriptions.length > MAX_TEMPLATE_SUBSCRIPTIONS) {
+    throw new AppError('VALIDATION_FAILED', `一次最多预览 ${MAX_TEMPLATE_SUBSCRIPTIONS} 条订阅。`);
+  }
+
+  const usedNames = new Set<string>();
+  const namedItems = input.subscriptions.map((item, index) => ({
+    name: normalizeSubscriptionName(item.name, index, usedNames),
+    url: item.url,
+    userAgent: item.userAgent,
+  }));
+
+  const results = await Promise.all(
+    namedItems.map(async (item): Promise<PreviewSubscriptionBatchItemResult> => {
+      try {
+        const single = await previewSingleSubscription(
+          { subscriptionUrl: item.url, userAgent: item.userAgent },
+          options,
+        );
+        return {
+          name: item.name,
+          ok: true,
+          nodeCount: single.nodeCount,
+          regions: single.regions,
+          regionCounts: single.regionCounts,
+          checkedAt: single.checkedAt,
+          format: single.format,
+          totalParsedCount: single.totalParsedCount,
+          infoNodeCount: single.infoNodeCount,
+        };
+      } catch (error) {
+        let errorCode: PreviewSubscriptionErrorCode = 'LINK_INVALID';
+        let errorMessage = '订阅链接失效或暂时无法访问，请检查链接是否正确。';
+        if (error instanceof AppError) {
+          if (
+            error.details &&
+            typeof error.details === 'object' &&
+            'previewErrorCode' in error.details &&
+            typeof error.details.previewErrorCode === 'string'
+          ) {
+            errorCode = error.details.previewErrorCode as PreviewSubscriptionErrorCode;
+          }
+          errorMessage = sanitizeNodeFetchErrorMessage(error.message, item.url) || errorMessage;
+        }
+        return {
+          name: item.name,
+          ok: false,
+          nodeCount: 0,
+          regions: [],
+          regionCounts: {},
+          errorCode,
+          error: errorMessage,
+          checkedAt: now(),
+        };
+      }
+    }),
+  );
+
+  const mergedRegionCounts: Record<string, number> = {};
+  let totalNodeCount = 0;
+  for (const item of results) {
+    if (!item.ok) continue;
+    totalNodeCount += item.nodeCount;
+    for (const [code, count] of Object.entries(item.regionCounts)) {
+      mergedRegionCounts[code] = (mergedRegionCounts[code] ?? 0) + count;
+    }
+  }
+
+  return {
+    items: results,
+    totalNodeCount,
+    regions: buildRegionStatsFromCounts(mergedRegionCounts),
+    regionCounts: mergedRegionCounts,
     checkedAt: now(),
   };
 }

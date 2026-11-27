@@ -857,6 +857,7 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
   const githubMirrorUrl = input.githubMirrorUrl?.trim() || undefined;
   const effectiveIconPack = input.iconPack !== undefined ? input.iconPack : buildDefaultIconPack(githubMirrorUrl);
   const multiSlot = body.slots.length > 1;
+  const perProviderVisible = multiSlot && (body.combineMode ?? body.wizardMeta?.combineMode) === 'perProvider';
   const useLegacyGeodata = Boolean(body.legacyGeodata);
 
   if (output === 'minimal') {
@@ -1301,7 +1302,7 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
         lazy: true,
         timeout: DEFAULT_HEALTH_CHECK_TIMEOUT_MS,
         'expected-status': DEFAULT_EXPECTED_STATUS,
-        hidden: true,
+        ...(perProviderVisible ? {} : { hidden: true }),
       };
       const airportIcon = resolveGroupIconUrl(
         {
@@ -1323,7 +1324,7 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
         name: allNodesGroupName,
         type: 'select',
         use: allProviderKeys,
-        hidden: true,
+        ...(perProviderVisible ? {} : { hidden: true }),
       };
       const allNodesIcon = resolveGroupIconUrl(
         {
