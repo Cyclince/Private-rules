@@ -968,6 +968,7 @@ export const zhTW: Messages = {
   'ruleDetail.fieldNotePlaceholder': '例如：ChatGPT 官網',
   'ruleDetail.previewPrefix': '將新增為：',
   'ruleDetail.moreOptions': '更多選項',
+  'ruleDetail.willResolveDomains': '會解析域名',
   'ruleDetail.noResolveHint': '開啟後速度更快，也能減少 DNS 洩露；一般不需要關閉',
   'ruleDetail.addRuleBtn': '新增規則',
   'ruleDetail.conflictBody': '新規則會與以下現有自定義規則產生重複匹配。替換後，舊規則將被移除並在當前分類儲存新規則。',

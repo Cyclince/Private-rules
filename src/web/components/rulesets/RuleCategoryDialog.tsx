@@ -234,7 +234,10 @@ export function RuleCategoryDialog({
     };
   }, [open, mode, createMode, upstreamKind, communityQuery]);
 
-  const nameError = useMemo(() => validateCategoryName(name), [name]);
+  const nameError = useMemo(
+    () => (mode === 'edit' && name === initial?.name ? '' : validateCategoryName(name)),
+    [mode, name, initial?.name],
+  );
   const parsedUrls = useMemo(() => splitNonEmptyLines(sourceUrlsText), [sourceUrlsText]);
 
   const hasValidUpstreamSelection = useMemo(() => {
@@ -277,7 +280,7 @@ export function RuleCategoryDialog({
 
     if (mode === 'edit') {
       await onEdit?.({
-        name: name.trim(),
+        name: name === initial?.name ? name : name.trim(),
         description: description.trim(),
         icon: icon.trim(),
       });

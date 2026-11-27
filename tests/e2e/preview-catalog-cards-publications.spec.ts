@@ -1,7 +1,8 @@
 import { createHmac } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import { E2E_ORIGIN } from '../helpers/e2e-env';
 
-const ORIGIN = 'http://127.0.0.1:5180';
+const ORIGIN = E2E_ORIGIN;
 const JSON_HEADERS = { origin: ORIGIN, 'content-type': 'application/json' };
 const BOT_TOKEN = '123456:e2e-test-token';
 

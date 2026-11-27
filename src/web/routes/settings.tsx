@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { ShieldAlert } from 'lucide-react';
 import { lazy, Suspense } from 'react';
-import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { loadPageTranslations, useI18n } from '../i18n';
@@ -65,7 +64,6 @@ function SettingsPage() {
               <CardTitle>{t('settings.title')}</CardTitle>
               <CardDescription>{t('settings.subtitle')}</CardDescription>
             </div>
-            <Badge variant="outline">tab={tab}</Badge>
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

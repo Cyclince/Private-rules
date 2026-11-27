@@ -131,6 +131,30 @@
 
 ---
 
+## 一键导入链接核实
+
+以下全部为**待核实协议候选**，不是已支持的一键导入功能。原始生成器仅供真机测试；M3 接入界面时必须使用下方的 `getImportLink()` 核实门禁。
+
+测试前备份客户端配置；用中文名称（例如「流媒体测试」）及带 token、多个查询参数的链接分别验证，确认 token 未被截断或二次解码。将测试版本、系统、日期与截图记入签收记录；不要在截图、日志或公开记录中暴露真实 token。
+
+| 客户端          | 平台                                                               | 链接格式（待核实）                                              | 核实步骤                                                                                                                                                             | 结果 |
+| --------------- | ------------------------------------------------------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| Clash Verge Rev | Windows / macOS / Linux                                            | `clash://install-config?url=<encoded>&name=<encoded name>`      | 在电脑浏览器打开链接，确认唤起客户端导入，显示正确名称与节点；检查带 token 的地址可更新。                                                                            | 待测 |
+| FlClash         | Android / Windows / macOS / Linux                                  | `clash://install-config?url=<encoded>&name=<encoded name>`      | 在手机/电脑浏览器打开链接，确认唤起客户端导入，显示正确名称与节点；检查带 token 的地址可更新。                                                                       | 待测 |
+| Clash Party     | Windows / macOS / Linux                                            | `clash://install-config?url=<encoded>&name=<encoded name>`      | 在电脑浏览器打开链接，确认唤起客户端导入，显示正确名称与节点；检查带 token 的地址可更新。                                                                            | 待测 |
+| Stash           | iOS / macOS                                                        | `stash://install-config?url=<encoded>`                          | 在手机/电脑浏览器打开链接，确认客户端弹出导入并显示正确名称与节点；名称应从配置/URL 正确识别（协议不带 name）。                                                      | 待测 |
+| Surge           | iOS / macOS                                                        | `surge:///install-config?url=<encoded>`                         | 在手机/电脑浏览器打开链接，确认客户端弹出导入并显示正确名称与节点；名称应从配置/URL 正确识别（协议不带 name）。                                                      | 待测 |
+| sing-box        | Android / iOS / macOS / Windows / Linux（取决于 GUI 是否注册协议） | `sing-box://import-remote-profile?url=<encoded>#<encoded name>` | 在手机/电脑浏览器打开链接，确认对应 GUI 弹出远程配置导入，片段中的中文名称与节点正确；记录 GUI 名称和版本，CLI 不代表协议已支持。                                    | 待测 |
+| Shadowrocket    | iOS / macOS                                                        | `shadowrocket://config/add/<url>`                               | 在手机/电脑浏览器打开链接，确认客户端弹出添加配置并显示正确名称与节点；特别检查嵌入的原始 URL 和 token 完整、原有节点未被覆盖。                                      | 待测 |
+| Quantumult X    | iOS / macOS                                                        | `quantumult-x:///add-resource?remote-resource=<encoded JSON>`   | 在手机/电脑浏览器打开链接，确认客户端弹出规则资源导入并显示正确名称；确认原有节点正确且不被覆盖，核实 JSON 资源类型与 tag 语法；此候选不承诺导入完整配置或新增节点。 | 待测 |
+| Loon            | iOS / macOS                                                        | 暂无；返回 `null`                                               | 先确定协议格式，再在手机/电脑浏览器打开候选链接，确认客户端弹出导入并显示正确名称与节点；未确定前继续手动导入。                                                      | 待测 |
+
+编码规则：URL 查询值和 mihomo 的 name、sing-box 的名称片段用 `encodeURIComponent` 编码一次；Shadowrocket 按候选格式嵌入原始 URL。Quantumult X 的 JSON 候选为 `{"filter_remote":["<url>, tag=<name>, enabled=true"]}`，整体编码一次，用于默认「仅规则资源」输出；完整配置的导入协议另行核实，不要直接复用此候选。
+
+核实通过后，把 `src/shared/client-import.ts` 对应项改为 `verified:true`。Clash 三种客户端共用 mihomo 项，须全部核实后再开启；如果平台或 GUI 之间支持不同，先细分元数据，不能用一个平台的结果替所有平台背书。Loon 还须先补生成器与格式。未经核实保持 `verified:false`，M3 界面仅使用 `getImportLink(clientId, url, name)`（未核实返回 `null`，隐藏按钮），不要使用原始生成器绕过门禁；本次不接界面。
+
+---
+
 ## 验收签收记录
 
 | 客户端 | 测试版本 / 系统 | 测试模式 | 是否覆盖已有节点 | 分流结果 | 测试人 / 日期 | 备注 |

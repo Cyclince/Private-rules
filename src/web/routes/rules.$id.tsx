@@ -41,6 +41,7 @@ import type { EditRuleCategoryInput } from '../components/rulesets/RuleCategoryD
 import {
   formatFriendlyRuleInline,
   formatFriendlyRuleType,
+  formatRuleResolveHint,
   formatSyncTimestamp,
   intervalLabelKey,
 } from '../components/rulesets/rule-library-helpers';
@@ -1667,7 +1668,8 @@ function RuleDetailPage() {
                 const rawLine = formatRawRuleLine(rule);
                 const isRawExpanded = Boolean(rawExpandedIds[rule.id]);
                 const subtitleParts = [typeLabel, inlineDesc, t('ruleDetail.manualMaintenance')];
-                if (rule.options?.noResolve) subtitleParts.push('no-resolve');
+                const resolveHint = formatRuleResolveHint(rule, t);
+                if (resolveHint) subtitleParts.push(resolveHint);
                 if (rule.note) subtitleParts.push(rule.note);
 
                 return (

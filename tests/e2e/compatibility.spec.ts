@@ -1,7 +1,8 @@
 import { createHmac } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import { E2E_ORIGIN } from '../helpers/e2e-env';
 
-const CSRF_HEADERS = { origin: 'http://127.0.0.1:5180', 'content-type': 'application/json' };
+const CSRF_HEADERS = { origin: E2E_ORIGIN, 'content-type': 'application/json' };
 
 async function createCategory(page: Page) {
   await page.request.post('/api/auth/login', { data: { password: 'e2e-password' }, headers: CSRF_HEADERS });

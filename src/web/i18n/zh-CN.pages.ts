@@ -979,6 +979,7 @@ export const zhCNPages = {
   'ruleDetail.fieldNotePlaceholder': '例如：ChatGPT 官网',
   'ruleDetail.previewPrefix': '将添加为：',
   'ruleDetail.moreOptions': '更多选项',
+  'ruleDetail.willResolveDomains': '会解析域名',
   'ruleDetail.noResolveHint': '开启后速度更快，也能减少 DNS 泄露；一般不需要关闭',
   'ruleDetail.addRuleBtn': '添加规则',
   'ruleDetail.conflictBody': '新规则会与以下现有自定义规则产生重复匹配。替换后，旧规则将被移除并在当前分类保存新规则。',

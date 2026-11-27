@@ -1039,6 +1039,7 @@ export const en: Messages = {
   'ruleDetail.fieldNotePlaceholder': 'e.g. ChatGPT website',
   'ruleDetail.previewPrefix': 'Will add as: ',
   'ruleDetail.moreOptions': 'More options',
+  'ruleDetail.willResolveDomains': 'Resolves domain names',
   'ruleDetail.noResolveHint': 'Faster matching and less DNS leakage when enabled; usually no need to turn off',
   'ruleDetail.addRuleBtn': 'Add rule',
   'ruleDetail.conflictBody':

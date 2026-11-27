@@ -1,7 +1,8 @@
 import { createHmac } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import { E2E_ORIGIN } from '../helpers/e2e-env';
 
-const ORIGIN = 'http://127.0.0.1:5180';
+const ORIGIN = E2E_ORIGIN;
 const JSON_HEADERS = { origin: ORIGIN, 'content-type': 'application/json' };
 const BOT_TOKEN = '123456:e2e-test-token';
 
@@ -43,6 +44,71 @@ async function deleteRulesetViaApi(page: Page, id: string) {
 }
 
 test.describe('M3.1 & M1b Rules Library, Rule Detail, Friendly Rules, Bulk Add, Telegram & 10k Scale', () => {
+  test('legacy Chinese category can save its description without renaming, but a new Chinese name is invalid', async ({
+    page,
+  }) => {
+    await signInAdmin(page);
+    const backupResponse = await page.request.get('/api/backup');
+    expect(backupResponse.status()).toBe(200);
+    const backup = (await backupResponse.json()) as { categories: unknown[] };
+    const id = `legacy-streaming-${Date.now()}`;
+    const slug = `LegacyStreaming-${Date.now()}`;
+    try {
+      const imported = await page.request.put('/api/backup', {
+        headers: JSON_HEADERS,
+        data: {
+          ...backup,
+          categories: [
+            ...backup.categories,
+            {
+              id,
+              name: '流媒体',
+              slug,
+              description: '',
+              icon: '🎬',
+              rules: [],
+              sources: [],
+              tokenLinksEnabled: true,
+              publicLinksEnabled: false,
+            },
+          ],
+        },
+      });
+      expect(imported.status()).toBe(200);
+      await page.goto(`/admin/rules/${id}`);
+      await expect(page.getByTestId('rule-detail-title')).toHaveText('流媒体');
+      await page.getByTestId('edit-ruleset-btn').click();
+      const dialog = page.getByTestId('ruleset-form-dialog');
+      await expect(dialog.getByTestId('ruleset-form-name')).toHaveValue('流媒体');
+      await expect(dialog.getByTestId('ruleset-form-name')).toHaveAttribute('aria-invalid', 'false');
+      await expect(dialog.getByRole('alert')).toHaveCount(0);
+      await expect(dialog.getByTestId('ruleset-form-submit')).toBeEnabled();
+      await dialog.getByTestId('ruleset-form-description').fill('老规则的新说明');
+      const saved = page.waitForResponse(
+        (response) => response.url().endsWith(`/api/rulesets/${id}`) && response.request().method() === 'PATCH',
+      );
+      await dialog.getByTestId('ruleset-form-submit').click();
+      expect((await saved).status()).toBe(200);
+      await expect(dialog).toBeHidden();
+      await expect(page.getByTestId('rule-detail-header')).toContainText('老规则的新说明');
+      await expect(page.getByTestId('rule-detail-title')).toHaveText('流媒体');
+      const detail = await page.request.get(`/api/rulesets/${id}`);
+      expect(await detail.json()).toMatchObject({ ruleset: { name: '流媒体', slug, description: '老规则的新说明' } });
+
+      await page.getByTestId('edit-ruleset-btn').click();
+      await dialog.getByTestId('ruleset-form-name').fill('流媒体测试');
+      await expect(dialog.getByTestId('ruleset-form-name')).toHaveAttribute('aria-invalid', 'true');
+      await expect(dialog.getByRole('alert')).toBeVisible();
+      await expect(dialog.getByTestId('ruleset-form-submit')).toBeDisabled();
+      await dialog.getByTestId('ruleset-form-name').fill('流媒体');
+      await expect(dialog.getByRole('alert')).toHaveCount(0);
+      await expect(dialog.getByTestId('ruleset-form-submit')).toBeEnabled();
+    } finally {
+      const restored = await page.request.put('/api/backup', { data: backup, headers: JSON_HEADERS });
+      expect(restored.status()).toBe(200);
+    }
+  });
+
   test('desktop (1280x800): overview stats, ruleset CRUD + sort toolbar + rollback + subscription links, single/bulk rules + conflicts + batch', async ({
     page,
   }) => {
@@ -181,7 +247,8 @@ test.describe('M3.1 & M1b Rules Library, Rule Detail, Friendly Rules, Bulk Add, 
       await expect(page.getByTestId('rules-list')).toContainText(
         'IP 段 · 198.51.100.0 – 198.51.100.255（共 256 个地址）',
       );
-      await expect(page.getByTestId('rules-list')).toContainText('no-resolve');
+      await expect(page.getByTestId('rules-list')).not.toContainText('no-resolve');
+      await expect(page.getByTestId('rules-list')).not.toContainText('会解析域名');
       await expect(page.getByTestId('rules-list')).toContainText('CIDR note');
       await expect(page.getByTestId('rules-list')).not.toContainText('IP-CIDR,');
 
@@ -198,9 +265,15 @@ test.describe('M3.1 & M1b Rules Library, Rule Detail, Friendly Rules, Bulk Add, 
       await page.getByTestId(`rule-edit-${cidrRuleId}`).click();
       await expect(page.getByTestId('rule-form-dialog')).toBeVisible();
       await page.getByTestId('rule-form-note').fill('CIDR edited');
+      await page.getByTestId('rule-form-dialog').getByText('更多选项', { exact: true }).click();
+      await expect(page.getByTestId('rule-form-no-resolve')).toHaveAttribute('data-state', 'checked');
+      await page.getByTestId('rule-form-no-resolve').click();
       await page.getByTestId('rule-form-submit').click();
       await expect(page.getByTestId('rule-form-dialog')).toBeHidden();
       await expect(page.getByTestId(`rule-subtitle-${cidrRuleId}`)).toContainText('CIDR edited');
+      await expect(page.getByTestId(`rule-subtitle-${cidrRuleId}`)).toContainText('会解析域名');
+      await expect(page.getByTestId(`rule-subtitle-${cidrRuleId}`)).not.toContainText('no-resolve');
+      await expect(page.getByTestId(`rule-raw-${cidrRuleId}`)).toHaveText('IP-CIDR,198.51.100.0/24');
 
       // Toggle rule off and back on
       await page.getByTestId(`rule-toggle-${cidrRuleId}`).click();

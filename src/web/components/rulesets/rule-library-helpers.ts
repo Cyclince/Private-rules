@@ -1,5 +1,5 @@
 import type { FriendlyRuleDescriptor } from '../../../domain/rules/friendly';
-import type { RuleCategory } from '../../../types/domain-rules';
+import type { DomainRule, RuleCategory } from '../../../types/domain-rules';
 import type { MessageKey } from '../../i18n';
 
 export type RuleCategorySortKey = 'alpha' | 'count' | 'created' | 'modified';
@@ -110,6 +110,15 @@ export function formatFriendlyRuleInline(descriptor: FriendlyRuleDescriptor, t: 
     .replace('{zhCount}', descriptor.params.zhCount ?? '')
     .replace('{enCount}', descriptor.params.enCount ?? '')
     .replace('{prefix}', descriptor.params.prefix ?? '');
+}
+
+/** No extra label for no-resolve; only explain DNS resolution when it is allowed. */
+export function formatRuleResolveHint(
+  rule: Pick<DomainRule, 'type' | 'options'>,
+  t: (key: MessageKey) => string,
+): string {
+  const isIpRule = ['IP-CIDR', 'SRC-IP-CIDR', 'IP-ASN', 'GEOIP'].includes(rule.type);
+  return isIpRule && !rule.options?.noResolve ? t('ruleDetail.willResolveDomains') : '';
 }
 
 export function splitNonEmptyLines(value: string): string[] {

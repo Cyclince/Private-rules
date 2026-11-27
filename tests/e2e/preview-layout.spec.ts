@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
+import { E2E_ORIGIN } from '../helpers/e2e-env';
 
 async function signInPreview(page: Page) {
   const res = await page.request.post('/api/auth/login', {
     data: { password: 'e2e-password' },
-    headers: { origin: 'http://127.0.0.1:5180', 'content-type': 'application/json' },
+    headers: { origin: E2E_ORIGIN, 'content-type': 'application/json' },
   });
   expect(res.status()).toBe(200);
 }
@@ -87,7 +88,7 @@ test.describe('M2.2 /admin 3-viewport layout, URL search state, and query dedupl
     const seededName = `AI Mobile ${Date.now().toString(36)}`;
     const created = await page.request.post('/api/rulesets', {
       data: { name: seededName, tokenLinksEnabled: true, publicLinksEnabled: false },
-      headers: { origin: 'http://127.0.0.1:5180', 'content-type': 'application/json' },
+      headers: { origin: E2E_ORIGIN, 'content-type': 'application/json' },
     });
     expect(created.status()).toBe(201);
     const createdPayload = (await created.json()) as { data: { categories: Array<{ id: string; name: string }> } };
@@ -136,7 +137,7 @@ test.describe('M2.2 /admin 3-viewport layout, URL search state, and query dedupl
       expect(overflow).toBeLessThanOrEqual(0);
     } finally {
       await page.request.delete(`/api/rulesets/${seeded.id}`, {
-        headers: { origin: 'http://127.0.0.1:5180', 'content-type': 'application/json' },
+        headers: { origin: E2E_ORIGIN, 'content-type': 'application/json' },
       });
     }
   });

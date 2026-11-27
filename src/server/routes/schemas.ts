@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validateCategoryName } from '../../domain/rules/slug';
 import { ruleOptionsSchema, ruleTypeSchema } from '../../shared/schemas/rule';
 import { settingsPatchSchema } from '../../shared/schemas/settings';
 import { ruleOptimizationSchema, sourceTypeSchema } from '../../shared/schemas/source';
@@ -11,8 +12,19 @@ export const apiKeyNoteBodySchema = z.object({
   note: z.string().max(200).optional().default(''),
 });
 
+// Reject legacy-invalid names at the HTTP boundary, before any database work.
+const rulesetNameSchema = z
+  .string()
+  .trim()
+  .min(1, '分类名称不能为空')
+  .max(120)
+  .superRefine((name, ctx) => {
+    const error = validateCategoryName(name);
+    if (error) ctx.addIssue({ code: 'custom', message: error });
+  });
+
 export const createRulesetBodySchema = z.object({
-  name: z.string().trim().min(1, '分类名称不能为空').max(120),
+  name: rulesetNameSchema,
   icon: z.string().max(500).optional(),
   description: z.string().max(500).optional(),
   note: z.string().max(2000).optional(),
@@ -29,7 +41,8 @@ export const createRulesetBodySchema = z.object({
 
 export const updateRulesetBodySchema = z
   .object({
-    name: z.string().trim().min(1, '分类名称不能为空').max(120).optional(),
+    // Format validation needs the current record; do not normalize legacy names here.
+    name: z.string().min(1, '分类名称不能为空').max(120).optional(),
     icon: z.string().max(500).nullish(),
     description: z.string().max(500).nullish(),
     note: z.string().max(2000).nullish(),

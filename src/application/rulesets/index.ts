@@ -556,9 +556,15 @@ export async function updateCategory(env: Env, categoryId: string, input: Catego
   const { rulesets } = createRepositories(env.DB);
   const current = await rulesets.findById(categoryId);
   if (!current) throw new AppError('RULESET_NOT_FOUND', '分类不存在。');
-  const name = input.name?.trim() || current.name;
-  const nameError = validateCategoryName(name);
-  if (nameError) throw new AppError('VALIDATION_FAILED', nameError);
+  // Imported legacy names may be non-ASCII. Only validate an actual rename,
+  // comparing the submitted value before trimming so unchanged names stay intact.
+  const submittedName = input.name ?? current.name;
+  const isRename = submittedName !== current.name;
+  const name = isRename ? submittedName.trim() : current.name;
+  if (isRename) {
+    const nameError = validateCategoryName(name);
+    if (nameError) throw new AppError('VALIDATION_FAILED', nameError);
+  }
   const timestamp = now();
   const tokenAccess = input.tokenLinksEnabled === undefined ? current.tokenLinksEnabled !== 0 : input.tokenLinksEnabled;
   let publicAccess =

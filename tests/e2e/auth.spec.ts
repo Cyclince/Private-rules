@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { expect, test } from '@playwright/test';
+import { E2E_ORIGIN } from '../helpers/e2e-env';
 
 function telegramInitData() {
   const params = new URLSearchParams({
@@ -77,7 +78,7 @@ test('PWA install page and install metadata are available without authentication
 });
 
 test('private Telegram session, theme, deep links, and write access', async ({ page, request }) => {
-  const originHeaders = { origin: 'http://127.0.0.1:5180', 'content-type': 'application/json' };
+  const originHeaders = { origin: E2E_ORIGIN, 'content-type': 'application/json' };
   await request.post('/api/auth/login', { data: { password: 'e2e-password' }, headers: originHeaders });
   const name = `Telegram-${Date.now()}`;
   const created = await request.post('/api/categories', {
