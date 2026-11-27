@@ -25,6 +25,8 @@ const NORMAL_FILES = [
   'src/web/components/templates/TemplateSimpleNodesTab.tsx',
   'src/web/components/templates/TemplateSimpleOutputTab.tsx',
   'src/web/components/templates/AddClientDialog.tsx',
+  'src/web/components/apps/AppPicker.tsx',
+  'src/web/components/apps/AppIcon.tsx',
 ];
 const NORMAL_PREFIXES = [
   'dashboard.',
@@ -47,6 +49,7 @@ const NORMAL_PREFIXES = [
   'ruleInline.',
   'cards.',
   'catalog.',
+  'apps.',
 ];
 
 // Explicit exceptions for advanced editing and original syntax / type-guide examples.
@@ -65,7 +68,8 @@ const ALLOWED_TECHNICAL_PREFIXES = [
   'import.textarea',
   'ruleTypeDesc.',
 ];
-const FORBIDDEN = /槽位|组件|发布|full|minimal|Fork|策略组|overlay|DOMAIN-|IP-CIDR|no-resolve/i;
+const FORBIDDEN =
+  /槽位|组件|发布|full|minimal|Fork|策略组|overlay|DOMAIN-|IP-CIDR|no-resolve|内核|语法|格式|YAML|LIST|JSON/i;
 
 function allowed(key: string) {
   return ALLOWED_TECHNICAL_PREFIXES.some((prefix) => key.startsWith(prefix));
@@ -92,6 +96,8 @@ async function usedKeys() {
   }
   // API errors may be translated dynamically on every ordinary page.
   for (const key of Object.keys(zhCN)) if (key.startsWith('error.')) keys.add(key);
+  // Software-catalog guidance is rendered through dynamic keys (`app.howToKey`), so scan the whole family.
+  for (const key of Object.keys(zhCN)) if (key.startsWith('apps.')) keys.add(key);
   return [...keys];
 }
 
@@ -117,6 +123,12 @@ describe('F7 ordinary-page Chinese copy', () => {
       'DOMAIN-SUFFIX',
       'IP-CIDR',
       'no-resolve',
+      '内核',
+      '语法',
+      '格式',
+      'YAML',
+      'LIST',
+      'JSON',
     ]) {
       expect(violations([['wizard.step1Desc', term]])).toHaveLength(1);
     }

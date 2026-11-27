@@ -92,7 +92,7 @@ test.describe('M1a Navigation, Routing, and Subscription Center', () => {
       await expect(page).toHaveURL(/\/admin\/subscriptions\/?$/);
       await expect(page.getByTestId('subscriptions-page')).toContainText('订阅中心');
       await expect(page.getByTestId('subscriptions-page')).toContainText(
-        '选择规则与文件格式，每种格式对应一个通用地址',
+        '先选规则，再选你用的软件，复制对应的订阅地址',
       );
       await expect(page.getByTestId(`subscription-policy-badge-${seeded.id}`)).toHaveText('私密');
       await expect(page.getByTestId(`subscription-card-${seeded.id}`)).toContainText('1 条启用规则');
@@ -105,7 +105,7 @@ test.describe('M1a Navigation, Routing, and Subscription Center', () => {
 
       // Expand Mihomo family and copy mihomo link
       const yamlToggle = page.getByTestId('subscription-group-toggle-yaml');
-      await expect(yamlToggle).toContainText('Mihomo 系列 · YAML');
+      await expect(yamlToggle).toContainText('Clash / mihomo 系');
       await yamlToggle.click();
       await expect(page.getByTestId('subscription-link-mihomo')).toBeVisible();
       await page.getByTestId('copy-subscription-link-mihomo').click();
