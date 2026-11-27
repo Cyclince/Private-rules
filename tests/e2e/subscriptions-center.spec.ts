@@ -198,9 +198,13 @@ test.describe('M1a Navigation, Routing, and Subscription Center', () => {
     await page.goto('/admin/rulesets?q=demo&tab=sources');
     await expect(page).toHaveURL(/\/admin\/rules\?q=demo&tab=sources/);
 
-    // Check templates SectionSubNav links on desktop & mobile
+    // Check /admin/templates secondary scene library entry -> SectionSubNav on advanced subpages
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/admin/templates');
+    await expect(page.getByTestId('templates-scenes-btn')).toHaveText('场景库');
+    await page.getByTestId('templates-scenes-btn').click();
+    await expect(page).toHaveURL(/\/admin\/cards/);
+
     const subnav = page.getByTestId('section-subnav-templates');
     await expect(subnav).toBeVisible();
     await expect(subnav.getByTestId('subnav-templates')).toHaveText('模板');
@@ -208,8 +212,6 @@ test.describe('M1a Navigation, Routing, and Subscription Center', () => {
     await expect(subnav.getByTestId('subnav-catalog')).toHaveText('规则目录');
     await expect(subnav.getByTestId('subnav-publications')).toHaveText('发布');
 
-    await subnav.getByTestId('subnav-cards').click();
-    await expect(page).toHaveURL(/\/admin\/cards/);
     await page.getByTestId('subnav-catalog').click();
     await expect(page).toHaveURL(/\/admin\/catalog/);
     await page.getByTestId('subnav-publications').click();

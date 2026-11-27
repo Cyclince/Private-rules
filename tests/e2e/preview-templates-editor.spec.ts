@@ -73,31 +73,33 @@ test.describe('M4.4b Template List & Visual Template Editor', () => {
 
       try {
         // ============================================================
-        // 1. TEMPLATES LIST: create from starter template (light)
+        // 1. TEMPLATES LIST: verify M2a list + create a light starter template via API and open editor
         // ============================================================
         await page.goto('/admin/templates');
         await expect(page.getByTestId('templates-page')).toBeVisible();
-        await expect(page.getByTestId('starter-card-minimal')).toBeVisible();
-        await expect(page.getByTestId('starter-card-light')).toBeVisible();
-        await expect(page.getByTestId('starter-card-standard')).toBeVisible();
-        await expect(page.getByTestId('starter-card-heavy')).toBeVisible();
+        await expect(page.getByTestId('templates-new-btn')).toBeVisible();
+        await expect(page.getByTestId('templates-scenes-btn')).toBeVisible();
+        await expect(page.getByTestId('templates-import-btn')).toBeVisible();
         await expectNoHorizontalOverflow(page);
 
-        // Verify fallback warning notice on list
-        await page.getByTestId('starter-mode-fallback').click();
-        await expect(page.getByTestId('starter-fallback-warning')).toBeVisible();
-        await page.getByTestId('starter-mode-select').click();
+        const createdStarterRes = await page.request.post('/api/templates', {
+          data: {
+            name: `Editor Light ${suffix}`,
+            starterTier: 'light',
+            groupMode: 'select',
+            output: 'full',
+          },
+          headers: JSON_HEADERS,
+        });
+        expect(createdStarterRes.status()).toBe(201);
+        const createdStarter = (await createdStarterRes.json()) as { template: { id: string } };
+        const starterTemplateId = createdStarter.template.id;
+        createdTemplateIds.push(starterTemplateId);
 
-        // Create from "light" starter template
-        await page.getByTestId('starter-use-light').click();
-        await expect(page).toHaveURL(/\/admin\/templates\/[^/]+/);
+        await page.goto(`/admin/templates/${starterTemplateId}`);
         await expect(page.getByTestId('template-editor-page')).toBeVisible();
         await expect(page.getByTestId('editor-version-badge')).toHaveText('v1');
         await expectNoHorizontalOverflow(page);
-
-        const editorUrl = new URL(page.url());
-        const starterTemplateId = editorUrl.pathname.split('/').pop()!;
-        createdTemplateIds.push(starterTemplateId);
 
         // ============================================================
         // 2. STRATIFIED KEYBOARD DRAG REORDER + CROSS-LAYER WARNING
@@ -329,7 +331,7 @@ test.describe('M4.4b Template List & Visual Template Editor', () => {
       await tgPage.goto('/admin/templates');
       await expect(tgPage.getByTestId('templates-page')).toBeVisible();
       await expect(tgPage.getByTestId('templates-telegram-readonly')).toBeVisible();
-      await expect(tgPage.getByTestId('templates-create-blank-btn')).toHaveCount(0);
+      await expect(tgPage.getByTestId('templates-new-btn')).toHaveCount(0);
       await expect(tgPage.getByTestId('templates-import-btn')).toHaveCount(0);
       await expectNoHorizontalOverflow(tgPage);
 

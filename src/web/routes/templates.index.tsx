@@ -1,26 +1,46 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { AlertTriangle, Copy, FileUp, Layers, Pencil, Plus, Search, ShieldAlert, Sparkles, Trash2 } from 'lucide-react';
-import { lazy, Suspense, useEffect, useState } from 'react';
-import type { StarterTemplateTier } from '../../builtin';
-import type { OutputProfile } from '../../shared/clients';
-import type { TemplateGroupMode, TemplateRecord } from '../../shared/schemas/template';
-import { SectionSubNav } from '../components/layout/SectionSubNav';
-import type { CreateTemplateSubmitPayload } from '../components/templates/CreateTemplateDialog';
+import {
+  ChevronDown,
+  Copy,
+  FileUp,
+  FolderOpen,
+  Layers,
+  Plus,
+  Search,
+  ShieldAlert,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { WIZARD_SCENARIO_DEFINITIONS } from '../../domain/templates/quick-create';
+import type { PublicationWithLinks } from '../../server/routes/publications';
+import type { WizardScenarioId } from '../../shared/schemas/quick-create';
+import type { TemplateRecord } from '../../shared/schemas/template';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
 import { EmptyState } from '../components/ui/empty-state';
 import { Input } from '../components/ui/input';
-import { loadPageTranslations, useI18n } from '../i18n';
+import { loadPageTranslations, useI18n, type MessageKey } from '../i18n';
 import { api, formatApiError, readApiJson } from '../lib/api';
 import { isTelegramSession, requireAuthBeforeLoad } from '../lib/auth-guard';
-import { authMeQueryOptions, invalidateTemplates, templatesListQueryOptions } from '../lib/query';
+import {
+  authMeQueryOptions,
+  invalidatePublications,
+  invalidateTemplates,
+  publicationsListQueryOptions,
+  rulesetsListQueryOptions,
+  templatesListQueryOptions,
+} from '../lib/query';
 import { useToast } from '../lib/toast';
 
-const CreateTemplateDialog = lazy(() =>
-  import('../components/templates/CreateTemplateDialog').then((m) => ({ default: m.CreateTemplateDialog })),
-);
 const TemplateImportWizardDialog = lazy(() =>
   import('../components/templates/TemplateImportWizardDialog').then((m) => ({ default: m.TemplateImportWizardDialog })),
 );
@@ -28,24 +48,14 @@ const DeleteConfirmDialog = lazy(() =>
   import('../components/rulesets/DeleteConfirmDialog').then((m) => ({ default: m.DeleteConfirmDialog })),
 );
 
-type TemplateTierFilter = 'all' | 'minimal' | 'light' | 'standard' | 'heavy';
-
 type TemplatesSearch = {
   q?: string;
-  tier?: TemplateTierFilter;
 };
-
-const VALID_TIERS = new Set<string>(['all', 'minimal', 'light', 'standard', 'heavy']);
 
 export const Route = createFileRoute('/templates/')({
   validateSearch: (search: Record<string, unknown>): TemplatesSearch => {
     const q = typeof search.q === 'string' && search.q ? search.q : undefined;
-    const rawTier = typeof search.tier === 'string' ? search.tier : undefined;
-    const tier = rawTier && VALID_TIERS.has(rawTier) && rawTier !== 'all' ? (rawTier as TemplateTierFilter) : undefined;
-    return {
-      ...(q ? { q } : {}),
-      ...(tier ? { tier } : {}),
-    };
+    return q ? { q } : {};
   },
   beforeLoad: async ({ context, location }) => {
     await Promise.all([requireAuthBeforeLoad(context.queryClient, location.href), loadPageTranslations()]);
@@ -53,17 +63,119 @@ export const Route = createFileRoute('/templates/')({
   component: TemplatesListPage,
 });
 
-function tierFromStarterId(starterId: string): StarterTemplateTier {
-  if (starterId.includes('minimal')) return 'minimal';
-  if (starterId.includes('light')) return 'light';
-  if (starterId.includes('heavy')) return 'heavy';
-  return 'standard';
+const CARD_TO_SCENARIO_ID = new Map<string, WizardScenarioId>(
+  WIZARD_SCENARIO_DEFINITIONS.flatMap((def) => def.cardIds.map((cardId) => [cardId, def.id] as const)),
+);
+
+function scenarioLabelKey(id: WizardScenarioId): MessageKey {
+  return `wizard.scenario.${id}` as MessageKey;
 }
 
-function formatDate(iso?: string): string {
-  if (!iso) return '—';
-  const ms = Date.parse(iso);
-  return Number.isFinite(ms) ? new Date(ms).toLocaleString() : iso;
+type TemplateCardLinkItem = {
+  key: string;
+  label: string;
+  url: string;
+};
+
+type AirportStatusInfo = {
+  kind: 'ok' | 'bound' | 'error' | 'empty';
+  nodeCount?: number;
+};
+
+function deriveAirportStatus(tpl: TemplateRecord, pubs: readonly PublicationWithLinks[]): AirportStatusInfo {
+  const bindings = pubs.flatMap((pub) => pub.bindings);
+  if (bindings.length > 0) {
+    const okBinding = bindings.find((b) => b.lastStatus === 'ok' && typeof b.lastNodeCount === 'number');
+    if (okBinding && typeof okBinding.lastNodeCount === 'number') {
+      return { kind: 'ok', nodeCount: okBinding.lastNodeCount };
+    }
+    const errBinding = bindings.find((b) => b.needsRebind || (b.lastStatus && b.lastStatus !== 'ok'));
+    if (errBinding) {
+      return { kind: 'error' };
+    }
+    const summary = tpl.baseBody.wizardMeta?.previewSummary;
+    if (summary) {
+      if (summary.status === 'error') return { kind: 'error' };
+      return { kind: 'ok', nodeCount: summary.nodeCount };
+    }
+    return { kind: 'bound' };
+  }
+  return { kind: 'empty' };
+}
+
+function deriveClientDisplayText(tpl: TemplateRecord, pubs: readonly PublicationWithLinks[]): string | null {
+  const wizardMeta = tpl.baseBody.wizardMeta;
+  if (wizardMeta?.clientDisplayNames && wizardMeta.clientDisplayNames.length > 0) {
+    return wizardMeta.clientDisplayNames.join(' · ');
+  }
+  const labels: string[] = [];
+  const seen = new Set<string>();
+  for (const pub of pubs) {
+    for (const link of pub.links) {
+      const display = wizardMeta?.clientLabels?.[link.client] ?? link.label;
+      if (seen.has(display)) continue;
+      seen.add(display);
+      labels.push(display);
+    }
+  }
+  return labels.length > 0 ? labels.join(' · ') : null;
+}
+
+function deriveTemplateCopyLinks(tpl: TemplateRecord, pubs: readonly PublicationWithLinks[]): TemplateCardLinkItem[] {
+  const wizardMeta = tpl.baseBody.wizardMeta;
+  const items: TemplateCardLinkItem[] = [];
+  const seenUrls = new Set<string>();
+  for (const pub of pubs) {
+    for (const link of pub.links) {
+      if (!link.url || seenUrls.has(link.url)) continue;
+      seenUrls.add(link.url);
+      items.push({
+        key: `${pub.id}:${link.client}`,
+        label: wizardMeta?.clientLabels?.[link.client] ?? link.label,
+        url: link.url,
+      });
+    }
+  }
+  return items;
+}
+
+function deriveScenarioTags(
+  tpl: TemplateRecord,
+  rulesetNamesById: ReadonlyMap<string, string>,
+  t: (key: MessageKey) => string,
+): string[] {
+  const tags: string[] = [];
+  const seen = new Set<string>();
+  const addTag = (label: string) => {
+    if (!label || seen.has(label)) return;
+    seen.add(label);
+    tags.push(label);
+  };
+
+  const wizardMeta = tpl.baseBody.wizardMeta;
+  if (wizardMeta?.rulesets) {
+    for (const rs of wizardMeta.rulesets) {
+      const name = rulesetNamesById.get(rs.rulesetId);
+      if (name) addTag(name);
+    }
+  }
+
+  if (wizardMeta?.scenarios) {
+    for (const sc of wizardMeta.scenarios) {
+      if (!sc.enabled) continue;
+      addTag(t(scenarioLabelKey(sc.id)));
+    }
+    return tags;
+  }
+
+  for (const ref of tpl.baseBody.cards) {
+    if (!ref.enabled) continue;
+    const scenarioId = CARD_TO_SCENARIO_ID.get(ref.cardId);
+    if (scenarioId) {
+      addTag(t(scenarioLabelKey(scenarioId)));
+    }
+  }
+  return tags;
 }
 
 function TemplatesListPage() {
@@ -78,15 +190,7 @@ function TemplatesListPage() {
   const inTelegram = isTelegramSession(authQuery.data);
 
   const searchQ = search.q ?? '';
-  const tierFilter: TemplateTierFilter = search.tier ?? 'all';
   const [queryInput, setQueryInput] = useState(searchQ);
-  const [starterGroupMode, setStarterGroupMode] = useState<TemplateGroupMode>('select');
-  const [starterOutput, setStarterOutput] = useState<OutputProfile>('full');
-
-  const [createDialog, setCreateDialog] = useState<{ open: boolean; tier: StarterTemplateTier | null }>({
-    open: false,
-    tier: null,
-  });
   const [importOpen, setImportOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TemplateRecord | null>(null);
 
@@ -99,394 +203,378 @@ function TemplatesListPage() {
     placeholderData: keepPreviousData,
   });
 
-  const updateSearch = (patch: Partial<TemplatesSearch>) => {
-    const next: TemplatesSearch = {
-      ...search,
-      ...patch,
-    };
-    if (!next.q) delete next.q;
-    if (!next.tier || next.tier === 'all') delete next.tier;
-    void routeNavigate({ search: next, replace: true });
-  };
+  const publicationsQuery = useQuery(publicationsListQueryOptions({ limit: 200 }));
+  const rulesetsQuery = useQuery(rulesetsListQueryOptions());
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (queryInput !== searchQ) {
-        updateSearch({ q: queryInput.trim() || undefined });
-      }
-    }, 220);
-    return () => window.clearTimeout(timer);
-  }, [queryInput]);
+  const publicationsByTemplateId = useMemo(() => {
+    const map = new Map<string, PublicationWithLinks[]>();
+    for (const pub of publicationsQuery.data?.publications ?? []) {
+      const list = map.get(pub.templateId) ?? [];
+      list.push(pub);
+      map.set(pub.templateId, list);
+    }
+    return map;
+  }, [publicationsQuery.data]);
 
-  const createMutation = useMutation({
-    mutationFn: async (payload: CreateTemplateSubmitPayload) => {
-      const res = await api.api.templates.$post({ json: payload });
-      return readApiJson<{ template: TemplateRecord }>(res);
-    },
-    onSuccess: async (data) => {
-      await invalidateTemplates(queryClient);
-      setCreateDialog({ open: false, tier: null });
-      notify({ title: t('templates.createdToast'), variant: 'success' });
-      await navigate({ to: '/templates/$id', params: { id: data.template.id } });
-    },
-    onError: (err) => {
-      notify({ title: formatApiError(err, locale), variant: 'danger' });
-    },
-  });
+  const rulesetNamesById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const cat of rulesetsQuery.data?.data.categories ?? []) {
+      map.set(cat.id, cat.name);
+    }
+    return map;
+  }, [rulesetsQuery.data]);
 
   const duplicateMutation = useMutation({
-    mutationFn: async (source: TemplateRecord) => {
-      const res = await api.api.templates.$post({
-        json: {
-          name: `${source.name} (${t('templates.copySuffix')})`,
-          description: source.description,
-          baseKind: source.baseKind,
-          ...(source.baseSourceUrl ? { baseSourceUrl: source.baseSourceUrl } : {}),
-          baseBody: source.baseBody,
-          overlay: source.overlay,
-          note: `${t('templates.duplicatedFrom')} ${source.name}`,
-        },
-      });
-      return readApiJson<{ template: TemplateRecord }>(res);
-    },
+    mutationFn: async (tpl: TemplateRecord) =>
+      readApiJson<{ template: TemplateRecord }>(
+        await api.api.templates.$post({
+          json: {
+            name: `${tpl.name} (${t('templates.copySuffix')})`,
+            description: tpl.description,
+            baseKind: tpl.baseKind,
+            baseSourceUrl: tpl.baseSourceUrl,
+            baseBody: tpl.baseBody,
+            overlay: tpl.overlay,
+            note: `${t('templates.duplicatedFrom')} ${tpl.name}`,
+          },
+        }),
+      ),
     onSuccess: async () => {
       await invalidateTemplates(queryClient);
       notify({ title: t('templates.duplicatedToast'), variant: 'success' });
     },
-    onError: (err) => {
-      notify({ title: formatApiError(err, locale), variant: 'danger' });
+    onError: (error) => {
+      notify({ title: formatApiError(error, locale), variant: 'danger' });
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await api.api.templates[':id'].$delete({ param: { id } });
-      return readApiJson<{ deletedId: string }>(res);
-    },
+    mutationFn: async (templateId: string) =>
+      readApiJson<{ deleted: boolean }>(await api.api.templates[':id'].$delete({ param: { id: templateId } })),
     onSuccess: async () => {
-      await invalidateTemplates(queryClient);
       setDeleteTarget(null);
+      await Promise.all([invalidateTemplates(queryClient), invalidatePublications(queryClient)]);
       notify({ title: t('templates.deletedToast'), variant: 'success' });
     },
-    onError: (err) => {
-      notify({ title: formatApiError(err, locale), variant: 'danger' });
+    onError: (error) => {
+      notify({ title: formatApiError(error, locale), variant: 'danger' });
     },
   });
 
+  const handleCopyLink = async (url: string) => {
+    try {
+      if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+        throw new Error('Clipboard unavailable');
+      }
+      await navigator.clipboard.writeText(url);
+      notify({ title: t('templates.copiedLinkToast'), variant: 'success' });
+    } catch {
+      notify({ title: t('subscriptions.copyFailed'), variant: 'danger' });
+    }
+  };
+
+  const applySearch = () => {
+    const nextQ = queryInput.trim() || undefined;
+    void routeNavigate({ search: nextQ ? { q: nextQ } : {}, replace: true });
+  };
+
   const templates = listQuery.data?.templates ?? [];
-  const starters = listQuery.data?.starters ?? [];
-  const filteredStarters =
-    tierFilter === 'all' ? starters : starters.filter((item) => tierFromStarterId(item.id) === tierFilter);
+  const ruleTokenConfigured = publicationsQuery.data?.ruleTokenConfigured ?? true;
 
   return (
-    <div data-testid="templates-page" className="flex flex-col gap-4">
-      <SectionSubNav section="templates" />
+    <div className="flex flex-col gap-6" data-testid="templates-page">
+      {/* Header banner per §4.1 */}
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-xl font-semibold tracking-tight text-text">{t('templates.listTitle')}</h1>
+          <p className="text-sm text-text-muted">{t('templates.listSubtitle')}</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {!inTelegram ? (
+            <Link
+              to="/templates/new"
+              data-testid="templates-new-btn"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[var(--radius-md)] bg-primary px-3.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover"
+            >
+              <Plus className="h-4 w-4" />
+              <span>{t('templates.newBtn')}</span>
+            </Link>
+          ) : null}
+
+          <Link
+            to="/cards"
+            data-testid="templates-scenes-btn"
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[var(--radius-md)] border border-border bg-surface px-3 text-sm font-medium text-text transition-colors hover:bg-surface-muted"
+          >
+            <Layers className="h-4 w-4 text-text-muted" />
+            <span>{t('templates.scenesBtn')}</span>
+          </Link>
+
+          {!inTelegram ? (
+            <Button variant="outline" size="md" data-testid="templates-import-btn" onClick={() => setImportOpen(true)}>
+              <FileUp className="h-4 w-4" />
+              <span>{t('templates.importConfigBtn')}</span>
+            </Button>
+          ) : null}
+        </div>
+      </div>
 
       {inTelegram ? (
         <div
           data-testid="templates-telegram-readonly"
-          className="flex items-start gap-2 rounded-[var(--radius-md)] border border-warning bg-surface px-3.5 py-2.5 text-xs text-text"
+          className="flex items-start gap-2 rounded-[var(--radius-md)] border border-warning bg-surface-muted px-3.5 py-2.5 text-xs text-text"
         >
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-          <span>{t('templates.telegramReadOnlyNotice')}</span>
+          <span>{t('templates.listTelegramReadOnly')}</span>
         </div>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Layers className="h-5 w-5 text-primary" />
-                <span>{t('templates.title')}</span>
-              </CardTitle>
-              <CardDescription>{t('templates.subtitle')}</CardDescription>
-            </div>
-            {!inTelegram ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  data-testid="templates-import-btn"
-                  onClick={() => setImportOpen(true)}
-                >
-                  <FileUp className="h-3.5 w-3.5" />
-                  <span>{t('templates.importBtn')}</span>
-                </Button>
-                <Button
-                  size="sm"
-                  data-testid="templates-create-blank-btn"
-                  onClick={() => setCreateDialog({ open: true, tier: null })}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>{t('templates.createBlankBtn')}</span>
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        </CardHeader>
-
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[200px] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-              <Input
-                data-testid="templates-search-input"
-                value={queryInput}
-                onChange={(e) => setQueryInput(e.target.value)}
-                placeholder={t('templates.searchPlaceholder')}
-                className="pl-9"
-              />
-            </div>
-            <Badge variant="outline">
-              {templates.length} {t('templates.savedCountSuffix')}
-            </Badge>
-          </div>
-
-          {listQuery.isLoading ? (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="h-32 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
-              <div className="h-32 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
-            </div>
-          ) : templates.length === 0 ? (
-            <EmptyState
-              data-testid="templates-empty"
-              title={t('templates.emptyTitle')}
-              description={t('templates.emptyHint')}
-              action={
-                !inTelegram && !searchQ ? (
-                  <Button size="sm" onClick={() => setCreateDialog({ open: true, tier: null })}>
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>{t('templates.createBlankBtn')}</span>
-                  </Button>
-                ) : undefined
-              }
+      {/* Search bar (only when there are templates or an active search filter) */}
+      {templates.length > 0 || searchQ ? (
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            applySearch();
+          }}
+        >
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+            <Input
+              value={queryInput}
+              onChange={(e) => setQueryInput(e.target.value)}
+              placeholder={t('templates.searchPlaceholderPlain')}
+              data-testid="templates-search-input"
+              className="pl-8"
             />
-          ) : (
-            <div data-testid="templates-list" className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {templates.map((tpl) => (
-                <div
-                  key={tpl.id}
-                  data-testid={`template-card-${tpl.id}`}
-                  className="flex flex-col justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-surface-muted/40 p-4 transition-colors hover:bg-surface-muted/70"
+          </div>
+          <Button type="submit" variant="outline" size="sm">
+            {t('common.search')}
+          </Button>
+          {searchQ ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setQueryInput('');
+                void routeNavigate({ search: {}, replace: true });
+              }}
+            >
+              {t('common.cancel')}
+            </Button>
+          ) : null}
+        </form>
+      ) : null}
+
+      {/* Main list or empty state */}
+      {listQuery.isLoading ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="h-44 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />
+          <div className="h-44 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />
+        </div>
+      ) : templates.length === 0 ? (
+        <EmptyState
+          data-testid="templates-empty-state"
+          title={t('templates.emptyTitlePlain')}
+          description={searchQ ? t('templates.searchPlaceholderPlain') : t('templates.listSubtitle')}
+          action={
+            !inTelegram ? (
+              <div className="flex flex-col items-center gap-3">
+                <Link
+                  to="/templates/new"
+                  data-testid="templates-empty-new-btn"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-primary px-5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover"
                 >
-                  <div className="flex flex-col gap-1.5">
+                  <Sparkles className="h-4 w-4" />
+                  <span>{t('templates.newBtn')}</span>
+                </Link>
+                <p className="text-xs text-text-muted">
+                  {t('templates.emptyCtaHint')}{' '}
+                  <button
+                    type="button"
+                    data-testid="templates-empty-import-btn"
+                    onClick={() => setImportOpen(true)}
+                    className="cursor-pointer font-medium text-primary underline-offset-2 hover:underline"
+                  >
+                    {t('templates.emptyCtaImport')}
+                  </button>
+                </p>
+              </div>
+            ) : undefined
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {templates.map((tpl) => {
+            const pubs = publicationsByTemplateId.get(tpl.id) ?? [];
+            const clientDisplay = deriveClientDisplayText(tpl, pubs);
+            const airport = deriveAirportStatus(tpl, pubs);
+            const copyLinks = deriveTemplateCopyLinks(tpl, pubs);
+            const scenarioTags = deriveScenarioTags(tpl, rulesetNamesById, t);
+            const visibleTags = scenarioTags.slice(0, 6);
+            const extraTagCount = Math.max(0, scenarioTags.length - visibleTags.length);
+
+            return (
+              <Card
+                key={tpl.id}
+                data-testid={`template-card-${tpl.id}`}
+                className="flex flex-col justify-between transition-colors hover:border-primary/40"
+              >
+                <CardContent className="flex flex-1 flex-col justify-between gap-4 p-4 sm:p-5">
+                  <div className="flex flex-col gap-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <Link
                           to="/templates/$id"
                           params={{ id: tpl.id }}
-                          className="block truncate text-sm font-semibold text-text hover:text-primary"
+                          className="block truncate text-base font-semibold text-text hover:text-primary"
                         >
                           {tpl.name}
                         </Link>
-                        <div className="truncate font-mono text-xs text-text-muted">{tpl.slug}</div>
+                        {tpl.description ? (
+                          <p className="mt-0.5 line-clamp-1 text-xs text-text-muted">{tpl.description}</p>
+                        ) : null}
                       </div>
-                      <Badge variant="primary">v{tpl.currentVersion}</Badge>
                     </div>
-                    {tpl.description ? <p className="line-clamp-2 text-xs text-text-muted">{tpl.description}</p> : null}
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      <Badge variant="outline">{tpl.baseKind}</Badge>
-                      <Badge variant="outline">
-                        {tpl.baseBody.cards.length} {t('templates.cardsCountSuffix')}
-                      </Badge>
-                      <Badge variant="outline">{tpl.baseBody.groupMode}</Badge>
-                      <Badge variant="outline">{tpl.baseBody.output}</Badge>
+
+                    <div className="flex flex-col gap-1.5 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-10 shrink-0 text-text-muted">{t('templates.cardOutputLabel')}</span>
+                        <span className="truncate font-medium text-text" data-testid={`template-card-output-${tpl.id}`}>
+                          {clientDisplay ?? t('templates.cardOutputEmpty')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-10 shrink-0 text-text-muted">{t('templates.cardAirportLabel')}</span>
+                        <span data-testid={`template-card-airport-${tpl.id}`}>
+                          {airport.kind === 'ok' && typeof airport.nodeCount === 'number' ? (
+                            <span className="inline-flex items-center gap-1.5 font-medium text-success">
+                              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                              {t('templates.cardAirportNodesOk').replace('{count}', String(airport.nodeCount))}
+                            </span>
+                          ) : airport.kind === 'bound' ? (
+                            <span className="inline-flex items-center gap-1.5 font-medium text-text">
+                              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                              {t('templates.cardAirportBound')}
+                            </span>
+                          ) : airport.kind === 'error' ? (
+                            <span className="inline-flex items-center gap-1.5 font-medium text-danger">
+                              <span className="h-1.5 w-1.5 rounded-full bg-danger" />
+                              {t('templates.cardAirportError')}
+                            </span>
+                          ) : (
+                            <span className="text-text-muted">{t('templates.cardAirportEmpty')}</span>
+                          )}
+                        </span>
+                      </div>
                     </div>
+
+                    {visibleTags.length > 0 ? (
+                      <div className="flex flex-wrap items-center gap-1.5" data-testid={`template-card-tags-${tpl.id}`}>
+                        {visibleTags.map((tag) => (
+                          <Badge key={tag} variant="outline" className="text-[11px] font-normal">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {extraTagCount > 0 ? (
+                          <Badge variant="outline" className="text-[11px] font-normal text-text-muted">
+                            {t('templates.cardScenariosMore').replace('{count}', String(extraTagCount))}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-2.5">
-                    <span className="text-[11px] text-text-muted">{formatDate(tpl.updatedAt)}</span>
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline" data-testid={`template-copy-links-${tpl.id}`}>
+                            <Copy className="h-3.5 w-3.5" />
+                            <span>{t('templates.copyLinkBtn')}</span>
+                            <ChevronDown className="h-3.5 w-3.5 text-text-muted" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          {copyLinks.length > 0 ? (
+                            copyLinks.map((item) => (
+                              <DropdownMenuItem
+                                key={item.key}
+                                data-testid={`template-copy-item-${tpl.id}-${item.key}`}
+                                onSelect={() => {
+                                  void handleCopyLink(item.url);
+                                }}
+                              >
+                                <Copy className="h-3.5 w-3.5 text-text-muted" />
+                                <span>{item.label}</span>
+                              </DropdownMenuItem>
+                            ))
+                          ) : (
+                            <DropdownMenuItem disabled>
+                              <span className="text-xs text-text-muted">
+                                {!ruleTokenConfigured ? t('templates.copyLinkNoToken') : t('templates.copyLinkEmpty')}
+                              </span>
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
                       <Link
                         to="/templates/$id"
                         params={{ id: tpl.id }}
                         data-testid={`template-open-${tpl.id}`}
-                        className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-sm)] bg-primary px-2.5 text-xs font-medium text-primary-foreground hover:opacity-95"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
                       >
-                        <Pencil className="h-3.5 w-3.5" />
-                        <span>{inTelegram ? t('cards.view') : t('templates.openEditor')}</span>
+                        <FolderOpen className="h-3.5 w-3.5" />
+                        <span>{inTelegram ? t('templates.viewBtn') : t('templates.openBtn')}</span>
                       </Link>
-                      {!inTelegram ? (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            data-testid={`template-duplicate-${tpl.id}`}
-                            disabled={duplicateMutation.isPending}
-                            onClick={() => duplicateMutation.mutate(tpl)}
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                            <span>{t('templates.duplicateBtn')}</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            data-testid={`template-delete-${tpl.id}`}
-                            onClick={() => setDeleteTarget(tpl)}
-                            aria-label={t('common.delete')}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-danger" />
-                          </Button>
-                        </>
-                      ) : null}
                     </div>
+
+                    {!inTelegram ? (
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          data-testid={`template-duplicate-${tpl.id}`}
+                          disabled={duplicateMutation.isPending}
+                          onClick={() => duplicateMutation.mutate(tpl)}
+                          aria-label={t('templates.duplicateBtn')}
+                          title={t('templates.duplicateBtn')}
+                        >
+                          <Copy className="h-3.5 w-3.5 text-text-muted" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          data-testid={`template-delete-${tpl.id}`}
+                          onClick={() => setDeleteTarget(tpl)}
+                          aria-label={t('common.delete')}
+                          title={t('common.delete')}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-danger" />
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <span>{t('templates.startersTitle')}</span>
-              </CardTitle>
-              <CardDescription>{t('templates.startersSubtitle')}</CardDescription>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1 rounded-[var(--radius-sm)] border border-border bg-bg p-0.5">
-                {(['select', 'fallback'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    data-testid={`starter-mode-${mode}`}
-                    onClick={() => setStarterGroupMode(mode)}
-                    className={`cursor-pointer rounded-[var(--radius-sm)] px-2 py-1 text-xs font-medium transition-colors ${
-                      starterGroupMode === mode
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-text-muted hover:text-text'
-                    }`}
-                  >
-                    {mode === 'select' ? t('templates.groupModeSelect') : t('templates.groupModeFallback')}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-1 rounded-[var(--radius-sm)] border border-border bg-bg p-0.5">
-                {(['full', 'minimal'] as const).map((out) => (
-                  <button
-                    key={out}
-                    type="button"
-                    data-testid={`starter-output-${out}`}
-                    onClick={() => setStarterOutput(out)}
-                    className={`cursor-pointer rounded-[var(--radius-sm)] px-2 py-1 text-xs font-medium transition-colors ${
-                      starterOutput === out ? 'bg-primary text-primary-foreground' : 'text-text-muted hover:text-text'
-                    }`}
-                  >
-                    {out}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="flex flex-col gap-3">
-          {starterGroupMode === 'fallback' ? (
-            <div
-              data-testid="starter-fallback-warning"
-              className="flex items-start gap-2 rounded-[var(--radius-md)] border border-warning bg-surface-muted px-3 py-2 text-xs text-text"
-            >
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-              <span>{t('templates.fallbackModeWarning')}</span>
-            </div>
-          ) : null}
-
-          <div className="flex flex-wrap gap-1.5">
-            {(['all', 'minimal', 'light', 'standard', 'heavy'] as const).map((item) => (
-              <Button
-                key={item}
-                size="sm"
-                data-testid={`templates-tier-filter-${item}`}
-                variant={tierFilter === item ? 'primary' : 'outline'}
-                onClick={() => updateSearch({ tier: item })}
-              >
-                {item === 'all'
-                  ? t('templates.tierAll')
-                  : item === 'minimal'
-                    ? t('templates.tierMinimal')
-                    : item === 'light'
-                      ? t('templates.tierLight')
-                      : item === 'standard'
-                        ? t('templates.tierStandard')
-                        : t('templates.tierHeavy')}
-              </Button>
-            ))}
-          </div>
-
-          <div data-testid="starter-templates-grid" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {filteredStarters.map((starter) => {
-              const tier = tierFromStarterId(starter.id);
-              return (
-                <div
-                  key={starter.id}
-                  data-testid={`starter-card-${tier}`}
-                  className="flex flex-col justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-bg p-3.5"
-                >
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-text">{starter.name}</span>
-                      <Badge variant={tier === 'standard' ? 'accent' : 'outline'}>
-                        {starter.baseBody.cards.length} {t('templates.cardsCountSuffix')}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-text-muted">{starter.description}</p>
-                  </div>
-                  {!inTelegram ? (
-                    <Button
-                      size="sm"
-                      variant={tier === 'standard' ? 'primary' : 'outline'}
-                      data-testid={`starter-use-${tier}`}
-                      disabled={createMutation.isPending}
-                      onClick={() =>
-                        createMutation.mutate({
-                          starterTier: tier,
-                          groupMode: starterGroupMode,
-                          output: starterOutput,
-                        })
-                      }
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>{t('templates.useStarterBtn')}</span>
-                    </Button>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {createDialog.open ? (
-        <Suspense fallback={null}>
-          <CreateTemplateDialog
-            open={createDialog.open}
-            initialTier={createDialog.tier}
-            readOnly={inTelegram}
-            submitting={createMutation.isPending}
-            onOpenChange={(open) => setCreateDialog((prev) => ({ ...prev, open }))}
-            onSubmit={async (payload) => {
-              await createMutation.mutateAsync(payload);
-            }}
-          />
-        </Suspense>
-      ) : null}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {importOpen ? (
         <Suspense fallback={null}>
           <TemplateImportWizardDialog
             open={importOpen}
-            readOnly={inTelegram}
             onOpenChange={setImportOpen}
-            onImported={async (template) => {
+            onImported={async (importedTemplate) => {
+              setImportOpen(false);
               await invalidateTemplates(queryClient);
               notify({ title: t('templates.importedToast'), variant: 'success' });
-              await navigate({ to: '/templates/$id', params: { id: template.id } });
+              void navigate({ to: '/templates/$id', params: { id: importedTemplate.id } });
             }}
           />
         </Suspense>
@@ -497,14 +585,13 @@ function TemplatesListPage() {
           <DeleteConfirmDialog
             open={Boolean(deleteTarget)}
             title={t('templates.deleteConfirmTitle')}
-            description={t('templates.deleteConfirmBody')}
-            itemName={`${deleteTarget.name} (${deleteTarget.slug})`}
+            description={`${deleteTarget.name} — ${t('templates.deleteConfirmBodyPlain')}`}
             submitting={deleteMutation.isPending}
             onOpenChange={(open) => {
               if (!open) setDeleteTarget(null);
             }}
-            onConfirm={async () => {
-              if (deleteTarget) await deleteMutation.mutateAsync(deleteTarget.id);
+            onConfirm={() => {
+              if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
             }}
           />
         </Suspense>

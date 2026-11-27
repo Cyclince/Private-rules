@@ -10,8 +10,10 @@ import {
   lintTemplateById,
   listTemplates,
   listTemplateVersions,
+  previewSubscription,
   previewTemplateById,
   probeTemplateById,
+  quickCreateTemplate,
   rebaseTemplate,
   restoreTemplateVersion,
   updateTemplate,
@@ -20,6 +22,7 @@ import { requireAuth } from '../../lib/auth';
 import { json } from '../../lib/response';
 import { AppError } from '../../shared/errors';
 import { outputProfileSchema, templateClientIdSchema } from '../../shared/schemas/publication';
+import { previewSubscriptionSchema, quickCreateTemplateSchema } from '../../shared/schemas/quick-create';
 import {
   templateBaseKindSchema,
   templateBodySchema,
@@ -30,6 +33,7 @@ import {
 } from '../../shared/schemas/template';
 import { purgeAllPublicationCaches, purgePublicationCacheForTemplate } from '../cache/subscription-cache';
 import { externalBaseUrl, rejectTelegramWrite, type AppBindings } from '../helpers';
+import { persistentRateLimit } from '../middleware/rate-limit';
 import { validate } from '../middleware/validate';
 
 const starterTierSchema = z.enum(STARTER_TEMPLATE_TIERS);
@@ -201,6 +205,47 @@ export const templateRoutes = new Hono<AppBindings>()
     const result = await createTemplate(c.env, c.req.valid('json'));
     return json(result, { status: 201 });
   })
+  .post(
+    '/api/templates/quick-create',
+    requireAuth,
+    rejectTelegramWrite,
+    async (c, next) => {
+      const url = new URL(c.req.url);
+      if (url.searchParams.has('subscriptionUrl') || url.searchParams.has('url')) {
+        throw new AppError('VALIDATION_FAILED', '订阅地址禁止通过 URL 参数传递，请使用 JSON 请求体提交。');
+      }
+      await next();
+    },
+    validate('json', quickCreateTemplateSchema),
+    async (c) => {
+      const baseUrl = externalBaseUrl(c);
+      const ruleToken = c.get('authType') === 'apiKey' ? undefined : c.env.RULE_TOKEN;
+      const result = await quickCreateTemplate(c.env, c.req.valid('json'), {
+        baseUrl,
+        ruleToken,
+      });
+      await purgeAllPublicationCaches(c.env);
+      return json(result, { status: 201 });
+    },
+  )
+  .post(
+    '/api/templates/preview-subscription',
+    requireAuth,
+    rejectTelegramWrite,
+    persistentRateLimit('template-preview-sub', 15),
+    async (c, next) => {
+      const url = new URL(c.req.url);
+      if (url.searchParams.has('subscriptionUrl') || url.searchParams.has('url')) {
+        throw new AppError('VALIDATION_FAILED', '订阅地址禁止通过 URL 参数传递，请使用 JSON 请求体提交。');
+      }
+      await next();
+    },
+    validate('json', previewSubscriptionSchema),
+    async (c) => {
+      const result = await previewSubscription(c.req.valid('json'));
+      return json(result);
+    },
+  )
   .post(
     '/api/templates/import',
     requireAuth,

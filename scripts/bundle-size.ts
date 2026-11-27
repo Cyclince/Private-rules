@@ -109,6 +109,7 @@ function findRouteChunks(entryJsFiles: Set<string>): Array<{ route: string; file
     'cards',
     'settings',
     'templates.index',
+    'templates.new',
     'templates.$id',
     'templates._id',
     'templates',

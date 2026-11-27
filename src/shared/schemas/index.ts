@@ -5,4 +5,5 @@ export * from './ruleset';
 export * from './card';
 export * from './publication';
 export * from './template';
+export * from './quick-create';
 export * from './backup';

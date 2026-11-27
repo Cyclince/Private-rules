@@ -1,0 +1,122 @@
+import { z } from 'zod';
+import { templateClientIdSchema } from './publication';
+
+/**
+ * Common scenario IDs shown in the 3-step quick-create wizard (plan §4.6).
+ * Order matches the wizard UI layout.
+ */
+export const WIZARD_SCENARIO_IDS = [
+  'domestic-direct',
+  'ad-block',
+  'ai',
+  'telegram',
+  'streaming',
+  'bilibili-hkmt',
+  'social',
+  'github',
+  'gaming',
+  'apple-ms-google',
+] as const;
+export const wizardScenarioIdSchema = z.enum(WIZARD_SCENARIO_IDS);
+export type WizardScenarioId = z.infer<typeof wizardScenarioIdSchema>;
+
+/** Node selection strategy in the quick-create wizard (plan §4.2 / §5). */
+export const WIZARD_GROUP_MODES = ['auto', 'select', 'region'] as const;
+export const wizardGroupModeSchema = z.enum(WIZARD_GROUP_MODES);
+export type WizardGroupMode = z.infer<typeof wizardGroupModeSchema>;
+
+/** Route destination for a scenario or referenced ruleset. */
+export type WizardRouteTarget = 'proxy' | 'auto' | 'direct' | 'reject' | `region:${string}`;
+
+export const wizardRouteTargetSchema: z.ZodType<WizardRouteTarget> = z.union([
+  z.literal('proxy'),
+  z.literal('auto'),
+  z.literal('direct'),
+  z.literal('reject'),
+  z
+    .string()
+    .trim()
+    .regex(/^region:[A-Za-z]{2,8}$/, '地区去向格式无效')
+    .transform((value) => `region:${value.slice('region:'.length).toUpperCase()}` as `region:${string}`),
+]);
+
+export const quickCreateScenarioInputSchema = z.object({
+  id: wizardScenarioIdSchema,
+  enabled: z.boolean(),
+  route: wizardRouteTargetSchema.optional(),
+});
+export type QuickCreateScenarioInput = z.output<typeof quickCreateScenarioInputSchema>;
+
+export const quickCreateRulesetInputSchema = z.object({
+  rulesetId: z.string().trim().min(1),
+  route: wizardRouteTargetSchema.default('proxy'),
+});
+export type QuickCreateRulesetInput = z.output<typeof quickCreateRulesetInputSchema>;
+
+export const quickCreatePreviewSummarySchema = z.object({
+  nodeCount: z.number().int().nonnegative(),
+  regions: z.record(z.string(), z.number().int().nonnegative()).default({}),
+  status: z.enum(['ok', 'error']).optional(),
+  checkedAt: z.string().optional(),
+});
+export type QuickCreatePreviewSummary = z.output<typeof quickCreatePreviewSummarySchema>;
+
+/**
+ * Metadata embedded in `TemplateBody.wizardMeta` when a template is created via
+ * the quick-create wizard, enabling M2b simple-view editing and friendly list display.
+ */
+export const templateWizardMetaSchema = z.object({
+  createdByWizard: z.literal(true),
+  groupMode: wizardGroupModeSchema,
+  clientDisplayNames: z.array(z.string().trim().min(1).max(60)).optional(),
+  clientLabels: z.partialRecord(templateClientIdSchema, z.string().trim().min(1).max(80)).optional(),
+  scenarios: z.array(quickCreateScenarioInputSchema).optional(),
+  rulesets: z.array(quickCreateRulesetInputSchema).optional(),
+  previewSummary: quickCreatePreviewSummarySchema.optional(),
+});
+export type TemplateWizardMeta = z.output<typeof templateWizardMetaSchema>;
+
+/** Request payload for B1 `POST /api/templates/quick-create`. */
+export const quickCreateTemplateSchema = z.object({
+  name: z.string().trim().min(1, '请输入模板名称').max(120).default('我的配置'),
+  clients: z.array(templateClientIdSchema).min(1, '请至少选择一个客户端'),
+  clientDisplayNames: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
+  clientLabels: z.partialRecord(templateClientIdSchema, z.string().trim().min(1).max(80)).optional(),
+  scenarios: z.array(quickCreateScenarioInputSchema).default([]),
+  rulesets: z.array(quickCreateRulesetInputSchema).default([]),
+  groupMode: wizardGroupModeSchema.default('auto'),
+  subscriptionUrl: z
+    .string()
+    .trim()
+    .max(4096)
+    .nullish()
+    .transform((value) => (value && value.length > 0 ? value : undefined)),
+  detectedRegions: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(2)
+        .max(8)
+        .transform((code) => code.toUpperCase()),
+    )
+    .optional(),
+  previewSummary: quickCreatePreviewSummarySchema.optional(),
+});
+export type QuickCreateTemplateInput = z.output<typeof quickCreateTemplateSchema>;
+
+/** Plain-language error codes returned by B2 `POST /api/templates/preview-subscription`. */
+export const PREVIEW_SUBSCRIPTION_ERROR_CODES = [
+  'LINK_INVALID',
+  'NEEDS_USER_AGENT',
+  'NOT_SUBSCRIPTION',
+  'TIMEOUT',
+] as const;
+export type PreviewSubscriptionErrorCode = (typeof PREVIEW_SUBSCRIPTION_ERROR_CODES)[number];
+
+/** Request payload for B2 `POST /api/templates/preview-subscription`. */
+export const previewSubscriptionSchema = z.object({
+  subscriptionUrl: z.string().trim().min(1, '请输入订阅地址').max(4096),
+  userAgent: z.string().trim().max(256).optional(),
+});
+export type PreviewSubscriptionInput = z.output<typeof previewSubscriptionSchema>;

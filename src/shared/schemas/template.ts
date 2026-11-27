@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { appCardOverrideSchema, groupHealthCheckSchema, groupTypeSchema, policyRefSchema } from './card';
 import { outputProfileSchema, templateClientIdSchema } from './publication';
+import { templateWizardMetaSchema } from './quick-create';
 
 /** Origins supported for template `base_kind` (design §8.3). */
 export const TEMPLATE_BASE_KIND_VALUES = ['blank', 'acl4ssr-ini', 'mihomo-yaml', 'builtin'] as const;
@@ -113,6 +114,7 @@ export const templateBodySchema = z.object({
   general: generalSettingsSchema.optional(),
   modules: z.array(templateModuleBindingSchema),
   clientPatches: clientPatchesSchema.optional(),
+  wizardMeta: templateWizardMetaSchema.optional(),
 });
 export type TemplateBody = z.output<typeof templateBodySchema>;
 
