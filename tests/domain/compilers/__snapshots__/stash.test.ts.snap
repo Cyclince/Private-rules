@@ -46,6 +46,7 @@ proxy-groups:
     type: select
     proxies:
       - ⚡ 自动选择
+      - 🔁 故障转移
       - 🇭🇰 香港节点
       - 🇹🇼 台湾节点
       - 🇯🇵 日本节点
@@ -58,6 +59,10 @@ proxy-groups:
       - 🇳🇱 荷兰节点
       - 🇨🇦 加拿大节点
       - 🇦🇺 澳大利亚节点
+      - 🏷️ 低倍率
+      - 🏠 家宽 / 原生
+      - 🚄 专线 (IPLC / IEPL)
+      - 🎮 游戏
       - DIRECT
     use:
       - slot-main
@@ -371,6 +376,47 @@ proxy-groups:
       - 🇸🇬 新加坡节点
       - 🇺🇸 美国节点
       - 🇰🇷 韩国节点
+  - name: 🏷️ 低倍率
+    type: url-test
+    use:
+      - slot-main
+    filter: (?:^|[^0-9.])0?\\.\\d+\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\s*0?\\.\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🏠 家宽 / 原生
+    type: url-test
+    use:
+      - slot-main
+    filter: 家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z])
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🚄 专线 (IPLC / IEPL)
+    type: url-test
+    use:
+      - slot-main
+    filter: 专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z])
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🎮 游戏
+    type: url-test
+    use:
+      - slot-main
+    filter: 游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z])
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🔁 故障转移
+    type: fallback
+    proxies:
+      - 🚄 专线 (IPLC / IEPL)
+      - 🇭🇰 香港节点
+      - 🇸🇬 新加坡节点
+      - 🇯🇵 日本节点
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
   - name: 🇭🇰 香港节点
     type: url-test
     use:
@@ -593,6 +639,7 @@ proxy-groups:
     type: select
     proxies:
       - ⚡ 自动选择
+      - 🔁 故障转移
       - 🇭🇰 香港节点
       - 🇹🇼 台湾节点
       - 🇯🇵 日本节点
@@ -605,6 +652,10 @@ proxy-groups:
       - 🇳🇱 荷兰节点
       - 🇨🇦 加拿大节点
       - 🇦🇺 澳大利亚节点
+      - 🏷️ 低倍率
+      - 🏠 家宽 / 原生
+      - 🚄 专线 (IPLC / IEPL)
+      - 🎮 游戏
       - DIRECT
     use:
       - slot-main
@@ -882,6 +933,47 @@ proxy-groups:
       - 🇸🇬 新加坡节点
       - 🇺🇸 美国节点
       - 🇰🇷 韩国节点
+  - name: 🏷️ 低倍率
+    type: url-test
+    use:
+      - slot-main
+    filter: (?:^|[^0-9.])0?\\.\\d+\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\s*0?\\.\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🏠 家宽 / 原生
+    type: url-test
+    use:
+      - slot-main
+    filter: 家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z])
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🚄 专线 (IPLC / IEPL)
+    type: url-test
+    use:
+      - slot-main
+    filter: 专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z])
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🎮 游戏
+    type: url-test
+    use:
+      - slot-main
+    filter: 游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z])
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🔁 故障转移
+    type: fallback
+    proxies:
+      - 🚄 专线 (IPLC / IEPL)
+      - 🇭🇰 香港节点
+      - 🇸🇬 新加坡节点
+      - 🇯🇵 日本节点
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
   - name: 🇭🇰 香港节点
     type: url-test
     use:
@@ -1082,6 +1174,7 @@ proxy-groups:
     type: select
     proxies:
       - ⚡ 自动选择
+      - 🔁 故障转移
       - 🇭🇰 香港节点
       - 🇹🇼 台湾节点
       - 🇯🇵 日本节点
@@ -1094,6 +1187,10 @@ proxy-groups:
       - 🇳🇱 荷兰节点
       - 🇨🇦 加拿大节点
       - 🇦🇺 澳大利亚节点
+      - 🏷️ 低倍率
+      - 🏠 家宽 / 原生
+      - 🚄 专线 (IPLC / IEPL)
+      - 🎮 游戏
       - DIRECT
     use:
       - slot-main
@@ -1407,6 +1504,47 @@ proxy-groups:
       - 🇸🇬 新加坡节点
       - 🇺🇸 美国节点
       - 🇰🇷 韩国节点
+  - name: 🏷️ 低倍率
+    type: url-test
+    use:
+      - slot-main
+    filter: (?:^|[^0-9.])0?\\.\\d+\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\s*0?\\.\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🏠 家宽 / 原生
+    type: url-test
+    use:
+      - slot-main
+    filter: 家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z])
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🚄 专线 (IPLC / IEPL)
+    type: url-test
+    use:
+      - slot-main
+    filter: 专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z])
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🎮 游戏
+    type: url-test
+    use:
+      - slot-main
+    filter: 游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z])
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🔁 故障转移
+    type: fallback
+    proxies:
+      - 🚄 专线 (IPLC / IEPL)
+      - 🇭🇰 香港节点
+      - 🇸🇬 新加坡节点
+      - 🇯🇵 日本节点
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
   - name: 🇭🇰 香港节点
     type: url-test
     use:
@@ -1607,6 +1745,7 @@ proxy-groups:
     type: select
     proxies:
       - ⚡ 自动选择
+      - 🔁 故障转移
       - 🇭🇰 香港节点
       - 🇹🇼 台湾节点
       - 🇯🇵 日本节点
@@ -1619,6 +1758,10 @@ proxy-groups:
       - 🇳🇱 荷兰节点
       - 🇨🇦 加拿大节点
       - 🇦🇺 澳大利亚节点
+      - 🏷️ 低倍率
+      - 🏠 家宽 / 原生
+      - 🚄 专线 (IPLC / IEPL)
+      - 🎮 游戏
       - DIRECT
     use:
       - slot-main
@@ -1896,6 +2039,47 @@ proxy-groups:
       - 🇸🇬 新加坡节点
       - 🇺🇸 美国节点
       - 🇰🇷 韩国节点
+  - name: 🏷️ 低倍率
+    type: url-test
+    use:
+      - slot-main
+    filter: (?:^|[^0-9.])0?\\.\\d+\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\s*0?\\.\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🏠 家宽 / 原生
+    type: url-test
+    use:
+      - slot-main
+    filter: 家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z])
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🚄 专线 (IPLC / IEPL)
+    type: url-test
+    use:
+      - slot-main
+    filter: 专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z])
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🎮 游戏
+    type: url-test
+    use:
+      - slot-main
+    filter: 游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z])
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: 🔁 故障转移
+    type: fallback
+    proxies:
+      - 🚄 专线 (IPLC / IEPL)
+      - 🇭🇰 香港节点
+      - 🇸🇬 新加坡节点
+      - 🇯🇵 日本节点
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
   - name: 🇭🇰 香港节点
     type: url-test
     use:
@@ -3109,5 +3293,281 @@ rules:
   - GEOIP,CN,🇨🇳 国内直连,no-resolve
   - NOT,((OR,((DST-PORT,80),(DST-PORT,443)))),🔌 非标准端口
   - MATCH,🐟 漏网之鱼
+"
+`;
+
+exports[`compileStash — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot and invariants: simple / full / fallback 1`] = `
+"# Generated by Private Rules (stash / full)
+# TEMPLATE: 极简
+# UPDATED: 2026-01-01T00:00:00.000Z
+allow-lan: false
+mode: rule
+log-level: info
+ipv6: false
+dns:
+  ipv6: false
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://doh.pub/dns-query
+  fallback:
+    - https://1.1.1.1/dns-query
+    - https://dns.google/dns-query
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - time.*.com
+    - ntp.*.com
+    - +.msftconnecttest.com
+proxy-providers:
+  slot-main:
+    url: https://sub.example.com/airport?token=demo
+    path: ./providers/proxies/slot-main.yaml
+    interval: 3600
+    filter: (?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
+    headers:
+      User-Agent: Stash/3.7.0
+proxy-groups:
+  - name: 🚀 代理
+    type: select
+    proxies:
+      - ⚡ 全部节点（自动）
+      - DIRECT
+    use:
+      - slot-main
+  - name: 🎯 直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+  - name: 🏠 局域网直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+  - name: 🚫 拦截
+    type: select
+    proxies:
+      - REJECT
+      - REJECT-DROP
+      - DIRECT
+  - name: 🇨🇳 国内直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+  - name: ⚡ 全部节点（自动）
+    type: url-test
+    use:
+      - slot-main
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+rules:
+  - GEOSITE,private,🏠 局域网直连
+  - GEOIP,PRIVATE,🏠 局域网直连,no-resolve
+  - GEOSITE,category-ads-all,🚫 拦截
+  - GEOSITE,cn,🇨🇳 国内直连
+  - GEOIP,CN,🇨🇳 国内直连,no-resolve
+  - MATCH,🚀 代理
+"
+`;
+
+exports[`compileStash — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot and invariants: simple / full / select 1`] = `
+"# Generated by Private Rules (stash / full)
+# TEMPLATE: 极简
+# UPDATED: 2026-01-01T00:00:00.000Z
+allow-lan: false
+mode: rule
+log-level: info
+ipv6: false
+dns:
+  ipv6: false
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://doh.pub/dns-query
+  fallback:
+    - https://1.1.1.1/dns-query
+    - https://dns.google/dns-query
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - time.*.com
+    - ntp.*.com
+    - +.msftconnecttest.com
+proxy-providers:
+  slot-main:
+    url: https://sub.example.com/airport?token=demo
+    path: ./providers/proxies/slot-main.yaml
+    interval: 3600
+    filter: (?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
+    headers:
+      User-Agent: Stash/3.7.0
+proxy-groups:
+  - name: 🚀 代理
+    type: select
+    proxies:
+      - ⚡ 全部节点（自动）
+      - DIRECT
+    use:
+      - slot-main
+  - name: 🎯 直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+  - name: 🏠 局域网直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+  - name: 🚫 拦截
+    type: select
+    proxies:
+      - REJECT
+      - REJECT-DROP
+      - DIRECT
+  - name: 🇨🇳 国内直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+  - name: ⚡ 全部节点（自动）
+    type: url-test
+    use:
+      - slot-main
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+rules:
+  - GEOSITE,private,🏠 局域网直连
+  - GEOIP,PRIVATE,🏠 局域网直连,no-resolve
+  - GEOSITE,category-ads-all,🚫 拦截
+  - GEOSITE,cn,🇨🇳 国内直连
+  - GEOIP,CN,🇨🇳 国内直连,no-resolve
+  - MATCH,🚀 代理
+"
+`;
+
+exports[`compileStash — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot and invariants: simple / minimal / fallback 1`] = `
+"# Generated by Private Rules (stash / minimal)
+# TEMPLATE: 极简
+# UPDATED: 2026-01-01T00:00:00.000Z
+proxy-providers:
+  slot-main:
+    url: https://sub.example.com/airport?token=demo
+    path: ./providers/proxies/slot-main.yaml
+    interval: 3600
+    filter: (?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
+    headers:
+      User-Agent: Stash/3.7.0
+proxy-groups:
+  - name: 🚀 代理
+    type: select
+    proxies:
+      - ⚡ 全部节点（自动）
+      - DIRECT
+    use:
+      - slot-main
+  - name: 🎯 直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+  - name: 🏠 局域网直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+  - name: 🚫 拦截
+    type: select
+    proxies:
+      - REJECT
+      - REJECT-DROP
+      - DIRECT
+  - name: 🇨🇳 国内直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+  - name: ⚡ 全部节点（自动）
+    type: url-test
+    use:
+      - slot-main
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+rules:
+  - GEOSITE,private,🏠 局域网直连
+  - GEOIP,PRIVATE,🏠 局域网直连,no-resolve
+  - GEOSITE,category-ads-all,🚫 拦截
+  - GEOSITE,cn,🇨🇳 国内直连
+  - GEOIP,CN,🇨🇳 国内直连,no-resolve
+  - MATCH,🚀 代理
+"
+`;
+
+exports[`compileStash — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot and invariants: simple / minimal / select 1`] = `
+"# Generated by Private Rules (stash / minimal)
+# TEMPLATE: 极简
+# UPDATED: 2026-01-01T00:00:00.000Z
+proxy-providers:
+  slot-main:
+    url: https://sub.example.com/airport?token=demo
+    path: ./providers/proxies/slot-main.yaml
+    interval: 3600
+    filter: (?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
+    headers:
+      User-Agent: Stash/3.7.0
+proxy-groups:
+  - name: 🚀 代理
+    type: select
+    proxies:
+      - ⚡ 全部节点（自动）
+      - DIRECT
+    use:
+      - slot-main
+  - name: 🎯 直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+  - name: 🏠 局域网直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+  - name: 🚫 拦截
+    type: select
+    proxies:
+      - REJECT
+      - REJECT-DROP
+      - DIRECT
+  - name: 🇨🇳 国内直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+  - name: ⚡ 全部节点（自动）
+    type: url-test
+    use:
+      - slot-main
+    benchmark-url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+rules:
+  - GEOSITE,private,🏠 局域网直连
+  - GEOIP,PRIVATE,🏠 局域网直连,no-resolve
+  - GEOSITE,category-ads-all,🚫 拦截
+  - GEOSITE,cn,🇨🇳 国内直连
+  - GEOIP,CN,🇨🇳 国内直连,no-resolve
+  - MATCH,🚀 代理
 "
 `;

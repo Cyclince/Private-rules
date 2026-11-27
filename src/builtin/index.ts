@@ -34,6 +34,7 @@ export {
   LEGACY_STARTER_TIERS,
   STARTER_TIER_COMPLEXITY_MAP,
   STARTER_TEMPLATE_TIERS,
+  buildComplexityStarterTemplate,
   buildStarterTemplate,
   normalizeStarterTier,
   resolveStarterTierBySlug,

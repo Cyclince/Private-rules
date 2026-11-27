@@ -3,6 +3,7 @@ import type { PolicyRef } from '../shared/schemas/card';
 import type {
   ComplexityTier,
   DnsProfile,
+  NodePool,
   NodeSlot,
   RegionGroup,
   TemplateBody,
@@ -12,7 +13,9 @@ import type {
   TemplateRecord,
 } from '../shared/schemas/template';
 import { DEFAULT_HEALTH_CHECK } from '../domain/templates/model';
+import { buildDefaultModulesForComplexity } from '../domain/templates/modules';
 import { starterTierToComplexity as mapStarterTierToComplexity } from '../domain/templates/pools';
+import { ALL_AUTO_POOL, STABILITY_FALLBACK_POOL, TRAIT_POOLS } from './pools';
 
 /** Canonical 3 beginner-friendly starter tiers (D4, §5.2): 少一点 / 推荐组合 / 全都要. */
 export const CANONICAL_STARTER_TIERS = ['less', 'recommended', 'all'] as const;
@@ -223,6 +226,16 @@ const HEAVY_ALL_REGION_REFS: PolicyRef[] = [...CORE_REGION_GROUPS, ...EXTRA_HEAV
   regionGroupId: group.id,
 }));
 
+const PRO_STABILITY_POOL: NodePool = {
+  ...structuredClone(STABILITY_FALLBACK_POOL),
+  members: ['pool-trait-dedicated', 'region-hk', 'region-sg', 'region-jp'],
+};
+
+const TRAIT_POOL_REFS: PolicyRef[] = TRAIT_POOLS.map((pool) => ({
+  kind: 'pool',
+  poolId: pool.id,
+}));
+
 const NO_REGION_PROXY_CANDIDATES: PolicyRef[] = [
   { kind: 'card', cardId: 'proxy-select' },
   { kind: 'card', cardId: 'auto-select' },
@@ -356,17 +369,20 @@ const STARTER_PRESETS: Record<CanonicalStarterTemplateTier, StarterTemplatePrese
     id: 'builtin-all',
     slug: 'starter-all',
     name: '全都要',
-    description: '业务、地区、端口与 IP 分流最全，涵盖全部常见场景与欧美亚 12 个地区节点组。',
+    description: '业务、地区、端口与 IP 分流最全，涵盖全部常见场景与欧美亚 12 个地区节点组、特征池与故障转移池。',
     buildBody: (groupMode, output) => ({
       slots: [structuredClone(DEFAULT_SLOT)],
-      regionGroups: structuredClone([...CORE_REGION_GROUPS, ...EXTRA_HEAVY_REGION_GROUPS]),
+      pools: [...structuredClone(TRAIT_POOLS), structuredClone(PRO_STABILITY_POOL)],
+      regionGroups: [...structuredClone(CORE_REGION_GROUPS), ...structuredClone(EXTRA_HEAVY_REGION_GROUPS)],
       cards: [
         cardRef('auto-select'),
         cardRef('proxy-select', {
           group: {
             candidates: [
               { kind: 'card', cardId: 'auto-select' },
+              { kind: 'pool', poolId: 'pool-stability-fallback' },
               ...HEAVY_ALL_REGION_REFS,
+              ...TRAIT_POOL_REFS,
               { kind: 'slot', slotId: 'slot-main' },
               { kind: 'builtin', id: 'DIRECT' },
             ],
@@ -464,3 +480,69 @@ export function buildStarterTemplate(tier: StarterTemplateTier, options?: BuildS
 export const BUILTIN_TEMPLATES: readonly TemplateRecord[] = CANONICAL_STARTER_TIERS.map((tier) =>
   buildStarterTemplate(tier),
 );
+
+/**
+ * Instantiates a complexity-tier starter template (`simple` | `advanced` | `pro`, design §2):
+ * - `simple`: strictly 3 visible proxy-groups (`🚀 代理`, `🎯 直连`, `🚫 拦截`) + hidden `ALL_AUTO_POOL`
+ *   + tierDefaults modules (`dns-leak-guard`, `ip-no-resolve`)
+ * - `advanced`: equivalent to T1 `recommended`
+ * - `pro`: equivalent to T1 `all` (12 region pools + 4 hidden trait pools + stability fallback pool)
+ */
+export function buildComplexityStarterTemplate(
+  complexity: ComplexityTier,
+  options?: BuildStarterTemplateOptions,
+): TemplateRecord {
+  if (complexity === 'advanced') {
+    return buildStarterTemplate('recommended', options);
+  }
+  if (complexity === 'pro') {
+    return buildStarterTemplate('all', options);
+  }
+
+  const groupMode: TemplateGroupMode = options?.groupMode ?? 'select';
+  const output: OutputProfile = options?.output ?? 'full';
+  const baseBody: TemplateBody = {
+    slots: [structuredClone(DEFAULT_SLOT)],
+    pools: [structuredClone(ALL_AUTO_POOL)],
+    regionGroups: [],
+    cards: [
+      cardRef('proxy-select', {
+        name: '🚀 代理',
+        group: {
+          type: 'select',
+          candidates: [
+            { kind: 'pool', poolId: 'pool-all-auto' },
+            { kind: 'slot', slotId: 'slot-main' },
+            { kind: 'builtin', id: 'DIRECT' },
+          ],
+        },
+      }),
+      cardRef('direct-select'),
+      cardRef('lan-direct'),
+      cardRef('ad-block', { name: '🚫 拦截' }),
+      cardRef('domestic-direct'),
+    ],
+    groupMode,
+    complexity: 'simple',
+    final: { kind: 'card', cardId: 'proxy-select' },
+    output,
+    dns: structuredClone(DEFAULT_DNS_PROFILE),
+    general: {
+      testUrl: DEFAULT_HEALTH_CHECK.url,
+      testIntervalSec: DEFAULT_HEALTH_CHECK.intervalSec,
+      ipv6: false,
+    },
+    modules: buildDefaultModulesForComplexity('simple'),
+  };
+
+  return {
+    id: 'builtin-simple',
+    slug: 'starter-simple',
+    name: '极简',
+    description: '只保留 代理 / 直连 / 拦截 三个常用分组与自动测速池，开箱即用。',
+    baseKind: 'builtin',
+    baseBody,
+    overlay: [],
+    currentVersion: 1,
+  };
+}

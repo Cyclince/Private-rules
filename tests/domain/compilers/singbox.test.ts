@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { BUILTIN_CARDS } from '../../../src/builtin/cards';
 import { BUILTIN_CATALOG } from '../../../src/builtin/catalog';
-import { buildStarterTemplate, STARTER_TEMPLATE_TIERS } from '../../../src/builtin/templates';
+import {
+  buildComplexityStarterTemplate,
+  buildStarterTemplate,
+  STARTER_TEMPLATE_TIERS,
+} from '../../../src/builtin/templates';
 import type { ParsedNode } from '../../../src/domain/nodes/parse';
 import {
   CLIENT_CAPABILITIES,
@@ -835,4 +839,37 @@ describe('compileSingbox — special characters, DNS leak guard, rulesets, compa
       expect(result.content.length).toBeGreaterThan(0);
     }
   });
+});
+
+describe('compileSingbox — simple complexity starter × (full/minimal) × (select/fallback) snapshots', () => {
+  const outputs: readonly OutputProfile[] = ['full', 'minimal'];
+  const groupModes: readonly TemplateGroupMode[] = ['select', 'fallback'];
+
+  for (const output of outputs) {
+    for (const groupMode of groupModes) {
+      it(`matches snapshot for simple / ${output} / ${groupMode}`, () => {
+        const tpl = buildComplexityStarterTemplate('simple', { groupMode, output });
+        const result = compileTemplate('sing-box', {
+          body: tpl.baseBody,
+          cards: BUILTIN_CARDS,
+          templateName: tpl.name,
+          generatedAt: FIXED_GENERATED_AT,
+          catalogIndex: BUILTIN_CATALOG,
+          baseUrl: FIXED_BASE_URL,
+          slotBindings: STANDARD_SNAPSHOT_BINDINGS,
+        });
+
+        expect(result.client).toBe('sing-box');
+        expect(result.output).toBe(output);
+        expect(result.extension).toBe('.json');
+        const parsed = JSON.parse(result.content) as ParsedSingboxDoc;
+        expect(parsed.outbounds.some((o) => o.tag === '🚀 代理')).toBe(true);
+        expect(parsed.outbounds.some((o) => o.tag === '🎯 直连')).toBe(true);
+        expect(parsed.route.rules.length).toBeGreaterThan(0);
+        expect(parsed.route.final).toBeTruthy();
+
+        expect(result.content).toMatchSnapshot();
+      });
+    }
+  }
 });

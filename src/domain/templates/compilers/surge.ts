@@ -1246,6 +1246,8 @@ export function compileSurge(input: CompileTemplateInput): CompiledConfigResult 
     }
 
     if (explicitMembers.length === 0 && !directExternalSlot && includeOtherGroups.length === 0) {
+      // Empty fallback uses select instead of url-test/fallback/load-balance so DIRECT is never speed-tested.
+      effectiveGroupType = 'select';
       explicitMembers.push('DIRECT');
       items.push({
         code: 'GROUP_FALLBACK_DIRECT',
@@ -1331,6 +1333,8 @@ export function compileSurge(input: CompileTemplateInput): CompiledConfigResult 
             location,
           });
         } else {
+          // Never leave DIRECT inside a speed-tested pool when no slots/members exist.
+          effectiveType = 'select';
           explicitMembers.push('DIRECT');
           items.push({
             code: 'GROUP_FALLBACK_DIRECT',
@@ -1436,6 +1440,8 @@ export function compileSurge(input: CompileTemplateInput): CompiledConfigResult 
       }
 
       if (explicitMembers.length === 0 && !directExternalSlot && includeOtherGroups.length === 0) {
+        // Never leave DIRECT inside a speed-tested pool when no slots exist.
+        effectiveType = 'select';
         explicitMembers.push('DIRECT');
         items.push({
           code: 'GROUP_FALLBACK_DIRECT',

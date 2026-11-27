@@ -859,7 +859,10 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
   const githubMirrorUrl = input.githubMirrorUrl?.trim() || undefined;
   const effectiveIconPack = input.iconPack !== undefined ? input.iconPack : buildDefaultIconPack(githubMirrorUrl);
   const multiSlot = body.slots.length > 1;
-  const perProviderVisible = multiSlot && (body.combineMode ?? body.wizardMeta?.combineMode) === 'perProvider';
+  const isSimpleThreeGroupBody =
+    body.complexity === 'simple' && enabledCards.some((card) => card.cardId === 'direct-select');
+  const perProviderVisible =
+    !isSimpleThreeGroupBody && multiSlot && (body.combineMode ?? body.wizardMeta?.combineMode) === 'perProvider';
   const useLegacyGeodata = Boolean(body.legacyGeodata);
 
   if (output === 'minimal') {
@@ -999,7 +1002,11 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
     return groupName;
   };
 
+  const SIMPLE_VISIBLE_CARD_IDS = new Set(['proxy-select', 'direct-select', 'ad-block']);
   const shouldHideCardGroup = (card: ResolvedTemplateCard, groupType: string): boolean => {
+    if (isSimpleThreeGroupBody) {
+      return !SIMPLE_VISIBLE_CARD_IDS.has(card.cardId);
+    }
     if (VISIBLE_CORE_HUB_CARD_IDS.has(card.cardId)) return false;
     if (HIDDEN_AUXILIARY_CARD_IDS.has(card.cardId)) return true;
     if ((groupType === 'fallback' || groupType === 'load-balance') && card.effective.matchers.length === 0) {
@@ -1139,7 +1146,10 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
       }
     }
 
+    let effectiveGroupType = groupSpec.type;
     if (proxies.length === 0 && use.length === 0) {
+      // Empty fallback uses select instead of url-test/fallback/load-balance so DIRECT is never speed-tested.
+      effectiveGroupType = 'select';
       proxies.push('DIRECT');
       items.push({
         code: 'GROUP_FALLBACK_DIRECT',
@@ -1151,31 +1161,35 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
 
     const groupObj: Record<string, unknown> = {
       name: groupName,
-      type: groupSpec.type,
+      type: effectiveGroupType,
     };
     if (proxies.length > 0) groupObj.proxies = proxies;
     if (use.length > 0) groupObj.use = use;
     if (inlineFilter?.filter) groupObj.filter = inlineFilter.filter;
     if (inlineFilter?.excludeFilter) groupObj['exclude-filter'] = inlineFilter.excludeFilter;
 
-    if (groupSpec.type === 'url-test' || groupSpec.type === 'fallback' || groupSpec.type === 'load-balance') {
+    if (
+      effectiveGroupType === 'url-test' ||
+      effectiveGroupType === 'fallback' ||
+      effectiveGroupType === 'load-balance'
+    ) {
       groupObj.url = sanitizeMihomoScalar(groupSpec.test?.url ?? body.general?.testUrl ?? DEFAULT_HEALTH_CHECK.url);
       groupObj.interval =
         groupSpec.test?.intervalSec ?? body.general?.testIntervalSec ?? DEFAULT_HEALTH_CHECK.intervalSec;
-      if (groupSpec.type === 'url-test') {
+      if (effectiveGroupType === 'url-test') {
         groupObj.tolerance = groupSpec.test?.toleranceMs ?? DEFAULT_HEALTH_CHECK.toleranceMs ?? 50;
       }
-      if (groupSpec.type === 'url-test' || groupSpec.type === 'fallback') {
+      if (effectiveGroupType === 'url-test' || effectiveGroupType === 'fallback') {
         groupObj.lazy = true;
         groupObj.timeout = DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
         groupObj['expected-status'] = DEFAULT_EXPECTED_STATUS;
       }
-      if (groupSpec.type === 'load-balance') {
+      if (effectiveGroupType === 'load-balance') {
         groupObj.strategy = DEFAULT_LOAD_BALANCE_STRATEGY;
       }
     }
 
-    if (shouldHideCardGroup(card, groupSpec.type)) {
+    if (shouldHideCardGroup(card, effectiveGroupType)) {
       groupObj.hidden = true;
     }
 
@@ -1185,7 +1199,7 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
         name: card.effective.name,
         slug: card.effective.slug,
         category: card.effective.category,
-        groupType: groupSpec.type,
+        groupType: effectiveGroupType,
         matchers: card.effective.matchers,
       },
       effectiveIconPack,
@@ -1202,9 +1216,10 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
   const compilePoolGroup = (pool: NodePool): Record<string, unknown> => {
     const groupName = poolGroupNameById.get(pool.id)!;
     const location = poolCompatibilityLocation(pool, hasExplicitPools);
+    let effectivePoolType = pool.type;
     const groupObj: Record<string, unknown> = {
       name: groupName,
-      type: pool.type,
+      type: effectivePoolType,
     };
 
     if (pool.kind === 'stability') {
@@ -1220,6 +1235,9 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
           location,
         });
       } else {
+        // Never leave DIRECT inside a url-test/fallback/load-balance group where it would win speed tests.
+        effectivePoolType = 'select';
+        groupObj.type = 'select';
         groupObj.proxies = ['DIRECT'];
         items.push({
           code: 'GROUP_FALLBACK_DIRECT',
@@ -1320,8 +1338,17 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
               groupObj['exclude-filter'] = compiledFilter.excludeFilter;
             }
           }
+          // CI pins mihomo v1.19.2, whose adapter/outboundgroup/parser.go (GroupCommonOption)
+          // does not yet support `empty-fallback`. Never inject `DIRECT` into a speed-tested
+          // url-test/fallback/load-balance pool (DIRECT would win latency checks and leak proxy
+          // traffic). Having non-empty `use` satisfies ParseProxyGroup, and if filtering matches
+          // 0 nodes at runtime mihomo defaults to built-in `COMPATIBLE` (parser.go L91-93,
+          // groupbase.go L209-211).
         }
       } else {
+        // Never leave DIRECT inside a url-test/fallback/load-balance group when no slots exist.
+        effectivePoolType = 'select';
+        groupObj.type = 'select';
         groupObj.proxies = ['DIRECT'];
         items.push({
           code: 'GROUP_FALLBACK_DIRECT',
@@ -1332,18 +1359,18 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
       }
     }
 
-    if (pool.type === 'url-test' || pool.type === 'fallback' || pool.type === 'load-balance') {
+    if (effectivePoolType === 'url-test' || effectivePoolType === 'fallback' || effectivePoolType === 'load-balance') {
       groupObj.url = sanitizeMihomoScalar(pool.test?.url ?? body.general?.testUrl ?? DEFAULT_HEALTH_CHECK.url);
       groupObj.interval = pool.test?.intervalSec ?? body.general?.testIntervalSec ?? DEFAULT_HEALTH_CHECK.intervalSec;
-      if (pool.type === 'url-test') {
+      if (effectivePoolType === 'url-test') {
         groupObj.tolerance = pool.test?.toleranceMs ?? DEFAULT_HEALTH_CHECK.toleranceMs ?? 50;
       }
-      if (pool.type === 'url-test' || pool.type === 'fallback') {
+      if (effectivePoolType === 'url-test' || effectivePoolType === 'fallback') {
         groupObj.lazy = true;
         groupObj.timeout = DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
         groupObj['expected-status'] = DEFAULT_EXPECTED_STATUS;
       }
-      if (pool.type === 'load-balance') {
+      if (effectivePoolType === 'load-balance') {
         groupObj.strategy = DEFAULT_LOAD_BALANCE_STRATEGY;
       }
     }

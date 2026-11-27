@@ -636,7 +636,10 @@ export function compileShadowrocket(input: CompileTemplateInput): CompiledConfig
       }
     }
 
+    let effectiveCardType = card.effectiveGroupType;
     if (members.length === 0 && !filterInfo.regexParam) {
+      // Empty fallback uses select instead of url-test/fallback/load-balance so DIRECT is never speed-tested.
+      effectiveCardType = 'select';
       members.push('DIRECT');
       items.push({
         code: 'GROUP_FALLBACK_DIRECT',
@@ -646,7 +649,7 @@ export function compileShadowrocket(input: CompileTemplateInput): CompiledConfig
       });
     }
 
-    emitGroupLine(groupName, card.effectiveGroupType, members, filterInfo, card.effective.group.test, {
+    emitGroupLine(groupName, effectiveCardType, members, filterInfo, card.effective.group.test, {
       cardId: card.cardId,
     });
   }

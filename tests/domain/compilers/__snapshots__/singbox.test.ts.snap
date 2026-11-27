@@ -85,6 +85,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "tag": "🚀 节点选择",
       "outbounds": [
         "⚡ 自动选择",
+        "🔁 故障转移",
         "🇭🇰 香港节点",
         "🇹🇼 台湾节点",
         "🇯🇵 日本节点",
@@ -97,6 +98,10 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         "🇳🇱 荷兰节点",
         "🇨🇦 加拿大节点",
         "🇦🇺 澳大利亚节点",
+        "🏷️ 低倍率",
+        "🏠 家宽 / 原生",
+        "🚄 专线 (IPLC / IEPL)",
+        "🎮 游戏",
         "🇭🇰 香港 SS 01",
         "🇹🇼 台湾 VMess WS 01",
         "🇺🇸 美国 VLESS Reality 01",
@@ -529,6 +534,79 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
     },
     {
       "type": "urltest",
+      "tag": "🏷️ 低倍率",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🏠 家宽 / 原生",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🚄 专线 (IPLC / IEPL)",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🎮 游戏",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🔁 故障转移",
+      "outbounds": [
+        "🚄 专线 (IPLC / IEPL)",
+        "🇭🇰 香港节点",
+        "🇸🇬 新加坡节点",
+        "🇯🇵 日本节点"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
       "tag": "🇭🇰 香港节点",
       "outbounds": [
         "🇭🇰 香港 SS 01"
@@ -591,7 +669,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇬🇧 英国节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -601,7 +684,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇩🇪 德国节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -611,7 +699,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇫🇷 法国节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -621,7 +714,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇳🇱 荷兰节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -631,7 +729,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇨🇦 加拿大节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -641,7 +744,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇦🇺 澳大利亚节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -1413,6 +1521,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "tag": "🚀 节点选择",
       "outbounds": [
         "⚡ 自动选择",
+        "🔁 故障转移",
         "🇭🇰 香港节点",
         "🇹🇼 台湾节点",
         "🇯🇵 日本节点",
@@ -1425,6 +1534,10 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         "🇳🇱 荷兰节点",
         "🇨🇦 加拿大节点",
         "🇦🇺 澳大利亚节点",
+        "🏷️ 低倍率",
+        "🏠 家宽 / 原生",
+        "🚄 专线 (IPLC / IEPL)",
+        "🎮 游戏",
         "🇭🇰 香港 SS 01",
         "🇹🇼 台湾 VMess WS 01",
         "🇺🇸 美国 VLESS Reality 01",
@@ -1821,6 +1934,79 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
     },
     {
       "type": "urltest",
+      "tag": "🏷️ 低倍率",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🏠 家宽 / 原生",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🚄 专线 (IPLC / IEPL)",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🎮 游戏",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🔁 故障转移",
+      "outbounds": [
+        "🚄 专线 (IPLC / IEPL)",
+        "🇭🇰 香港节点",
+        "🇸🇬 新加坡节点",
+        "🇯🇵 日本节点"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
       "tag": "🇭🇰 香港节点",
       "outbounds": [
         "🇭🇰 香港 SS 01"
@@ -1883,7 +2069,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇬🇧 英国节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -1893,7 +2084,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇩🇪 德国节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -1903,7 +2099,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇫🇷 法国节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -1913,7 +2114,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇳🇱 荷兰节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -1923,7 +2129,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇨🇦 加拿大节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -1933,7 +2144,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇦🇺 澳大利亚节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -2643,6 +2859,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "tag": "🚀 节点选择",
       "outbounds": [
         "⚡ 自动选择",
+        "🔁 故障转移",
         "🇭🇰 香港节点",
         "🇹🇼 台湾节点",
         "🇯🇵 日本节点",
@@ -2655,6 +2872,10 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         "🇳🇱 荷兰节点",
         "🇨🇦 加拿大节点",
         "🇦🇺 澳大利亚节点",
+        "🏷️ 低倍率",
+        "🏠 家宽 / 原生",
+        "🚄 专线 (IPLC / IEPL)",
+        "🎮 游戏",
         "🇭🇰 香港 SS 01",
         "🇹🇼 台湾 VMess WS 01",
         "🇺🇸 美国 VLESS Reality 01",
@@ -3087,6 +3308,79 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
     },
     {
       "type": "urltest",
+      "tag": "🏷️ 低倍率",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🏠 家宽 / 原生",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🚄 专线 (IPLC / IEPL)",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🎮 游戏",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🔁 故障转移",
+      "outbounds": [
+        "🚄 专线 (IPLC / IEPL)",
+        "🇭🇰 香港节点",
+        "🇸🇬 新加坡节点",
+        "🇯🇵 日本节点"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
       "tag": "🇭🇰 香港节点",
       "outbounds": [
         "🇭🇰 香港 SS 01"
@@ -3149,7 +3443,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇬🇧 英国节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -3159,7 +3458,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇩🇪 德国节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -3169,7 +3473,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇫🇷 法国节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -3179,7 +3488,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇳🇱 荷兰节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -3189,7 +3503,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇨🇦 加拿大节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -3199,7 +3518,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇦🇺 澳大利亚节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -3894,6 +4218,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "tag": "🚀 节点选择",
       "outbounds": [
         "⚡ 自动选择",
+        "🔁 故障转移",
         "🇭🇰 香港节点",
         "🇹🇼 台湾节点",
         "🇯🇵 日本节点",
@@ -3906,6 +4231,10 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         "🇳🇱 荷兰节点",
         "🇨🇦 加拿大节点",
         "🇦🇺 澳大利亚节点",
+        "🏷️ 低倍率",
+        "🏠 家宽 / 原生",
+        "🚄 专线 (IPLC / IEPL)",
+        "🎮 游戏",
         "🇭🇰 香港 SS 01",
         "🇹🇼 台湾 VMess WS 01",
         "🇺🇸 美国 VLESS Reality 01",
@@ -4302,6 +4631,79 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
     },
     {
       "type": "urltest",
+      "tag": "🏷️ 低倍率",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🏠 家宽 / 原生",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🚄 专线 (IPLC / IEPL)",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🎮 游戏",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
+      "tag": "🔁 故障转移",
+      "outbounds": [
+        "🚄 专线 (IPLC / IEPL)",
+        "🇭🇰 香港节点",
+        "🇸🇬 新加坡节点",
+        "🇯🇵 日本节点"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "urltest",
       "tag": "🇭🇰 香港节点",
       "outbounds": [
         "🇭🇰 香港 SS 01"
@@ -4364,7 +4766,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇬🇧 英国节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -4374,7 +4781,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇩🇪 德国节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -4384,7 +4796,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇫🇷 法国节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -4394,7 +4811,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇳🇱 荷兰节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -4404,7 +4826,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇨🇦 加拿大节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -4414,7 +4841,12 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       "type": "urltest",
       "tag": "🇦🇺 澳大利亚节点",
       "outbounds": [
-        "direct"
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
       ],
       "url": "https://cp.cloudflare.com/generate_204",
       "interval": "5m",
@@ -8969,6 +9401,1184 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
       }
     ],
     "final": "🐟 漏网之鱼"
+  }
+}
+"
+`;
+
+exports[`compileSingbox — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot for simple / full / fallback 1`] = `
+"{
+  "log": {
+    "level": "info"
+  },
+  "dns": {
+    "servers": [
+      {
+        "type": "udp",
+        "tag": "dns-bootstrap",
+        "server": "223.5.5.5"
+      },
+      {
+        "type": "https",
+        "tag": "dns-remote",
+        "server": "1.1.1.1",
+        "detour": "🔒 防泄漏兜底"
+      },
+      {
+        "type": "fakeip",
+        "tag": "dns-fakeip",
+        "inet4_range": "198.18.0.0/15"
+      }
+    ],
+    "rules": [
+      {
+        "rule_set": [
+          "geosite-private",
+          "geosite-cn"
+        ],
+        "server": "dns-bootstrap"
+      },
+      {
+        "domain_suffix": [
+          "lan",
+          "local",
+          "msftconnecttest.com"
+        ],
+        "server": "dns-bootstrap"
+      },
+      {
+        "query_type": [
+          "A"
+        ],
+        "server": "dns-fakeip"
+      }
+    ],
+    "final": "dns-remote",
+    "strategy": "ipv4_only"
+  },
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7890
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "selector",
+      "tag": "🚀 代理",
+      "outbounds": [
+        "⚡ 全部节点（自动）",
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01",
+        "direct"
+      ],
+      "default": "⚡ 全部节点（自动）"
+    },
+    {
+      "type": "selector",
+      "tag": "🎯 直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
+      "tag": "🏠 局域网直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
+      "tag": "🇨🇳 国内直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
+      "tag": "🔒 防泄漏兜底",
+      "outbounds": [
+        "🚀 代理"
+      ],
+      "default": "🚀 代理"
+    },
+    {
+      "type": "urltest",
+      "tag": "⚡ 全部节点（自动）",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "🇭🇰 香港 SS 01",
+      "server": "hk-ss.example.com",
+      "server_port": 8388,
+      "method": "aes-256-gcm",
+      "password": "ss-password-1",
+      "plugin": "obfs-local",
+      "plugin_opts": "obfs-host=bing.com;obfs=http",
+      "tcp_fast_open": true
+    },
+    {
+      "type": "vmess",
+      "tag": "🇹🇼 台湾 VMess WS 01",
+      "server": "tw-vmess.example.com",
+      "server_port": 443,
+      "uuid": "11111111-2222-3333-4444-555555555555",
+      "security": "auto",
+      "alter_id": 0,
+      "packet_encoding": "xudp",
+      "tls": {
+        "enabled": true,
+        "server_name": "tw-vmess.example.com",
+        "alpn": [
+          "http/1.1"
+        ],
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/ws?ed=2048",
+        "headers": {
+          "Host": "cdn.tw-vmess.example.com"
+        },
+        "max_early_data": 2048,
+        "early_data_header_name": "Sec-WebSocket-Protocol"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "🇺🇸 美国 VLESS Reality 01",
+      "server": "us-vless.example.com",
+      "server_port": 443,
+      "uuid": "22222222-3333-4444-5555-666666666666",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.microsoft.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "safari"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
+          "short_id": "0123abcd"
+        }
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "🇯🇵 日本 Trojan gRPC 01",
+      "server": "jp-trojan.example.com",
+      "server_port": 443,
+      "password": "trojan-password-1",
+      "tls": {
+        "enabled": true,
+        "server_name": "jp-trojan.example.com",
+        "alpn": [
+          "h2"
+        ]
+      },
+      "transport": {
+        "type": "grpc",
+        "service_name": "tun-grpc"
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "🇸🇬 新加坡 Hy2 01",
+      "server": "sg-hy2.example.com",
+      "server_ports": [
+        "20000:20010",
+        "443:443"
+      ],
+      "up_mbps": 50,
+      "down_mbps": 200,
+      "obfs": {
+        "type": "salamander",
+        "password": "obfs-password-1"
+      },
+      "password": "hy2-password-1",
+      "tls": {
+        "enabled": true,
+        "server_name": "sg-hy2.example.com",
+        "insecure": true
+      }
+    },
+    {
+      "type": "tuic",
+      "tag": "🇰🇷 韩国 TUIC 01",
+      "server": "kr-tuic.example.com",
+      "server_port": 8443,
+      "uuid": "33333333-4444-5555-6666-777777777777",
+      "password": "tuic-password-1",
+      "congestion_control": "bbr",
+      "udp_relay_mode": "native",
+      "zero_rtt_handshake": true,
+      "tls": {
+        "enabled": true,
+        "disable_sni": true,
+        "alpn": [
+          "h3"
+        ]
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "rule_set": [
+          "geosite-private"
+        ],
+        "outbound": "🏠 局域网直连"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "🏠 局域网直连"
+      },
+      {
+        "rule_set": [
+          "geosite-category-ads-all"
+        ],
+        "action": "reject"
+      },
+      {
+        "rule_set": [
+          "geosite-cn"
+        ],
+        "outbound": "🇨🇳 国内直连"
+      },
+      {
+        "rule_set": [
+          "geoip-cn"
+        ],
+        "outbound": "🇨🇳 国内直连"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "geosite-private",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/private.srs",
+        "update_interval": "8h"
+      },
+      {
+        "tag": "geosite-category-ads-all",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/category-ads-all.srs",
+        "update_interval": "8h"
+      },
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn.srs",
+        "update_interval": "8h"
+      },
+      {
+        "tag": "geoip-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cn.srs",
+        "update_interval": "8h"
+      }
+    ],
+    "final": "🔒 防泄漏兜底",
+    "auto_detect_interface": true,
+    "default_domain_resolver": "dns-bootstrap"
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "store_fakeip": true
+    }
+  }
+}
+"
+`;
+
+exports[`compileSingbox — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot for simple / full / select 1`] = `
+"{
+  "log": {
+    "level": "info"
+  },
+  "dns": {
+    "servers": [
+      {
+        "type": "udp",
+        "tag": "dns-bootstrap",
+        "server": "223.5.5.5"
+      },
+      {
+        "type": "https",
+        "tag": "dns-remote",
+        "server": "1.1.1.1",
+        "detour": "🔒 防泄漏兜底"
+      },
+      {
+        "type": "fakeip",
+        "tag": "dns-fakeip",
+        "inet4_range": "198.18.0.0/15"
+      }
+    ],
+    "rules": [
+      {
+        "rule_set": [
+          "geosite-private",
+          "geosite-cn"
+        ],
+        "server": "dns-bootstrap"
+      },
+      {
+        "domain_suffix": [
+          "lan",
+          "local",
+          "msftconnecttest.com"
+        ],
+        "server": "dns-bootstrap"
+      },
+      {
+        "query_type": [
+          "A"
+        ],
+        "server": "dns-fakeip"
+      }
+    ],
+    "final": "dns-remote",
+    "strategy": "ipv4_only"
+  },
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7890
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "selector",
+      "tag": "🚀 代理",
+      "outbounds": [
+        "⚡ 全部节点（自动）",
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01",
+        "direct"
+      ],
+      "default": "⚡ 全部节点（自动）"
+    },
+    {
+      "type": "selector",
+      "tag": "🎯 直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
+      "tag": "🏠 局域网直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
+      "tag": "🇨🇳 国内直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
+      "tag": "🔒 防泄漏兜底",
+      "outbounds": [
+        "🚀 代理"
+      ],
+      "default": "🚀 代理"
+    },
+    {
+      "type": "urltest",
+      "tag": "⚡ 全部节点（自动）",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "🇭🇰 香港 SS 01",
+      "server": "hk-ss.example.com",
+      "server_port": 8388,
+      "method": "aes-256-gcm",
+      "password": "ss-password-1",
+      "plugin": "obfs-local",
+      "plugin_opts": "obfs-host=bing.com;obfs=http",
+      "tcp_fast_open": true
+    },
+    {
+      "type": "vmess",
+      "tag": "🇹🇼 台湾 VMess WS 01",
+      "server": "tw-vmess.example.com",
+      "server_port": 443,
+      "uuid": "11111111-2222-3333-4444-555555555555",
+      "security": "auto",
+      "alter_id": 0,
+      "packet_encoding": "xudp",
+      "tls": {
+        "enabled": true,
+        "server_name": "tw-vmess.example.com",
+        "alpn": [
+          "http/1.1"
+        ],
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/ws?ed=2048",
+        "headers": {
+          "Host": "cdn.tw-vmess.example.com"
+        },
+        "max_early_data": 2048,
+        "early_data_header_name": "Sec-WebSocket-Protocol"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "🇺🇸 美国 VLESS Reality 01",
+      "server": "us-vless.example.com",
+      "server_port": 443,
+      "uuid": "22222222-3333-4444-5555-666666666666",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.microsoft.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "safari"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
+          "short_id": "0123abcd"
+        }
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "🇯🇵 日本 Trojan gRPC 01",
+      "server": "jp-trojan.example.com",
+      "server_port": 443,
+      "password": "trojan-password-1",
+      "tls": {
+        "enabled": true,
+        "server_name": "jp-trojan.example.com",
+        "alpn": [
+          "h2"
+        ]
+      },
+      "transport": {
+        "type": "grpc",
+        "service_name": "tun-grpc"
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "🇸🇬 新加坡 Hy2 01",
+      "server": "sg-hy2.example.com",
+      "server_ports": [
+        "20000:20010",
+        "443:443"
+      ],
+      "up_mbps": 50,
+      "down_mbps": 200,
+      "obfs": {
+        "type": "salamander",
+        "password": "obfs-password-1"
+      },
+      "password": "hy2-password-1",
+      "tls": {
+        "enabled": true,
+        "server_name": "sg-hy2.example.com",
+        "insecure": true
+      }
+    },
+    {
+      "type": "tuic",
+      "tag": "🇰🇷 韩国 TUIC 01",
+      "server": "kr-tuic.example.com",
+      "server_port": 8443,
+      "uuid": "33333333-4444-5555-6666-777777777777",
+      "password": "tuic-password-1",
+      "congestion_control": "bbr",
+      "udp_relay_mode": "native",
+      "zero_rtt_handshake": true,
+      "tls": {
+        "enabled": true,
+        "disable_sni": true,
+        "alpn": [
+          "h3"
+        ]
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "rule_set": [
+          "geosite-private"
+        ],
+        "outbound": "🏠 局域网直连"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "🏠 局域网直连"
+      },
+      {
+        "rule_set": [
+          "geosite-category-ads-all"
+        ],
+        "action": "reject"
+      },
+      {
+        "rule_set": [
+          "geosite-cn"
+        ],
+        "outbound": "🇨🇳 国内直连"
+      },
+      {
+        "rule_set": [
+          "geoip-cn"
+        ],
+        "outbound": "🇨🇳 国内直连"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "geosite-private",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/private.srs",
+        "update_interval": "8h"
+      },
+      {
+        "tag": "geosite-category-ads-all",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/category-ads-all.srs",
+        "update_interval": "8h"
+      },
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn.srs",
+        "update_interval": "8h"
+      },
+      {
+        "tag": "geoip-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cn.srs",
+        "update_interval": "8h"
+      }
+    ],
+    "final": "🔒 防泄漏兜底",
+    "auto_detect_interface": true,
+    "default_domain_resolver": "dns-bootstrap"
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "store_fakeip": true
+    }
+  }
+}
+"
+`;
+
+exports[`compileSingbox — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot for simple / minimal / fallback 1`] = `
+"{
+  "outbounds": [
+    {
+      "type": "selector",
+      "tag": "🚀 代理",
+      "outbounds": [
+        "⚡ 全部节点（自动）",
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01",
+        "direct"
+      ],
+      "default": "⚡ 全部节点（自动）"
+    },
+    {
+      "type": "selector",
+      "tag": "🎯 直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
+      "tag": "🏠 局域网直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
+      "tag": "🇨🇳 国内直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
+      "tag": "🔒 防泄漏兜底",
+      "outbounds": [
+        "🚀 代理"
+      ],
+      "default": "🚀 代理"
+    },
+    {
+      "type": "urltest",
+      "tag": "⚡ 全部节点（自动）",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "🇭🇰 香港 SS 01",
+      "server": "hk-ss.example.com",
+      "server_port": 8388,
+      "method": "aes-256-gcm",
+      "password": "ss-password-1",
+      "plugin": "obfs-local",
+      "plugin_opts": "obfs-host=bing.com;obfs=http",
+      "tcp_fast_open": true
+    },
+    {
+      "type": "vmess",
+      "tag": "🇹🇼 台湾 VMess WS 01",
+      "server": "tw-vmess.example.com",
+      "server_port": 443,
+      "uuid": "11111111-2222-3333-4444-555555555555",
+      "security": "auto",
+      "alter_id": 0,
+      "packet_encoding": "xudp",
+      "tls": {
+        "enabled": true,
+        "server_name": "tw-vmess.example.com",
+        "alpn": [
+          "http/1.1"
+        ],
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/ws?ed=2048",
+        "headers": {
+          "Host": "cdn.tw-vmess.example.com"
+        },
+        "max_early_data": 2048,
+        "early_data_header_name": "Sec-WebSocket-Protocol"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "🇺🇸 美国 VLESS Reality 01",
+      "server": "us-vless.example.com",
+      "server_port": 443,
+      "uuid": "22222222-3333-4444-5555-666666666666",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.microsoft.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "safari"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
+          "short_id": "0123abcd"
+        }
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "🇯🇵 日本 Trojan gRPC 01",
+      "server": "jp-trojan.example.com",
+      "server_port": 443,
+      "password": "trojan-password-1",
+      "tls": {
+        "enabled": true,
+        "server_name": "jp-trojan.example.com",
+        "alpn": [
+          "h2"
+        ]
+      },
+      "transport": {
+        "type": "grpc",
+        "service_name": "tun-grpc"
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "🇸🇬 新加坡 Hy2 01",
+      "server": "sg-hy2.example.com",
+      "server_ports": [
+        "20000:20010",
+        "443:443"
+      ],
+      "up_mbps": 50,
+      "down_mbps": 200,
+      "obfs": {
+        "type": "salamander",
+        "password": "obfs-password-1"
+      },
+      "password": "hy2-password-1",
+      "tls": {
+        "enabled": true,
+        "server_name": "sg-hy2.example.com",
+        "insecure": true
+      }
+    },
+    {
+      "type": "tuic",
+      "tag": "🇰🇷 韩国 TUIC 01",
+      "server": "kr-tuic.example.com",
+      "server_port": 8443,
+      "uuid": "33333333-4444-5555-6666-777777777777",
+      "password": "tuic-password-1",
+      "congestion_control": "bbr",
+      "udp_relay_mode": "native",
+      "zero_rtt_handshake": true,
+      "tls": {
+        "enabled": true,
+        "disable_sni": true,
+        "alpn": [
+          "h3"
+        ]
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "rule_set": [
+          "geosite-private"
+        ],
+        "outbound": "🏠 局域网直连"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "🏠 局域网直连"
+      },
+      {
+        "rule_set": [
+          "geosite-category-ads-all"
+        ],
+        "action": "reject"
+      },
+      {
+        "rule_set": [
+          "geosite-cn"
+        ],
+        "outbound": "🇨🇳 国内直连"
+      },
+      {
+        "rule_set": [
+          "geoip-cn"
+        ],
+        "outbound": "🇨🇳 国内直连"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "geosite-private",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/private.srs",
+        "update_interval": "8h"
+      },
+      {
+        "tag": "geosite-category-ads-all",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/category-ads-all.srs",
+        "update_interval": "8h"
+      },
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn.srs",
+        "update_interval": "8h"
+      },
+      {
+        "tag": "geoip-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cn.srs",
+        "update_interval": "8h"
+      }
+    ],
+    "final": "🔒 防泄漏兜底"
+  }
+}
+"
+`;
+
+exports[`compileSingbox — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot for simple / minimal / select 1`] = `
+"{
+  "outbounds": [
+    {
+      "type": "selector",
+      "tag": "🚀 代理",
+      "outbounds": [
+        "⚡ 全部节点（自动）",
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01",
+        "direct"
+      ],
+      "default": "⚡ 全部节点（自动）"
+    },
+    {
+      "type": "selector",
+      "tag": "🎯 直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
+      "tag": "🏠 局域网直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
+      "tag": "🇨🇳 国内直连",
+      "outbounds": [
+        "direct",
+        "🚀 代理"
+      ],
+      "default": "direct"
+    },
+    {
+      "type": "selector",
+      "tag": "🔒 防泄漏兜底",
+      "outbounds": [
+        "🚀 代理"
+      ],
+      "default": "🚀 代理"
+    },
+    {
+      "type": "urltest",
+      "tag": "⚡ 全部节点（自动）",
+      "outbounds": [
+        "🇭🇰 香港 SS 01",
+        "🇹🇼 台湾 VMess WS 01",
+        "🇺🇸 美国 VLESS Reality 01",
+        "🇯🇵 日本 Trojan gRPC 01",
+        "🇸🇬 新加坡 Hy2 01",
+        "🇰🇷 韩国 TUIC 01"
+      ],
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": "5m",
+      "tolerance": 50
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "🇭🇰 香港 SS 01",
+      "server": "hk-ss.example.com",
+      "server_port": 8388,
+      "method": "aes-256-gcm",
+      "password": "ss-password-1",
+      "plugin": "obfs-local",
+      "plugin_opts": "obfs-host=bing.com;obfs=http",
+      "tcp_fast_open": true
+    },
+    {
+      "type": "vmess",
+      "tag": "🇹🇼 台湾 VMess WS 01",
+      "server": "tw-vmess.example.com",
+      "server_port": 443,
+      "uuid": "11111111-2222-3333-4444-555555555555",
+      "security": "auto",
+      "alter_id": 0,
+      "packet_encoding": "xudp",
+      "tls": {
+        "enabled": true,
+        "server_name": "tw-vmess.example.com",
+        "alpn": [
+          "http/1.1"
+        ],
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/ws?ed=2048",
+        "headers": {
+          "Host": "cdn.tw-vmess.example.com"
+        },
+        "max_early_data": 2048,
+        "early_data_header_name": "Sec-WebSocket-Protocol"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "🇺🇸 美国 VLESS Reality 01",
+      "server": "us-vless.example.com",
+      "server_port": 443,
+      "uuid": "22222222-3333-4444-5555-666666666666",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.microsoft.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "safari"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
+          "short_id": "0123abcd"
+        }
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "🇯🇵 日本 Trojan gRPC 01",
+      "server": "jp-trojan.example.com",
+      "server_port": 443,
+      "password": "trojan-password-1",
+      "tls": {
+        "enabled": true,
+        "server_name": "jp-trojan.example.com",
+        "alpn": [
+          "h2"
+        ]
+      },
+      "transport": {
+        "type": "grpc",
+        "service_name": "tun-grpc"
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "🇸🇬 新加坡 Hy2 01",
+      "server": "sg-hy2.example.com",
+      "server_ports": [
+        "20000:20010",
+        "443:443"
+      ],
+      "up_mbps": 50,
+      "down_mbps": 200,
+      "obfs": {
+        "type": "salamander",
+        "password": "obfs-password-1"
+      },
+      "password": "hy2-password-1",
+      "tls": {
+        "enabled": true,
+        "server_name": "sg-hy2.example.com",
+        "insecure": true
+      }
+    },
+    {
+      "type": "tuic",
+      "tag": "🇰🇷 韩国 TUIC 01",
+      "server": "kr-tuic.example.com",
+      "server_port": 8443,
+      "uuid": "33333333-4444-5555-6666-777777777777",
+      "password": "tuic-password-1",
+      "congestion_control": "bbr",
+      "udp_relay_mode": "native",
+      "zero_rtt_handshake": true,
+      "tls": {
+        "enabled": true,
+        "disable_sni": true,
+        "alpn": [
+          "h3"
+        ]
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "rule_set": [
+          "geosite-private"
+        ],
+        "outbound": "🏠 局域网直连"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "🏠 局域网直连"
+      },
+      {
+        "rule_set": [
+          "geosite-category-ads-all"
+        ],
+        "action": "reject"
+      },
+      {
+        "rule_set": [
+          "geosite-cn"
+        ],
+        "outbound": "🇨🇳 国内直连"
+      },
+      {
+        "rule_set": [
+          "geoip-cn"
+        ],
+        "outbound": "🇨🇳 国内直连"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "geosite-private",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/private.srs",
+        "update_interval": "8h"
+      },
+      {
+        "tag": "geosite-category-ads-all",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/category-ads-all.srs",
+        "update_interval": "8h"
+      },
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn.srs",
+        "update_interval": "8h"
+      },
+      {
+        "tag": "geoip-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cn.srs",
+        "update_interval": "8h"
+      }
+    ],
+    "final": "🔒 防泄漏兜底"
   }
 }
 "

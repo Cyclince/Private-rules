@@ -769,7 +769,10 @@ export function compileQuanx(input: CompileTemplateInput): CompiledConfigResult 
         }
       }
 
+      let effectiveCardType = card.effectiveGroupType;
       if (members.length === 0 && !regexInfo.serverTagRegex) {
+        // Empty fallback uses select instead of url-test/fallback/load-balance so direct is never speed-tested.
+        effectiveCardType = 'select';
         members.push('direct');
         items.push({
           code: 'GROUP_FALLBACK_DIRECT',
@@ -785,13 +788,13 @@ export function compileQuanx(input: CompileTemplateInput): CompiledConfigResult 
           name: card.effective.name,
           slug: card.effective.slug,
           category: card.effective.category,
-          groupType: card.effectiveGroupType,
+          groupType: effectiveCardType,
           matchers: card.effective.matchers,
         },
         input.iconPack,
       );
 
-      buildPolicyEntry(groupName, card.effectiveGroupType, members, regexInfo, card.effective.group.test, iconUrl, {
+      buildPolicyEntry(groupName, effectiveCardType, members, regexInfo, card.effective.group.test, iconUrl, {
         cardId: card.cardId,
       });
     }

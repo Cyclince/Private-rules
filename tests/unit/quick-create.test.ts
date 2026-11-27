@@ -1,21 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { BUILTIN_CARDS, buildStarterTemplate } from '../../src/builtin';
+import { parse as parseYaml } from 'yaml';
+import { BUILTIN_CARDS, BUILTIN_CATALOG, buildStarterTemplate } from '../../src/builtin';
 import {
   allocateSubscriptionSlotId,
   ALWAYS_ENABLED_CARD_IDS,
   buildNormalizedQuickCreateSlots,
   buildQuickCreateTemplateBody,
   buildRouteCandidates,
+  compileMihomo,
+  compileTemplate,
   CORE_REGION_CODES,
   detectMatchingPresetTier,
   getDefaultWizardScenarios,
   getPresetScenarioSelection,
   inferDefaultRouteForRulesetName,
+  lintTemplate,
   mapWizardClientSelection,
   normalizeSubscriptionName,
   resolveWizardRegionGroups,
+  validateModuleCombination,
   WIZARD_SCENARIO_DEFINITIONS,
-} from '../../src/domain/templates/quick-create';
+} from '../../src/domain/templates';
+import { TEMPLATE_CLIENT_IDS } from '../../src/shared/clients';
+import type { AppCard } from '../../src/shared/schemas/card';
 import type { WizardScenarioId } from '../../src/shared/schemas/quick-create';
 
 describe('M2a quick-create pure domain logic', () => {
@@ -169,6 +176,7 @@ describe('M2a quick-create pure domain logic', () => {
       const { body, generatedCards } = buildQuickCreateTemplateBody({
         standardBaseBody,
         builtinCards: BUILTIN_CARDS,
+        complexity: 'advanced',
         scenarios,
         rulesets: [
           {
@@ -244,6 +252,7 @@ describe('M2a quick-create pure domain logic', () => {
       const { body } = buildQuickCreateTemplateBody({
         standardBaseBody,
         builtinCards: BUILTIN_CARDS,
+        complexity: 'advanced',
         scenarios: getDefaultWizardScenarios(),
         rulesets: [],
         groupMode: 'region',
@@ -264,6 +273,190 @@ describe('M2a quick-create pure domain logic', () => {
         { kind: 'slot', slotId: 'slot-2' },
         { kind: 'slot', slotId: 'slot-3' },
       ]);
+    });
+  });
+
+  describe('N2 complexity tiers (simple / advanced / pro) & cross-client simple validation', () => {
+    const standardBaseBody = buildStarterTemplate('recommended').baseBody;
+
+    it('defaults omitted complexity to simple with ALL_AUTO_POOL, 3 visible groups, user rulesets first, and tierDefaults modules', () => {
+      const { body, generatedCards } = buildQuickCreateTemplateBody({
+        standardBaseBody,
+        builtinCards: BUILTIN_CARDS,
+        scenarios: getDefaultWizardScenarios(),
+        rulesets: [
+          {
+            rulesetId: 'rs-direct',
+            name: 'Emby_Direct',
+            slug: 'emby-direct',
+            route: 'direct',
+            cardId: 'c-direct',
+            cardSlug: 'rs-emby',
+          },
+          {
+            rulesetId: 'rs-reject',
+            name: 'Ad_Reject',
+            slug: 'ad-reject',
+            route: 'reject',
+            cardId: 'c-reject',
+            cardSlug: 'rs-ad',
+          },
+          {
+            rulesetId: 'rs-proxy',
+            name: 'Work_Proxy',
+            slug: 'work-proxy',
+            route: 'proxy',
+            cardId: 'c-proxy',
+            cardSlug: 'rs-work',
+          },
+        ],
+        groupMode: 'region',
+        hasSubscription: true,
+        detectedRegions: ['HK', 'JP'],
+      });
+
+      expect(body.complexity).toBe('simple');
+      expect(body.wizardMeta?.complexity).toBe('simple');
+      expect(body.pools?.map((p) => p.id)).toEqual(['pool-all-auto']);
+      expect(body.pools?.[0]?.hidden).toBe(true);
+      expect(body.cards.map((c) => c.cardId)).toEqual([
+        'proxy-select',
+        'direct-select',
+        'c-direct',
+        'c-reject',
+        'c-proxy',
+        'lan-direct',
+        'ad-block',
+        'domestic-direct',
+      ]);
+
+      expect(body.modules.filter((m) => m.enabled)).toEqual([
+        { id: 'dns-leak-guard', enabled: true },
+        { id: 'ip-no-resolve', enabled: true },
+      ]);
+      expect(validateModuleCombination(body.modules).ok).toBe(true);
+
+      // Compiles cleanly in mihomo with strictly 3 visible groups and user rulesets before lan/ad/cn
+      const allCards: AppCard[] = [...BUILTIN_CARDS, ...generatedCards];
+      const compiled = compileMihomo({
+        body,
+        cards: allCards,
+        templateName: 'Simple Test',
+        catalogIndex: BUILTIN_CATALOG,
+        baseUrl: 'https://rules.example.com',
+        slotBindings: {
+          'slot-main': { kind: 'http', url: 'https://example.com/sub' },
+        },
+        rulesetBehaviors: new Map([
+          ['rs-direct', { domain: 2, classical: 0, ipcidr: 0 }],
+          ['rs-reject', { domain: 1, classical: 0, ipcidr: 0 }],
+          ['rs-proxy', { domain: 1, classical: 0, ipcidr: 0 }],
+        ]),
+      });
+      const doc = parseYaml(compiled.content) as Record<string, unknown>;
+      const proxyGroups = doc['proxy-groups'] as Array<Record<string, unknown>>;
+      const visibleGroups = proxyGroups.filter((g) => g.hidden !== true);
+      expect(visibleGroups.map((g) => g.name)).toEqual(['🚀 代理', '🎯 直连', '🚫 拦截']);
+
+      const rules = doc.rules as string[];
+      const embyIdx = rules.findIndex((r) => r.includes('rs-direct'));
+      const rejectIdx = rules.findIndex((r) => r.includes('rs-reject'));
+      const workIdx = rules.findIndex((r) => r.includes('rs-proxy'));
+      const lanIdx = rules.findIndex((r) => r.includes('private'));
+      const adIdx = rules.findIndex((r) => r.includes('category-ads-all'));
+      const cnIdx = rules.findIndex((r) => r.includes('geosite-cn'));
+      expect(embyIdx).toBe(0);
+      expect(rejectIdx).toBeGreaterThan(embyIdx);
+      expect(workIdx).toBeGreaterThan(rejectIdx);
+      expect(lanIdx).toBeGreaterThan(workIdx);
+      expect(adIdx).toBeGreaterThan(lanIdx);
+      expect(cnIdx).toBeGreaterThan(adIdx);
+      expect(rules[rules.length - 1]).toBe('MATCH,🔒 防泄漏兜底');
+    });
+
+    it('generates pro complexity with region + trait + provider + stability pools and conflict-free tierDefaults modules', () => {
+      const slots = buildNormalizedQuickCreateSlots([{ name: '主力机场' }, { name: '备用机场' }]);
+      const { body } = buildQuickCreateTemplateBody({
+        standardBaseBody,
+        builtinCards: BUILTIN_CARDS,
+        complexity: 'pro',
+        scenarios: getDefaultWizardScenarios(),
+        rulesets: [],
+        groupMode: 'region',
+        combineMode: 'perProvider',
+        slots,
+        hasSubscription: true,
+        detectedRegions: ['HK', 'JP', 'US'],
+      });
+
+      expect(body.complexity).toBe('pro');
+      const poolIds = (body.pools ?? []).map((p) => p.id);
+      expect(poolIds).toContain('pool-all-auto');
+      expect(poolIds).toContain('pool-stability-fallback');
+      expect(poolIds).toContain('pool-trait-low-rate');
+      expect(poolIds).toContain('pool-trait-residential');
+      expect(poolIds).toContain('pool-trait-dedicated');
+      expect(poolIds).toContain('pool-trait-gaming');
+      expect(poolIds).toContain('pool-provider-slot-main');
+      expect(poolIds).toContain('pool-provider-slot-2');
+      expect(poolIds).toContain('region-hk');
+      expect((body.pools ?? []).filter((p) => p.kind === 'trait').every((p) => p.hidden === true)).toBe(true);
+
+      const modValidation = validateModuleCombination(body.modules);
+      expect(modValidation.ok).toBe(true);
+      expect(body.modules.find((m) => m.id === 'game-download-direct')?.enabled).toBe(true);
+      expect(body.modules.find((m) => m.id === 'tunnel-direct')?.enabled).toBe(true);
+    });
+
+    it.each(TEMPLATE_CLIENT_IDS)('compiles and lints quick-create simple body cleanly for %s', (client) => {
+      const { body, generatedCards } = buildQuickCreateTemplateBody({
+        standardBaseBody,
+        builtinCards: BUILTIN_CARDS,
+        complexity: 'simple',
+        scenarios: getDefaultWizardScenarios(),
+        rulesets: [
+          {
+            rulesetId: 'rs-1',
+            name: 'Direct_Custom',
+            slug: 'direct-custom',
+            route: 'direct',
+            cardId: 'c-1',
+            cardSlug: 'rs-direct-custom',
+          },
+        ],
+        groupMode: 'auto',
+        hasSubscription: true,
+      });
+
+      const allCards = [...BUILTIN_CARDS, ...generatedCards];
+      const lint = lintTemplate({ body, cards: allCards, clients: [client], catalogIndex: BUILTIN_CATALOG });
+      expect(lint.issues.filter((i) => i.severity === 'error')).toEqual([]);
+
+      const compiled = compileTemplate(client, {
+        body,
+        cards: allCards,
+        templateName: 'Simple Client Check',
+        catalogIndex: BUILTIN_CATALOG,
+        baseUrl: 'https://rules.example.com',
+        experimentalFullConfig: true,
+        rulesetBehaviors: new Map([['direct-custom', { domain: 1, classical: 0, ipcidr: 0 }]]),
+        slotBindings: {
+          'slot-main': {
+            kind: 'inline',
+            proxies: [
+              {
+                name: '🇭🇰 HK 01',
+                type: 'ss',
+                server: 'hk.example.com',
+                port: 443,
+                cipher: 'aes-128-gcm',
+                password: 'pw',
+              },
+            ],
+          },
+        },
+      });
+      expect(compiled.content.length).toBeGreaterThan(0);
     });
   });
 });

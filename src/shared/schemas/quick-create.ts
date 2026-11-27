@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { templateClientIdSchema } from './publication';
 
+/** Three template complexity tiers (design §2, D12): simple / advanced / pro. */
+export const COMPLEXITY_TIERS = ['simple', 'advanced', 'pro'] as const;
+export const complexityTierSchema = z.enum(COMPLEXITY_TIERS);
+export type ComplexityTier = z.infer<typeof complexityTierSchema>;
+
 /**
  * Common scenario IDs shown in the 3-step quick-create wizard (plan §4.6).
  * Order matches the wizard UI layout.
@@ -90,6 +95,7 @@ export type QuickCreateSubscriptionInput = z.output<typeof quickCreateSubscripti
  */
 export const templateWizardMetaSchema = z.object({
   createdByWizard: z.literal(true),
+  complexity: complexityTierSchema.optional(),
   groupMode: wizardGroupModeSchema,
   combineMode: nodeCombineModeSchema.optional(),
   clientDisplayNames: z.array(z.string().trim().min(1).max(60)).optional(),
@@ -104,6 +110,7 @@ export type TemplateWizardMeta = z.output<typeof templateWizardMetaSchema>;
 /** Request payload for B1 `POST /api/templates/quick-create`. */
 export const quickCreateTemplateSchema = z.object({
   name: z.string().trim().min(1, '请输入模板名称').max(120).default('我的配置'),
+  complexity: complexityTierSchema.default('simple'),
   clients: z.array(templateClientIdSchema).min(1, '请至少选择一个客户端'),
   clientDisplayNames: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
   clientLabels: z.partialRecord(templateClientIdSchema, z.string().trim().min(1).max(80)).optional(),
@@ -196,6 +203,7 @@ export type SimpleReplaceSubscriptionUrlInput = z.output<typeof simpleReplaceSub
 /** Request payload for B3 `PATCH /api/templates/:id/simple`. */
 export const simpleTemplatePatchSchema = z.object({
   name: z.string().trim().min(1, '请输入模板名称').max(120).optional(),
+  complexity: complexityTierSchema.optional(),
   scenarios: z.array(quickCreateScenarioInputSchema).optional(),
   rulesets: z.array(quickCreateRulesetInputSchema).optional(),
   groupMode: wizardGroupModeSchema.optional(),

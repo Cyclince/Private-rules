@@ -23,7 +23,7 @@ doh-server=https://doh.pub/dns-query
 # Two-stage node filter (⚡ 自动选择): include=.* | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
 url-latency-benchmark=⚡ 自动选择, server-tag-regex=.*, check-interval=300, tolerance=50
 # Two-stage node filter (🚀 节点选择): include=.* | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
-static=🚀 节点选择, ⚡ 自动选择, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点, 🇬🇧 英国节点, 🇩🇪 德国节点, 🇫🇷 法国节点, 🇳🇱 荷兰节点, 🇨🇦 加拿大节点, 🇦🇺 澳大利亚节点, direct, server-tag-regex=.*
+static=🚀 节点选择, ⚡ 自动选择, 🔁 故障转移, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点, 🇬🇧 英国节点, 🇩🇪 德国节点, 🇫🇷 法国节点, 🇳🇱 荷兰节点, 🇨🇦 加拿大节点, 🇦🇺 澳大利亚节点, 🏷️ 低倍率, 🏠 家宽 / 原生, 🚄 专线 (IPLC / IEPL), 🎮 游戏, direct, server-tag-regex=.*
 static=🏠 局域网直连, direct, 🚀 节点选择
 static=🧭 常用直连补充, direct, 🚀 节点选择
 static=🛡️ 广告拦截, reject, direct
@@ -54,6 +54,15 @@ static=🧭 常用服务 IP, 🚀 节点选择, ⚡ 自动选择, 🇭🇰 香�
 static=🇨🇳 国内直连, direct, 🚀 节点选择
 static=🔌 非标准端口, direct, 🚀 节点选择
 static=🐟 漏网之鱼, 🚀 节点选择, direct, ⚡ 自动选择, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点
+# Two-stage node filter (🏷️ 低倍率): include=(?i)(?:^|[^0-9.])0?\\.\\d+\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\s*0?\\.\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
+url-latency-benchmark=🏷️ 低倍率, server-tag-regex=(?i)(?:^|[^0-9.])0?\\.\\d+\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\s*0?\\.\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount, check-interval=300, tolerance=50
+# Two-stage node filter (🏠 家宽 / 原生): include=(?i)家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z]) | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
+url-latency-benchmark=🏠 家宽 / 原生, server-tag-regex=(?i)家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z]), check-interval=300, tolerance=50
+# Two-stage node filter (🚄 专线 (IPLC / IEPL)): include=(?i)专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z]) | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
+url-latency-benchmark=🚄 专线 (IPLC / IEPL), server-tag-regex=(?i)专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z]), check-interval=300, tolerance=50
+# Two-stage node filter (🎮 游戏): include=(?i)游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z]) | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
+url-latency-benchmark=🎮 游戏, server-tag-regex=(?i)游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z]), check-interval=300, tolerance=50
+available=🔁 故障转移, 🚄 专线 (IPLC / IEPL), 🇭🇰 香港节点, 🇸🇬 新加坡节点, 🇯🇵 日本节点
 # Two-stage node filter (🇭🇰 香港节点): include=(?i)🇭🇰|香港|深港|沪港|滬港|京港|广港|廣港|港线|港線|港服|Hong[ _-]?Kong|HongKong|Hong-Kong|Hong_Kong|(?:^|[^A-Za-z])(?:HK|HKG)(?:$|[^A-Za-z]) | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
 url-latency-benchmark=🇭🇰 香港节点, server-tag-regex=(?i)🇭🇰|香港|深港|沪港|滬港|京港|广港|廣港|港线|港線|港服|Hong[ _-]?Kong|HongKong|Hong-Kong|Hong_Kong|(?:^|[^A-Za-z])(?:HK|HKG)(?:$|[^A-Za-z]), check-interval=300, tolerance=50
 # Two-stage node filter (🇹🇼 台湾节点): include=(?i)🇹🇼|台湾|台灣|台北|臺北|台中|臺中|高雄|台南|臺南|彰化|桃园|桃園|新北|新竹|中华电信|中華電信|Taiwan|Taipei|Taichung|Kaohsiung|(?:^|[^A-Za-z])(?:Hinet)(?:$|[^A-Za-z])|Chunghwa|(?:^|[^A-Za-z])(?:TW|TWN|TPE|KHH)(?:$|[^A-Za-z]) | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
@@ -211,7 +220,7 @@ exports[`compileQuanx — 4 starter tiers × (full/minimal) snapshots > matches 
 # Two-stage node filter (⚡ 自动选择): include=.* | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
 url-latency-benchmark=⚡ 自动选择, server-tag-regex=.*, check-interval=300, tolerance=50
 # Two-stage node filter (🚀 节点选择): include=.* | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
-static=🚀 节点选择, ⚡ 自动选择, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点, 🇬🇧 英国节点, 🇩🇪 德国节点, 🇫🇷 法国节点, 🇳🇱 荷兰节点, 🇨🇦 加拿大节点, 🇦🇺 澳大利亚节点, direct, server-tag-regex=.*
+static=🚀 节点选择, ⚡ 自动选择, 🔁 故障转移, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点, 🇬🇧 英国节点, 🇩🇪 德国节点, 🇫🇷 法国节点, 🇳🇱 荷兰节点, 🇨🇦 加拿大节点, 🇦🇺 澳大利亚节点, 🏷️ 低倍率, 🏠 家宽 / 原生, 🚄 专线 (IPLC / IEPL), 🎮 游戏, direct, server-tag-regex=.*
 static=🏠 局域网直连, direct, 🚀 节点选择
 static=🧭 常用直连补充, direct, 🚀 节点选择
 static=🛡️ 广告拦截, reject, direct
@@ -242,6 +251,15 @@ static=🧭 常用服务 IP, 🚀 节点选择, ⚡ 自动选择, 🇭🇰 香�
 static=🇨🇳 国内直连, direct, 🚀 节点选择
 static=🔌 非标准端口, direct, 🚀 节点选择
 static=🐟 漏网之鱼, 🚀 节点选择, direct, ⚡ 自动选择, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点
+# Two-stage node filter (🏷️ 低倍率): include=(?i)(?:^|[^0-9.])0?\\.\\d+\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\s*0?\\.\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
+url-latency-benchmark=🏷️ 低倍率, server-tag-regex=(?i)(?:^|[^0-9.])0?\\.\\d+\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\s*0?\\.\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount, check-interval=300, tolerance=50
+# Two-stage node filter (🏠 家宽 / 原生): include=(?i)家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z]) | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
+url-latency-benchmark=🏠 家宽 / 原生, server-tag-regex=(?i)家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z]), check-interval=300, tolerance=50
+# Two-stage node filter (🚄 专线 (IPLC / IEPL)): include=(?i)专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z]) | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
+url-latency-benchmark=🚄 专线 (IPLC / IEPL), server-tag-regex=(?i)专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z]), check-interval=300, tolerance=50
+# Two-stage node filter (🎮 游戏): include=(?i)游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z]) | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
+url-latency-benchmark=🎮 游戏, server-tag-regex=(?i)游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z]), check-interval=300, tolerance=50
+available=🔁 故障转移, 🚄 专线 (IPLC / IEPL), 🇭🇰 香港节点, 🇸🇬 新加坡节点, 🇯🇵 日本节点
 # Two-stage node filter (🇭🇰 香港节点): include=(?i)🇭🇰|香港|深港|沪港|滬港|京港|广港|廣港|港线|港線|港服|Hong[ _-]?Kong|HongKong|Hong-Kong|Hong_Kong|(?:^|[^A-Za-z])(?:HK|HKG)(?:$|[^A-Za-z]) | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
 url-latency-benchmark=🇭🇰 香港节点, server-tag-regex=(?i)🇭🇰|香港|深港|沪港|滬港|京港|广港|廣港|港线|港線|港服|Hong[ _-]?Kong|HongKong|Hong-Kong|Hong_Kong|(?:^|[^A-Za-z])(?:HK|HKG)(?:$|[^A-Za-z]), check-interval=300, tolerance=50
 # Two-stage node filter (🇹🇼 台湾节点): include=(?i)🇹🇼|台湾|台灣|台北|臺北|台中|臺中|高雄|台南|臺南|彰化|桃园|桃園|新北|新竹|中华电信|中華電信|Taiwan|Taipei|Taichung|Kaohsiung|(?:^|[^A-Za-z])(?:Hinet)(?:$|[^A-Za-z])|Chunghwa|(?:^|[^A-Za-z])(?:TW|TWN|TPE|KHH)(?:$|[^A-Za-z]) | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
@@ -691,5 +709,113 @@ geoip, twitter, 🧭 常用服务 IP
 geoip, cn, 🇨🇳 国内直连
 
 # Default Final Policy (请在 Quantumult X 主配置 [filter_local] 中保持兜底): final, 🐟 漏网之鱼
+"
+`;
+
+exports[`compileQuanx — simple complexity starter × (full/minimal) snapshots > matches snapshot for simple / full (experimental full config) 1`] = `
+"# Generated by Private Rules (Quantumult X)
+# Mode: Experimental Full Config (未经真机验证 — 导入完整配置可能覆盖已有 [server_remote] 订阅)
+# Template: 极简
+# Output: full
+# UPDATED: 2026-01-01T00:00:00.000Z
+
+[general]
+server_check_url=https://cp.cloudflare.com/generate_204
+dns_exclusion_list=*.cmpassport.com, *.jegotrip.com.cn, *.icitymobile.mobi, id6.me, *.local, *.lan, time.*.com, ntp.*.com, *.msftconnecttest.com
+excluded_routes=192.168.0.0/16, 172.16.0.0/12, 100.64.0.0/10, 10.0.0.0/8
+
+[dns]
+no-ipv6
+server=223.5.5.5
+server=119.29.29.29
+doh-server=https://dns.alidns.com/dns-query
+doh-server=https://doh.pub/dns-query
+
+[policy]
+# Two-stage node filter (🚀 代理): include=.* | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
+static=🚀 代理, ⚡ 全部节点（自动）, direct, server-tag-regex=.*
+static=🎯 直连, direct, 🚀 代理
+static=🏠 局域网直连, direct, 🚀 代理
+static=🚫 拦截, reject, direct
+static=🇨🇳 国内直连, direct, 🚀 代理
+# Two-stage node filter (⚡ 全部节点（自动）): include=.* | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
+url-latency-benchmark=⚡ 全部节点（自动）, server-tag-regex=.*, check-interval=300, tolerance=50
+
+[filter_local]
+geoip, private, 🏠 局域网直连
+geoip, cn, 🇨🇳 国内直连
+final, 🚀 代理
+
+[filter_remote]
+https://rules.example.com/rules/geosite-private-qx.list, tag=geosite-private-lan-direct, force-policy=🏠 局域网直连, update-interval=28800, opt-parser=false, enabled=true
+https://rules.example.com/rules/geosite-category-ads-all-qx.list, tag=geosite-category-ads-all-ad-block, force-policy=🚫 拦截, update-interval=28800, opt-parser=false, enabled=true
+https://rules.example.com/rules/geosite-cn-qx.list, tag=geosite-cn-domestic-direct, force-policy=🇨🇳 国内直连, update-interval=28800, opt-parser=false, enabled=true
+"
+`;
+
+exports[`compileQuanx — simple complexity starter × (full/minimal) snapshots > matches snapshot for simple / full (safe filter_remote default) 1`] = `
+"# Generated by Private Rules (Quantumult X)
+# Mode: filter_remote Rules-Only Resource (Safe Default — 仅规则资源，不覆盖已有节点订阅)
+# Template: 极简
+# Output: full
+# UPDATED: 2026-01-01T00:00:00.000Z
+
+geoip, private, 🏠 局域网直连
+geoip, cn, 🇨🇳 国内直连
+
+# [filter_remote] 以下远程分流列表请按需添加到 Quantumult X 的 [filter_remote] 段：
+# https://rules.example.com/rules/geosite-private-qx.list, tag=geosite-private-lan-direct, force-policy=🏠 局域网直连, update-interval=28800, opt-parser=false, enabled=true
+# https://rules.example.com/rules/geosite-category-ads-all-qx.list, tag=geosite-category-ads-all-ad-block, force-policy=🚫 拦截, update-interval=28800, opt-parser=false, enabled=true
+# https://rules.example.com/rules/geosite-cn-qx.list, tag=geosite-cn-domestic-direct, force-policy=🇨🇳 国内直连, update-interval=28800, opt-parser=false, enabled=true
+
+# Default Final Policy (请在 Quantumult X 主配置 [filter_local] 中保持兜底): final, 🚀 代理
+"
+`;
+
+exports[`compileQuanx — simple complexity starter × (full/minimal) snapshots > matches snapshot for simple / minimal (experimental full config) 1`] = `
+"# Generated by Private Rules (Quantumult X)
+# Mode: Experimental Full Config (未经真机验证 — 导入完整配置可能覆盖已有 [server_remote] 订阅)
+# Template: 极简
+# Output: minimal
+# UPDATED: 2026-01-01T00:00:00.000Z
+
+[policy]
+# Two-stage node filter (🚀 代理): include=.* | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
+static=🚀 代理, ⚡ 全部节点（自动）, direct, server-tag-regex=.*
+static=🎯 直连, direct, 🚀 代理
+static=🏠 局域网直连, direct, 🚀 代理
+static=🚫 拦截, reject, direct
+static=🇨🇳 国内直连, direct, 🚀 代理
+# Two-stage node filter (⚡ 全部节点（自动）): include=.* | exclude=(?i)(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)
+url-latency-benchmark=⚡ 全部节点（自动）, server-tag-regex=.*, check-interval=300, tolerance=50
+
+[filter_local]
+geoip, private, 🏠 局域网直连
+geoip, cn, 🇨🇳 国内直连
+final, 🚀 代理
+
+[filter_remote]
+https://rules.example.com/rules/geosite-private-qx.list, tag=geosite-private-lan-direct, force-policy=🏠 局域网直连, update-interval=28800, opt-parser=false, enabled=true
+https://rules.example.com/rules/geosite-category-ads-all-qx.list, tag=geosite-category-ads-all-ad-block, force-policy=🚫 拦截, update-interval=28800, opt-parser=false, enabled=true
+https://rules.example.com/rules/geosite-cn-qx.list, tag=geosite-cn-domestic-direct, force-policy=🇨🇳 国内直连, update-interval=28800, opt-parser=false, enabled=true
+"
+`;
+
+exports[`compileQuanx — simple complexity starter × (full/minimal) snapshots > matches snapshot for simple / minimal (safe filter_remote default) 1`] = `
+"# Generated by Private Rules (Quantumult X)
+# Mode: filter_remote Rules-Only Resource (Safe Default — 仅规则资源，不覆盖已有节点订阅)
+# Template: 极简
+# Output: minimal
+# UPDATED: 2026-01-01T00:00:00.000Z
+
+geoip, private, 🏠 局域网直连
+geoip, cn, 🇨🇳 国内直连
+
+# [filter_remote] 以下远程分流列表请按需添加到 Quantumult X 的 [filter_remote] 段：
+# https://rules.example.com/rules/geosite-private-qx.list, tag=geosite-private-lan-direct, force-policy=🏠 局域网直连, update-interval=28800, opt-parser=false, enabled=true
+# https://rules.example.com/rules/geosite-category-ads-all-qx.list, tag=geosite-category-ads-all-ad-block, force-policy=🚫 拦截, update-interval=28800, opt-parser=false, enabled=true
+# https://rules.example.com/rules/geosite-cn-qx.list, tag=geosite-cn-domestic-direct, force-policy=🇨🇳 国内直连, update-interval=28800, opt-parser=false, enabled=true
+
+# Default Final Policy (请在 Quantumult X 主配置 [filter_local] 中保持兜底): final, 🚀 代理
 "
 `;

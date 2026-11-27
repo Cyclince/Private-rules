@@ -8,10 +8,25 @@ import type {
   WizardRouteTarget,
   WizardScenarioId,
 } from '../../shared/schemas/quick-create';
-import type { NodeSlot, RegionGroup, TemplateBody, TemplateCardRef } from '../../shared/schemas/template';
+import type {
+  ComplexityTier,
+  NodePool,
+  NodeSlot,
+  RegionGroup,
+  TemplateBody,
+  TemplateCardRef,
+} from '../../shared/schemas/template';
+import {
+  ALL_AUTO_POOL,
+  BUILTIN_REGION_POOL_CODES,
+  STABILITY_FALLBACK_POOL,
+  TRAIT_POOLS,
+  buildProviderPools,
+} from '../../builtin/pools';
 import { getRegionDefinition } from '../nodes/regions';
 import { DEFAULT_HEALTH_CHECK } from './model';
-import { inferTemplateComplexity, regionGroupToNodePool } from './pools';
+import { buildDefaultModulesForComplexity } from './modules';
+import { regionGroupToNodePool } from './pools';
 
 export type WizardPresetTier = 'less' | 'recommended' | 'all';
 export type LegacyWizardPresetTier = 'minimal' | 'light' | 'standard' | 'heavy';
@@ -132,6 +147,7 @@ export const CANONICAL_BUILTIN_CARD_ORDER: readonly string[] = [
   'auto-select',
   'proxy-select',
   // Stage 1: pre-direct
+  'direct-select',
   'lan-direct',
   'custom-direct',
   'ad-block',
@@ -613,6 +629,7 @@ export type QuickCreateResolvedRuleset = {
 export type BuildQuickCreateTemplateBodyInput = {
   standardBaseBody: TemplateBody;
   builtinCards: readonly AppCard[];
+  complexity?: ComplexityTier;
   scenarios: readonly QuickCreateScenarioInput[];
   rulesets: readonly QuickCreateResolvedRuleset[];
   groupMode: WizardGroupMode;
@@ -632,9 +649,74 @@ export type BuildQuickCreateTemplateBodyResult = {
   normalizedScenarios: QuickCreateScenarioInput[];
 };
 
+function buildSimpleRulesetCandidates(route: WizardRouteTarget): PolicyRef[] {
+  if (route === 'direct') {
+    return dedupePolicyRefs([
+      { kind: 'builtin', id: 'DIRECT' },
+      { kind: 'card', cardId: 'proxy-select' },
+    ]);
+  }
+  if (route === 'reject') {
+    return dedupePolicyRefs([
+      { kind: 'builtin', id: 'REJECT' },
+      { kind: 'builtin', id: 'REJECT-DROP' },
+      { kind: 'builtin', id: 'DIRECT' },
+    ]);
+  }
+  if (route === 'auto') {
+    return dedupePolicyRefs([
+      { kind: 'pool', poolId: ALL_AUTO_POOL.id },
+      { kind: 'card', cardId: 'proxy-select' },
+      { kind: 'builtin', id: 'DIRECT' },
+    ]);
+  }
+  return dedupePolicyRefs([
+    { kind: 'card', cardId: 'proxy-select' },
+    { kind: 'pool', poolId: ALL_AUTO_POOL.id },
+    { kind: 'builtin', id: 'DIRECT' },
+  ]);
+}
+
+function buildProPools(options: {
+  regionGroups: readonly RegionGroup[];
+  slots: readonly NodeSlot[];
+  groupMode: WizardGroupMode;
+  combineMode: NodeCombineMode;
+}): {
+  pools: NodePool[];
+  traitRefs: PolicyRef[];
+  hasStabilityPool: boolean;
+} {
+  const defaultRegionHidden = options.groupMode !== 'region';
+  const regionPools = options.regionGroups.map((rg) =>
+    regionGroupToNodePool(rg, { defaultHidden: defaultRegionHidden }),
+  );
+  const providerPools = buildProviderPools(options.slots, { hidden: options.combineMode !== 'perProvider' });
+  const traitPools = TRAIT_POOLS.map((pool) => structuredClone(pool));
+  const allPool = structuredClone(ALL_AUTO_POOL);
+
+  const presentIds = new Set<string>([
+    allPool.id,
+    ...regionPools.map((p) => p.id),
+    ...providerPools.map((p) => p.id),
+    ...traitPools.map((p) => p.id),
+  ]);
+  const filteredMembers = (STABILITY_FALLBACK_POOL.members ?? []).filter((id) => presentIds.has(id));
+  const stabilityPool: NodePool = {
+    ...structuredClone(STABILITY_FALLBACK_POOL),
+    members: filteredMembers.length > 0 ? filteredMembers : [ALL_AUTO_POOL.id],
+  };
+
+  return {
+    pools: [allPool, ...regionPools, ...providerPools, ...traitPools, stabilityPool],
+    traitRefs: traitPools.map((pool) => ({ kind: 'pool', poolId: pool.id })),
+    hasStabilityPool: true,
+  };
+}
+
 /**
  * Pure domain builder for `POST /api/templates/quick-create`:
- * starts from the built-in "标准模板", toggles scenarios per §4.6,
+ * supports 3 complexity tiers (`simple` default per D13, `advanced`, `pro`),
  * prepends user ruleset cards in exact input order, maps routes and `groupMode`,
  * and embeds `wizardMeta` for M2b simple-view editing.
  */
@@ -642,15 +724,119 @@ export function buildQuickCreateTemplateBody(
   input: BuildQuickCreateTemplateBodyInput,
 ): BuildQuickCreateTemplateBodyResult {
   const builtinCardMap = new Map<string, AppCard>(input.builtinCards.map((card) => [card.id, card]));
+  const complexity: ComplexityTier = input.complexity ?? 'simple';
 
-  // Normalize scenarios: start from §4.6 defaults and overlay user selections
+  const effectiveSlots: NodeSlot[] = input.slots
+    ? structuredClone([...input.slots])
+    : structuredClone(input.standardBaseBody.slots);
+  const singleMainSlot = effectiveSlots.length === 1 && effectiveSlots[0].id === 'slot-main';
+  const combineMode: NodeCombineMode = input.combineMode ?? 'merge';
+  const slotRefs: PolicyRef[] = effectiveSlots.map((slot) => ({ kind: 'slot', slotId: slot.id }));
+  const baseBody = structuredClone(input.standardBaseBody);
+
+  // Simple tier (default D13):
+  // - Single hidden auto-test pool (all nodes)
+  // - Strictly 3 visible policy groups: 🚀 代理, 🎯 直连, 🚫 拦截
+  // - Rule order: user rulesets first -> LAN/private direct -> ad-block -> domestic direct -> catch-all proxy
+  if (complexity === 'simple') {
+    const scenarioOverrideMap = new Map<WizardScenarioId, QuickCreateScenarioInput>();
+    for (const item of input.scenarios ?? []) {
+      scenarioOverrideMap.set(item.id, item);
+    }
+    const normalizedScenarios: QuickCreateScenarioInput[] = WIZARD_SCENARIO_DEFINITIONS.map((def) => {
+      const provided = scenarioOverrideMap.get(def.id);
+      const isSimpleCore = def.id === 'domestic-direct' || def.id === 'ad-block';
+      const route = def.configurableRoute ? (provided?.route ?? def.defaultRoute) : def.defaultRoute;
+      return {
+        id: def.id,
+        enabled: isSimpleCore,
+        ...(def.configurableRoute ? { route } : {}),
+      };
+    });
+
+    const generatedCards: AppCard[] = input.rulesets.map((rs) => ({
+      id: rs.cardId,
+      slug: rs.cardSlug,
+      name: rs.name,
+      category: 'other',
+      stage: 'pre-direct',
+      origin: 'user',
+      group: {
+        type: 'select',
+        candidates: buildSimpleRulesetCandidates(rs.route),
+      },
+      matchers: [{ kind: 'ruleset', ruleSetId: rs.rulesetId, updateIntervalSec: 1800 }],
+    }));
+
+    const cards: TemplateCardRef[] = [
+      {
+        cardId: 'proxy-select',
+        enabled: true,
+        overrides: {
+          name: '🚀 代理',
+          group: {
+            type: 'select',
+            candidates: dedupePolicyRefs([
+              { kind: 'pool', poolId: ALL_AUTO_POOL.id },
+              ...slotRefs,
+              { kind: 'builtin', id: 'DIRECT' },
+            ]),
+          },
+        },
+      },
+      { cardId: 'direct-select', enabled: true },
+      ...generatedCards.map((card): TemplateCardRef => ({ cardId: card.id, enabled: true })),
+      { cardId: 'lan-direct', enabled: true },
+      { cardId: 'ad-block', enabled: true, overrides: { name: '🚫 拦截' } },
+      { cardId: 'domestic-direct', enabled: true },
+    ];
+
+    const wizardMeta: TemplateBody['wizardMeta'] = {
+      createdByWizard: true,
+      complexity: 'simple',
+      groupMode: input.groupMode,
+      combineMode,
+      ...(input.clientDisplayNames && input.clientDisplayNames.length > 0
+        ? { clientDisplayNames: [...input.clientDisplayNames] }
+        : {}),
+      ...(input.clientLabels && Object.keys(input.clientLabels).length > 0
+        ? { clientLabels: { ...input.clientLabels } }
+        : {}),
+      scenarios: normalizedScenarios,
+      rulesets: input.rulesets.map((rs) => ({ rulesetId: rs.rulesetId, route: rs.route })),
+      ...(input.previewSummary ? { previewSummary: input.previewSummary } : {}),
+      ...(input.subscriptionPreviews && Object.keys(input.subscriptionPreviews).length > 0
+        ? { subscriptionPreviews: structuredClone(input.subscriptionPreviews) }
+        : {}),
+    };
+
+    const body: TemplateBody = {
+      ...baseBody,
+      slots: effectiveSlots,
+      pools: [structuredClone(ALL_AUTO_POOL)],
+      regionGroups: [],
+      complexity: 'simple',
+      cards,
+      groupMode: 'select',
+      combineMode,
+      final: { kind: 'card', cardId: 'proxy-select' },
+      output: 'full',
+      modules: buildDefaultModulesForComplexity('simple'),
+      wizardMeta,
+    };
+
+    return { body, generatedCards, normalizedScenarios };
+  }
+
+  // Normalize scenarios: advanced uses §4.6 defaults; pro enables all scenarios unless explicitly toggled off
   const scenarioOverrideMap = new Map<WizardScenarioId, QuickCreateScenarioInput>();
   for (const item of input.scenarios) {
     scenarioOverrideMap.set(item.id, item);
   }
   const normalizedScenarios: QuickCreateScenarioInput[] = WIZARD_SCENARIO_DEFINITIONS.map((def) => {
     const provided = scenarioOverrideMap.get(def.id);
-    const enabled = provided ? provided.enabled : def.defaultEnabled;
+    const defaultEnabled = complexity === 'pro' ? true : def.defaultEnabled;
+    const enabled = provided ? provided.enabled : defaultEnabled;
     const route = def.configurableRoute ? (provided?.route ?? def.defaultRoute) : def.defaultRoute;
     return {
       id: def.id,
@@ -671,26 +857,41 @@ export function buildQuickCreateTemplateBody(
     if (code) requiredRegionCodes.push(code);
   }
 
-  const effectiveSlots: NodeSlot[] = input.slots
-    ? structuredClone([...input.slots])
-    : structuredClone(input.standardBaseBody.slots);
-  const singleMainSlot = effectiveSlots.length === 1 && effectiveSlots[0].id === 'slot-main';
-  const combineMode: NodeCombineMode = input.combineMode ?? 'merge';
-  const slotRefs: PolicyRef[] = effectiveSlots.map((slot) => ({ kind: 'slot', slotId: slot.id }));
-
-  const regionGroups = resolveWizardRegionGroups({
-    groupMode: input.groupMode,
-    hasSubscription: input.hasSubscription,
-    detectedRegions: input.detectedRegions,
-    requiredRegionCodes,
-    slotId: singleMainSlot ? 'slot-main' : null,
-  });
+  const regionGroups =
+    complexity === 'pro'
+      ? resolveWizardRegionGroups({
+          groupMode: 'region',
+          hasSubscription: input.hasSubscription,
+          detectedRegions:
+            input.hasSubscription && (input.detectedRegions?.length ?? 0) > 0
+              ? input.detectedRegions
+              : BUILTIN_REGION_POOL_CODES,
+          requiredRegionCodes,
+          slotId: singleMainSlot ? 'slot-main' : null,
+        })
+      : resolveWizardRegionGroups({
+          groupMode: input.groupMode,
+          hasSubscription: input.hasSubscription,
+          detectedRegions: input.detectedRegions,
+          requiredRegionCodes,
+          slotId: singleMainSlot ? 'slot-main' : null,
+        });
   const availableRegionGroupIds = regionGroups.map((group) => group.id);
   const availableRegionSet = new Set(availableRegionGroupIds);
   const regionRefs: PolicyRef[] = availableRegionGroupIds.map((regionGroupId) => ({
     kind: 'region',
     regionGroupId,
   }));
+
+  const proPoolResult =
+    complexity === 'pro'
+      ? buildProPools({
+          regionGroups,
+          slots: effectiveSlots,
+          groupMode: input.groupMode,
+          combineMode,
+        })
+      : null;
 
   // 1. Build generated AppCard records for referenced rulesets (ordered as input)
   const generatedCards: AppCard[] = input.rulesets.map((rs) => ({
@@ -745,27 +946,23 @@ export function buildQuickCreateTemplateBody(
   };
 
   const buildProxySelectRef = (): TemplateCardRef => {
+    const extraProRefs: PolicyRef[] = proPoolResult
+      ? [{ kind: 'pool', poolId: STABILITY_FALLBACK_POOL.id }, ...regionRefs, ...proPoolResult.traitRefs]
+      : [...regionRefs];
     const candidates: PolicyRef[] =
       input.groupMode === 'select'
         ? dedupePolicyRefs([
             ...slotRefs,
             { kind: 'card', cardId: 'auto-select' },
-            ...regionRefs,
+            ...extraProRefs,
             { kind: 'builtin', id: 'DIRECT' },
           ])
-        : input.groupMode === 'region'
-          ? dedupePolicyRefs([
-              { kind: 'card', cardId: 'auto-select' },
-              ...regionRefs,
-              ...slotRefs,
-              { kind: 'builtin', id: 'DIRECT' },
-            ])
-          : dedupePolicyRefs([
-              { kind: 'card', cardId: 'auto-select' },
-              ...regionRefs,
-              ...slotRefs,
-              { kind: 'builtin', id: 'DIRECT' },
-            ]);
+        : dedupePolicyRefs([
+            { kind: 'card', cardId: 'auto-select' },
+            ...extraProRefs,
+            ...slotRefs,
+            { kind: 'builtin', id: 'DIRECT' },
+          ]);
     return {
       cardId: 'proxy-select',
       enabled: true,
@@ -809,13 +1006,16 @@ export function buildQuickCreateTemplateBody(
       continue;
     }
 
-    // Always-on routing cards: prefer auto-select in 'auto' mode and strip unavailable region refs
+    // Always-on routing cards: prefer auto-select in 'auto' mode, add stability pool in pro, and strip unavailable region refs
     if (cardId === 'gfw-proxy' || cardId === 'proxy-ip' || cardId === 'final-fallback') {
       const baseFiltered = filterExistingRegions(baseCard.group.candidates);
+      const withStability = proPoolResult
+        ? [{ kind: 'pool' as const, poolId: STABILITY_FALLBACK_POOL.id }, ...baseFiltered]
+        : baseFiltered;
       const adjusted =
         input.groupMode === 'auto'
-          ? dedupePolicyRefs([{ kind: 'card', cardId: 'auto-select' }, ...baseFiltered])
-          : dedupePolicyRefs(baseFiltered);
+          ? dedupePolicyRefs([{ kind: 'card', cardId: 'auto-select' }, ...withStability])
+          : dedupePolicyRefs(withStability);
       const changed = JSON.stringify(adjusted) !== JSON.stringify(baseCard.group.candidates);
       cards.push(
         changed
@@ -843,10 +1043,12 @@ export function buildQuickCreateTemplateBody(
     );
   }
 
-  const baseBody = structuredClone(input.standardBaseBody);
-  const pools = regionGroups.map((rg) => regionGroupToNodePool(rg, { defaultHidden: input.groupMode !== 'region' }));
+  const pools = proPoolResult
+    ? proPoolResult.pools
+    : regionGroups.map((rg) => regionGroupToNodePool(rg, { defaultHidden: input.groupMode !== 'region' }));
   const wizardMeta: TemplateBody['wizardMeta'] = {
     createdByWizard: true,
+    complexity,
     groupMode: input.groupMode,
     combineMode,
     ...(input.clientDisplayNames && input.clientDisplayNames.length > 0
@@ -867,12 +1069,13 @@ export function buildQuickCreateTemplateBody(
     slots: effectiveSlots,
     pools,
     regionGroups,
-    complexity: inferTemplateComplexity({ pools, regionGroups, wizardMeta, cards }, { starterTier: 'recommended' }),
+    complexity,
     cards,
     groupMode: 'select',
     combineMode,
     final: { kind: 'card', cardId: 'final-fallback' },
     output: 'full',
+    modules: buildDefaultModulesForComplexity(complexity),
     wizardMeta,
   };
 

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { BUILTIN_CARDS } from '../../../src/builtin/cards';
 import { BUILTIN_CATALOG } from '../../../src/builtin/catalog';
-import { buildStarterTemplate, STARTER_TEMPLATE_TIERS } from '../../../src/builtin/templates';
+import {
+  buildComplexityStarterTemplate,
+  buildStarterTemplate,
+  STARTER_TEMPLATE_TIERS,
+} from '../../../src/builtin/templates';
 import {
   CLIENT_CAPABILITIES,
   compileSurge,
@@ -473,4 +477,38 @@ describe('compileSurge — INI escaping & anti-injection defenses', () => {
 
     expect(compiled.report.items.some((i) => i.code === 'GROUP_NAME_SANITIZED')).toBe(true);
   });
+});
+
+describe('compileSurge — simple complexity starter × (full/minimal) × (select/fallback) snapshots', () => {
+  const outputs: readonly OutputProfile[] = ['full', 'minimal'];
+  const groupModes: readonly TemplateGroupMode[] = ['select', 'fallback'];
+
+  for (const output of outputs) {
+    for (const groupMode of groupModes) {
+      it(`matches snapshot and invariants: simple / ${output} / ${groupMode}`, () => {
+        const tpl = buildComplexityStarterTemplate('simple', { groupMode, output });
+        const compiled = compileSurge({
+          body: tpl.baseBody,
+          cards: BUILTIN_CARDS,
+          templateName: tpl.name,
+          generatedAt: FIXED_GENERATED_AT,
+          catalogIndex: BUILTIN_CATALOG,
+          rulesetBehaviors: SAMPLE_RULESET_BEHAVIORS,
+          baseUrl: FIXED_BASE_URL,
+          slotBindings: STANDARD_SLOT_BINDINGS,
+        });
+
+        expect(compiled.client).toBe('surge');
+        expect(compiled.output).toBe(output);
+        expect(compiled.extension).toBe('.conf');
+        const sections = parseSurgeIniSections(compiled.content);
+        expect(sections.has('Proxy Group')).toBe(true);
+        expect(sections.has('Rule')).toBe(true);
+        const ruleLines = sections.get('Rule')!;
+        expect(ruleLines[ruleLines.length - 1]?.startsWith('FINAL,')).toBe(true);
+
+        expect(compiled.content).toMatchSnapshot();
+      });
+    }
+  }
 });

@@ -50,6 +50,7 @@ test.describe('M2b Template Detail 3-Tab Simple Flows, Redirects & Mobile Layout
     const qcRes = await page.request.post('/api/templates/quick-create', {
       data: {
         name: `A6 测试模板 ${suffix}`,
+        complexity: 'advanced',
         clients: ['mihomo'],
         clientDisplayNames: ['Clash Verge Rev'],
         clientLabels: { mihomo: 'Clash Verge Rev' },

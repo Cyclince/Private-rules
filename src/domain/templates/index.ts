@@ -208,6 +208,7 @@ export {
   TUNNEL_DIRECT_CARD_ID,
   applyEnhancementModules,
   blockEncryptedDnsModule,
+  buildDefaultModulesForComplexity,
   dnsLeakGuardModule,
   gameDownloadDirectModule,
   getEnhancementModule,

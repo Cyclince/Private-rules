@@ -103,6 +103,7 @@ proxy-groups:
     type: select
     proxies:
       - ⚡ 自动选择
+      - 🔁 故障转移
       - 🇭🇰 香港节点
       - 🇹🇼 台湾节点
       - 🇯🇵 日本节点
@@ -115,6 +116,10 @@ proxy-groups:
       - 🇳🇱 荷兰节点
       - 🇨🇦 加拿大节点
       - 🇦🇺 澳大利亚节点
+      - 🏷️ 低倍率
+      - 🏠 家宽 / 原生
+      - 🚄 专线 (IPLC / IEPL)
+      - 🎮 游戏
       - DIRECT
     use:
       - slot-main
@@ -521,6 +526,69 @@ proxy-groups:
       - 🇺🇸 美国节点
       - 🇰🇷 韩国节点
     icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final.png
+  - name: 🏷️ 低倍率
+    type: url-test
+    use:
+      - slot-main
+    filter: (?:^|[^0-9.])0?\\.\\d+\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\s*0?\\.\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+  - name: 🏠 家宽 / 原生
+    type: url-test
+    use:
+      - slot-main
+    filter: 家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z])
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+  - name: 🚄 专线 (IPLC / IEPL)
+    type: url-test
+    use:
+      - slot-main
+    filter: 专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z])
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+  - name: 🎮 游戏
+    type: url-test
+    use:
+      - slot-main
+    filter: 游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z])
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Game.png
+  - name: 🔁 故障转移
+    type: fallback
+    proxies:
+      - 🚄 专线 (IPLC / IEPL)
+      - 🇭🇰 香港节点
+      - 🇸🇬 新加坡节点
+      - 🇯🇵 日本节点
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Available.png
   - name: 🇭🇰 香港节点
     type: url-test
     use:
@@ -1071,6 +1139,7 @@ proxy-groups:
     type: select
     proxies:
       - ⚡ 自动选择
+      - 🔁 故障转移
       - 🇭🇰 香港节点
       - 🇹🇼 台湾节点
       - 🇯🇵 日本节点
@@ -1083,6 +1152,10 @@ proxy-groups:
       - 🇳🇱 荷兰节点
       - 🇨🇦 加拿大节点
       - 🇦🇺 澳大利亚节点
+      - 🏷️ 低倍率
+      - 🏠 家宽 / 原生
+      - 🚄 专线 (IPLC / IEPL)
+      - 🎮 游戏
       - DIRECT
     use:
       - slot-main
@@ -1399,6 +1472,69 @@ proxy-groups:
       - 🇺🇸 美国节点
       - 🇰🇷 韩国节点
     icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final.png
+  - name: 🏷️ 低倍率
+    type: url-test
+    use:
+      - slot-main
+    filter: (?:^|[^0-9.])0?\\.\\d+\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\s*0?\\.\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+  - name: 🏠 家宽 / 原生
+    type: url-test
+    use:
+      - slot-main
+    filter: 家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z])
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+  - name: 🚄 专线 (IPLC / IEPL)
+    type: url-test
+    use:
+      - slot-main
+    filter: 专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z])
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+  - name: 🎮 游戏
+    type: url-test
+    use:
+      - slot-main
+    filter: 游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z])
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Game.png
+  - name: 🔁 故障转移
+    type: fallback
+    proxies:
+      - 🚄 专线 (IPLC / IEPL)
+      - 🇭🇰 香港节点
+      - 🇸🇬 新加坡节点
+      - 🇯🇵 日本节点
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Available.png
   - name: 🇭🇰 香港节点
     type: url-test
     use:
@@ -1886,6 +2022,7 @@ proxy-groups:
     type: select
     proxies:
       - ⚡ 自动选择
+      - 🔁 故障转移
       - 🇭🇰 香港节点
       - 🇹🇼 台湾节点
       - 🇯🇵 日本节点
@@ -1898,6 +2035,10 @@ proxy-groups:
       - 🇳🇱 荷兰节点
       - 🇨🇦 加拿大节点
       - 🇦🇺 澳大利亚节点
+      - 🏷️ 低倍率
+      - 🏠 家宽 / 原生
+      - 🚄 专线 (IPLC / IEPL)
+      - 🎮 游戏
       - DIRECT
     use:
       - slot-main
@@ -2304,6 +2445,69 @@ proxy-groups:
       - 🇺🇸 美国节点
       - 🇰🇷 韩国节点
     icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final.png
+  - name: 🏷️ 低倍率
+    type: url-test
+    use:
+      - slot-main
+    filter: (?:^|[^0-9.])0?\\.\\d+\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\s*0?\\.\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+  - name: 🏠 家宽 / 原生
+    type: url-test
+    use:
+      - slot-main
+    filter: 家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z])
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+  - name: 🚄 专线 (IPLC / IEPL)
+    type: url-test
+    use:
+      - slot-main
+    filter: 专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z])
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+  - name: 🎮 游戏
+    type: url-test
+    use:
+      - slot-main
+    filter: 游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z])
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Game.png
+  - name: 🔁 故障转移
+    type: fallback
+    proxies:
+      - 🚄 专线 (IPLC / IEPL)
+      - 🇭🇰 香港节点
+      - 🇸🇬 新加坡节点
+      - 🇯🇵 日本节点
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Available.png
   - name: 🇭🇰 香港节点
     type: url-test
     use:
@@ -2791,6 +2995,7 @@ proxy-groups:
     type: select
     proxies:
       - ⚡ 自动选择
+      - 🔁 故障转移
       - 🇭🇰 香港节点
       - 🇹🇼 台湾节点
       - 🇯🇵 日本节点
@@ -2803,6 +3008,10 @@ proxy-groups:
       - 🇳🇱 荷兰节点
       - 🇨🇦 加拿大节点
       - 🇦🇺 澳大利亚节点
+      - 🏷️ 低倍率
+      - 🏠 家宽 / 原生
+      - 🚄 专线 (IPLC / IEPL)
+      - 🎮 游戏
       - DIRECT
     use:
       - slot-main
@@ -3119,6 +3328,69 @@ proxy-groups:
       - 🇺🇸 美国节点
       - 🇰🇷 韩国节点
     icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final.png
+  - name: 🏷️ 低倍率
+    type: url-test
+    use:
+      - slot-main
+    filter: (?:^|[^0-9.])0?\\.\\d+\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\s*0?\\.\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+  - name: 🏠 家宽 / 原生
+    type: url-test
+    use:
+      - slot-main
+    filter: 家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z])
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+  - name: 🚄 专线 (IPLC / IEPL)
+    type: url-test
+    use:
+      - slot-main
+    filter: 专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z])
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+  - name: 🎮 游戏
+    type: url-test
+    use:
+      - slot-main
+    filter: 游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z])
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Game.png
+  - name: 🔁 故障转移
+    type: fallback
+    proxies:
+      - 🚄 专线 (IPLC / IEPL)
+      - 🇭🇰 香港节点
+      - 🇸🇬 新加坡节点
+      - 🇯🇵 日本节点
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Available.png
   - name: 🇭🇰 香港节点
     type: url-test
     use:
@@ -5845,5 +6117,631 @@ rules:
   - RULE-SET,geoip-cn,🇨🇳 国内直连,no-resolve
   - NOT,((OR,((DST-PORT,80),(DST-PORT,443)))),🔌 非标准端口
   - MATCH,🐟 漏网之鱼
+"
+`;
+
+exports[`compileMihomo — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot and 3-visible-group invariants: simple / full / fallback 1`] = `
+"# Generated by Private Rules (mihomo / full)
+# TEMPLATE: 极简
+# UPDATED: 2026-01-01T00:00:00.000Z
+mixed-port: 7890
+allow-lan: false
+mode: rule
+log-level: info
+ipv6: false
+unified-delay: true
+tcp-concurrent: true
+find-process-mode: strict
+profile:
+  store-selected: true
+  store-fake-ip: true
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - time.*.com
+    - ntp.*.com
+    - +.msftconnecttest.com
+  respect-rules: true
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  nameserver:
+    - https://1.1.1.1/dns-query
+    - https://dns.google/dns-query
+  proxy-server-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  nameserver-policy:
+    geosite:cn:
+      - https://dns.alidns.com/dns-query
+      - https://doh.pub/dns-query
+    geosite:private:
+      - https://dns.alidns.com/dns-query
+      - https://doh.pub/dns-query
+sniffer:
+  enable: true
+  force-dns-mapping: true
+  parse-pure-ip: true
+  override-destination: true
+  sniff:
+    HTTP:
+      ports:
+        - 80
+        - 8080-8880
+      override-destination: true
+    TLS:
+      ports:
+        - 443
+        - 8443
+    QUIC:
+      ports:
+        - 443
+        - 8443
+  skip-domain:
+    - Mijia Cloud
+    - +.push.apple.com
+    - +.lan
+    - +.local
+proxy-providers:
+  slot-main:
+    type: http
+    url: https://sub.example.com/airport?token=demo
+    path: ./providers/proxies/slot-main.yaml
+    interval: 3600
+    proxy: DIRECT
+    header:
+      User-Agent:
+        - clash-verge/v2.5.1
+    exclude-filter: (?i)流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel
+    override:
+      udp: true
+    health-check:
+      enable: true
+      url: https://cp.cloudflare.com/generate_204
+      interval: 300
+      lazy: true
+      timeout: 5000
+      expected-status: 204
+proxy-groups:
+  - name: 🚀 代理
+    type: select
+    proxies:
+      - ⚡ 全部节点（自动）
+      - DIRECT
+    use:
+      - slot-main
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Proxy.png
+  - name: 🎯 直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
+  - name: 🏠 局域网直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
+  - name: 🚫 拦截
+    type: select
+    proxies:
+      - REJECT
+      - REJECT-DROP
+      - DIRECT
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+  - name: 🇨🇳 国内直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
+  - name: 🔒 防泄漏兜底
+    type: select
+    proxies:
+      - 🚀 代理
+      - REJECT-DROP
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final.png
+  - name: ⚡ 全部节点（自动）
+    type: url-test
+    use:
+      - slot-main
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Auto.png
+rule-providers:
+  geosite-private:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/private.mrs
+    path: ./providers/rules/geosite-private.mrs
+    interval: 86400
+  geoip-private:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/private.mrs
+    path: ./providers/rules/geoip-private.mrs
+    interval: 86400
+  geosite-category-ads-all:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ads-all.mrs
+    path: ./providers/rules/geosite-category-ads-all.mrs
+    interval: 86400
+  geosite-cn:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs
+    path: ./providers/rules/geosite-cn.mrs
+    interval: 86400
+  geoip-cn:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs
+    path: ./providers/rules/geoip-cn.mrs
+    interval: 86400
+rules:
+  - RULE-SET,geosite-private,🏠 局域网直连
+  - RULE-SET,geoip-private,🏠 局域网直连,no-resolve
+  - RULE-SET,geosite-category-ads-all,🚫 拦截
+  - RULE-SET,geosite-cn,🇨🇳 国内直连
+  - RULE-SET,geoip-cn,🇨🇳 国内直连,no-resolve
+  - MATCH,🔒 防泄漏兜底
+"
+`;
+
+exports[`compileMihomo — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot and 3-visible-group invariants: simple / full / select 1`] = `
+"# Generated by Private Rules (mihomo / full)
+# TEMPLATE: 极简
+# UPDATED: 2026-01-01T00:00:00.000Z
+mixed-port: 7890
+allow-lan: false
+mode: rule
+log-level: info
+ipv6: false
+unified-delay: true
+tcp-concurrent: true
+find-process-mode: strict
+profile:
+  store-selected: true
+  store-fake-ip: true
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - time.*.com
+    - ntp.*.com
+    - +.msftconnecttest.com
+  respect-rules: true
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  nameserver:
+    - https://1.1.1.1/dns-query
+    - https://dns.google/dns-query
+  proxy-server-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  nameserver-policy:
+    geosite:cn:
+      - https://dns.alidns.com/dns-query
+      - https://doh.pub/dns-query
+    geosite:private:
+      - https://dns.alidns.com/dns-query
+      - https://doh.pub/dns-query
+sniffer:
+  enable: true
+  force-dns-mapping: true
+  parse-pure-ip: true
+  override-destination: true
+  sniff:
+    HTTP:
+      ports:
+        - 80
+        - 8080-8880
+      override-destination: true
+    TLS:
+      ports:
+        - 443
+        - 8443
+    QUIC:
+      ports:
+        - 443
+        - 8443
+  skip-domain:
+    - Mijia Cloud
+    - +.push.apple.com
+    - +.lan
+    - +.local
+proxy-providers:
+  slot-main:
+    type: http
+    url: https://sub.example.com/airport?token=demo
+    path: ./providers/proxies/slot-main.yaml
+    interval: 3600
+    proxy: DIRECT
+    header:
+      User-Agent:
+        - clash-verge/v2.5.1
+    exclude-filter: (?i)流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel
+    override:
+      udp: true
+    health-check:
+      enable: true
+      url: https://cp.cloudflare.com/generate_204
+      interval: 300
+      lazy: true
+      timeout: 5000
+      expected-status: 204
+proxy-groups:
+  - name: 🚀 代理
+    type: select
+    proxies:
+      - ⚡ 全部节点（自动）
+      - DIRECT
+    use:
+      - slot-main
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Proxy.png
+  - name: 🎯 直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
+  - name: 🏠 局域网直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
+  - name: 🚫 拦截
+    type: select
+    proxies:
+      - REJECT
+      - REJECT-DROP
+      - DIRECT
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+  - name: 🇨🇳 国内直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
+  - name: 🔒 防泄漏兜底
+    type: select
+    proxies:
+      - 🚀 代理
+      - REJECT-DROP
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final.png
+  - name: ⚡ 全部节点（自动）
+    type: url-test
+    use:
+      - slot-main
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Auto.png
+rule-providers:
+  geosite-private:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/private.mrs
+    path: ./providers/rules/geosite-private.mrs
+    interval: 86400
+  geoip-private:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/private.mrs
+    path: ./providers/rules/geoip-private.mrs
+    interval: 86400
+  geosite-category-ads-all:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ads-all.mrs
+    path: ./providers/rules/geosite-category-ads-all.mrs
+    interval: 86400
+  geosite-cn:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs
+    path: ./providers/rules/geosite-cn.mrs
+    interval: 86400
+  geoip-cn:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs
+    path: ./providers/rules/geoip-cn.mrs
+    interval: 86400
+rules:
+  - RULE-SET,geosite-private,🏠 局域网直连
+  - RULE-SET,geoip-private,🏠 局域网直连,no-resolve
+  - RULE-SET,geosite-category-ads-all,🚫 拦截
+  - RULE-SET,geosite-cn,🇨🇳 国内直连
+  - RULE-SET,geoip-cn,🇨🇳 国内直连,no-resolve
+  - MATCH,🔒 防泄漏兜底
+"
+`;
+
+exports[`compileMihomo — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot and 3-visible-group invariants: simple / minimal / fallback 1`] = `
+"# Generated by Private Rules (mihomo / minimal)
+# TEMPLATE: 极简
+# UPDATED: 2026-01-01T00:00:00.000Z
+proxy-providers:
+  slot-main:
+    type: http
+    url: https://sub.example.com/airport?token=demo
+    path: ./providers/proxies/slot-main.yaml
+    interval: 3600
+    proxy: DIRECT
+    header:
+      User-Agent:
+        - clash-verge/v2.5.1
+    exclude-filter: (?i)流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel
+    override:
+      udp: true
+    health-check:
+      enable: true
+      url: https://cp.cloudflare.com/generate_204
+      interval: 300
+      lazy: true
+      timeout: 5000
+      expected-status: 204
+proxy-groups:
+  - name: 🚀 代理
+    type: select
+    proxies:
+      - ⚡ 全部节点（自动）
+      - DIRECT
+    use:
+      - slot-main
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Proxy.png
+  - name: 🎯 直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
+  - name: 🏠 局域网直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
+  - name: 🚫 拦截
+    type: select
+    proxies:
+      - REJECT
+      - REJECT-DROP
+      - DIRECT
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+  - name: 🇨🇳 国内直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
+  - name: 🔒 防泄漏兜底
+    type: select
+    proxies:
+      - 🚀 代理
+      - REJECT-DROP
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final.png
+  - name: ⚡ 全部节点（自动）
+    type: url-test
+    use:
+      - slot-main
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Auto.png
+rule-providers:
+  geosite-private:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/private.mrs
+    path: ./providers/rules/geosite-private.mrs
+    interval: 86400
+  geoip-private:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/private.mrs
+    path: ./providers/rules/geoip-private.mrs
+    interval: 86400
+  geosite-category-ads-all:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ads-all.mrs
+    path: ./providers/rules/geosite-category-ads-all.mrs
+    interval: 86400
+  geosite-cn:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs
+    path: ./providers/rules/geosite-cn.mrs
+    interval: 86400
+  geoip-cn:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs
+    path: ./providers/rules/geoip-cn.mrs
+    interval: 86400
+rules:
+  - RULE-SET,geosite-private,🏠 局域网直连
+  - RULE-SET,geoip-private,🏠 局域网直连,no-resolve
+  - RULE-SET,geosite-category-ads-all,🚫 拦截
+  - RULE-SET,geosite-cn,🇨🇳 国内直连
+  - RULE-SET,geoip-cn,🇨🇳 国内直连,no-resolve
+  - MATCH,🔒 防泄漏兜底
+"
+`;
+
+exports[`compileMihomo — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot and 3-visible-group invariants: simple / minimal / select 1`] = `
+"# Generated by Private Rules (mihomo / minimal)
+# TEMPLATE: 极简
+# UPDATED: 2026-01-01T00:00:00.000Z
+proxy-providers:
+  slot-main:
+    type: http
+    url: https://sub.example.com/airport?token=demo
+    path: ./providers/proxies/slot-main.yaml
+    interval: 3600
+    proxy: DIRECT
+    header:
+      User-Agent:
+        - clash-verge/v2.5.1
+    exclude-filter: (?i)流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel
+    override:
+      udp: true
+    health-check:
+      enable: true
+      url: https://cp.cloudflare.com/generate_204
+      interval: 300
+      lazy: true
+      timeout: 5000
+      expected-status: 204
+proxy-groups:
+  - name: 🚀 代理
+    type: select
+    proxies:
+      - ⚡ 全部节点（自动）
+      - DIRECT
+    use:
+      - slot-main
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Proxy.png
+  - name: 🎯 直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
+  - name: 🏠 局域网直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
+  - name: 🚫 拦截
+    type: select
+    proxies:
+      - REJECT
+      - REJECT-DROP
+      - DIRECT
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+  - name: 🇨🇳 国内直连
+    type: select
+    proxies:
+      - DIRECT
+      - 🚀 代理
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png
+  - name: 🔒 防泄漏兜底
+    type: select
+    proxies:
+      - 🚀 代理
+      - REJECT-DROP
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final.png
+  - name: ⚡ 全部节点（自动）
+    type: url-test
+    use:
+      - slot-main
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    lazy: true
+    timeout: 5000
+    expected-status: 204
+    hidden: true
+    icon: https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Auto.png
+rule-providers:
+  geosite-private:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/private.mrs
+    path: ./providers/rules/geosite-private.mrs
+    interval: 86400
+  geoip-private:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/private.mrs
+    path: ./providers/rules/geoip-private.mrs
+    interval: 86400
+  geosite-category-ads-all:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ads-all.mrs
+    path: ./providers/rules/geosite-category-ads-all.mrs
+    interval: 86400
+  geosite-cn:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs
+    path: ./providers/rules/geosite-cn.mrs
+    interval: 86400
+  geoip-cn:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs
+    path: ./providers/rules/geoip-cn.mrs
+    interval: 86400
+rules:
+  - RULE-SET,geosite-private,🏠 局域网直连
+  - RULE-SET,geoip-private,🏠 局域网直连,no-resolve
+  - RULE-SET,geosite-category-ads-all,🚫 拦截
+  - RULE-SET,geosite-cn,🇨🇳 国内直连
+  - RULE-SET,geoip-cn,🇨🇳 国内直连,no-resolve
+  - MATCH,🔒 防泄漏兜底
 "
 `;

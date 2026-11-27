@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { BUILTIN_CARDS } from '../../../src/builtin/cards';
 import { BUILTIN_CATALOG } from '../../../src/builtin/catalog';
-import { buildStarterTemplate, STARTER_TEMPLATE_TIERS } from '../../../src/builtin/templates';
+import {
+  buildComplexityStarterTemplate,
+  buildStarterTemplate,
+  STARTER_TEMPLATE_TIERS,
+} from '../../../src/builtin/templates';
 import { CLIENT_REGEX_DIALECTS, compileClientNodeFilter } from '../../../src/domain/nodes';
 import {
   CLIENT_CAPABILITIES,
@@ -405,4 +409,47 @@ describe('compileQuanx — INI escaping & anti-injection defenses', () => {
 
     expect(compiled.report.items.some((i) => i.code === 'GROUP_NAME_SANITIZED')).toBe(true);
   });
+});
+
+describe('compileQuanx — simple complexity starter × (full/minimal) snapshots', () => {
+  const outputs: readonly OutputProfile[] = ['full', 'minimal'];
+
+  for (const output of outputs) {
+    it(`matches snapshot for simple / ${output} (safe filter_remote default)`, () => {
+      const tpl = buildComplexityStarterTemplate('simple', { output });
+      const compiled = compileQuanx({
+        body: tpl.baseBody,
+        cards: BUILTIN_CARDS,
+        catalogIndex: BUILTIN_CATALOG,
+        output,
+        baseUrl: FIXED_BASE_URL,
+        templateName: tpl.name,
+        generatedAt: FIXED_GENERATED_AT,
+      });
+
+      expect(compiled.client).toBe('quantumult-x');
+      expect(compiled.extension).toBe('.conf');
+      expect(compiled.report.items.some((i) => i.code === 'RULES_ONLY_SAFE_DEFAULT')).toBe(true);
+      expect(compiled.content).toMatchSnapshot();
+    });
+
+    it(`matches snapshot for simple / ${output} (experimental full config)`, () => {
+      const tpl = buildComplexityStarterTemplate('simple', { output });
+      const compiled = compileTemplate('quantumult-x', {
+        body: tpl.baseBody,
+        cards: BUILTIN_CARDS,
+        catalogIndex: BUILTIN_CATALOG,
+        output,
+        baseUrl: FIXED_BASE_URL,
+        templateName: tpl.name,
+        generatedAt: FIXED_GENERATED_AT,
+        experimentalFullConfig: true,
+      });
+
+      const sections = parseIniSections(compiled.content);
+      expect(sections.has('policy')).toBe(true);
+      expect(sections.has('filter_local')).toBe(true);
+      expect(compiled.content).toMatchSnapshot();
+    });
+  }
 });

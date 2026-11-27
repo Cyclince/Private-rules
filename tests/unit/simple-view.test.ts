@@ -30,6 +30,7 @@ describe('B3 domain simple-view mapping and patching', () => {
     const built = buildQuickCreateTemplateBody({
       standardBaseBody: standardStarter.baseBody,
       builtinCards: BUILTIN_CARDS,
+      complexity: 'advanced',
       scenarios: getDefaultWizardScenarios(),
       rulesets: [
         {
@@ -288,5 +289,119 @@ describe('B3 domain simple-view mapping and patching', () => {
     expect(patched.body.clientPatches).toEqual({ mihomo: 'allow-lan: false\n' });
     // No dangling slotId left on regionGroups or hub cards
     expect((patched.body.regionGroups ?? []).every((rg) => rg.slotId === undefined)).toBe(true);
+  });
+
+  it('switches tiers across simple <-> advanced <-> pro while preserving custom cards, rulesets, modules, and edited pools', () => {
+    const standardStarter = buildStarterTemplate('recommended');
+    const customCard: AppCard = {
+      id: 'custom-work-vpn',
+      slug: 'custom-work-vpn',
+      name: '公司内网',
+      category: 'other',
+      stage: 'app',
+      origin: 'user',
+      group: { type: 'select', candidates: [{ kind: 'builtin', id: 'DIRECT' }] },
+      matchers: [{ kind: 'inline', conditions: [{ type: 'DOMAIN-SUFFIX', value: 'work.internal' }] }],
+    };
+
+    const built = buildQuickCreateTemplateBody({
+      standardBaseBody: standardStarter.baseBody,
+      builtinCards: BUILTIN_CARDS,
+      complexity: 'simple',
+      scenarios: getDefaultWizardScenarios(),
+      rulesets: [
+        {
+          rulesetId: rulesetDirect.id,
+          name: rulesetDirect.name,
+          slug: rulesetDirect.slug,
+          route: 'direct',
+          cardId: 'card-rs-emby',
+          cardSlug: 'ruleset-emby-direct',
+        },
+      ],
+      groupMode: 'auto',
+      hasSubscription: true,
+    });
+
+    const cardMap = buildCardMap([customCard, ...built.generatedCards]);
+    const simpleView = mapTemplateToSimpleRouting(built.body, cardMap, rulesetMap);
+    expect(simpleView.complexity).toBe('simple');
+    expect(simpleView.hasCustomizations).toBe(false);
+
+    // 1) Upgrade simple -> advanced
+    const toAdv = applySimpleTemplatePatch({
+      currentBody: built.body,
+      cardMap,
+      builtinCards: BUILTIN_CARDS,
+      rulesetMap,
+      patch: { complexity: 'advanced' },
+      hasSubscription: true,
+      detectedRegions: ['HK', 'JP'],
+    });
+    expect(toAdv.body.complexity).toBe('advanced');
+    expect(toAdv.body.cards.some((c) => c.cardId === 'openai' && c.enabled)).toBe(true);
+    expect(toAdv.body.cards.some((c) => c.cardId === 'card-rs-emby' && c.enabled)).toBe(true);
+
+    // 2) Upgrade advanced -> pro, then add user customization + edited region pool + extra DNS & clientPatch
+    const toPro = applySimpleTemplatePatch({
+      currentBody: toAdv.body,
+      cardMap,
+      builtinCards: BUILTIN_CARDS,
+      rulesetMap,
+      patch: { complexity: 'pro' },
+      hasSubscription: true,
+      detectedRegions: ['HK', 'JP'],
+    });
+    expect(toPro.body.complexity).toBe('pro');
+    expect((toPro.body.pools ?? []).some((p) => p.id === 'pool-stability-fallback')).toBe(true);
+    expect((toPro.body.pools ?? []).some((p) => p.id === 'pool-trait-low-rate')).toBe(true);
+
+    const proWithCustoms: TemplateBody = structuredClone(toPro.body);
+    proWithCustoms.cards.push({ cardId: customCard.id, enabled: true });
+    proWithCustoms.dns = { ...proWithCustoms.dns, respectRules: true };
+    proWithCustoms.clientPatches = { mihomo: 'allow-lan: true\n' };
+    proWithCustoms.pools = (proWithCustoms.pools ?? []).map((p) =>
+      p.id === 'region-hk' ? { ...p, include: 'IPLC' } : p,
+    );
+
+    // 3) Downgrade pro -> simple: hides extra cards & custom-edited pools without losing customizations
+    const backToSimple = applySimpleTemplatePatch({
+      currentBody: proWithCustoms,
+      cardMap,
+      builtinCards: BUILTIN_CARDS,
+      rulesetMap,
+      patch: { complexity: 'simple' },
+      hasSubscription: true,
+    });
+    expect(backToSimple.body.complexity).toBe('simple');
+    expect(backToSimple.body.cards.some((c) => c.cardId === customCard.id && c.enabled)).toBe(true);
+    expect(backToSimple.body.cards.some((c) => c.cardId === 'card-rs-emby' && c.enabled)).toBe(true);
+    expect(backToSimple.body.cards.find((c) => c.cardId === 'openai')).toMatchObject({
+      enabled: false,
+      overrides: { hidden: true },
+    });
+    const preservedHk = (backToSimple.body.pools ?? []).find((p) => p.id === 'region-hk');
+    expect(preservedHk?.include).toBe('IPLC');
+    expect(preservedHk?.hidden).toBe(true);
+    expect(backToSimple.body.dns.respectRules).toBe(true);
+    expect(backToSimple.body.clientPatches).toEqual({ mihomo: 'allow-lan: true\n' });
+
+    const remappedSimple = mapTemplateToSimpleRouting(backToSimple.body, cardMap, rulesetMap);
+    expect(remappedSimple.complexity).toBe('simple');
+    expect(remappedSimple.rulesets.map((r) => r.rulesetId)).toEqual(['rs-emby']);
+
+    // 4) Upgrade back simple -> pro recovers uncustomized cards and preserves edited pool
+    const backToPro = applySimpleTemplatePatch({
+      currentBody: backToSimple.body,
+      cardMap,
+      builtinCards: BUILTIN_CARDS,
+      rulesetMap,
+      patch: { complexity: 'pro' },
+      hasSubscription: true,
+    });
+    expect(backToPro.body.complexity).toBe('pro');
+    expect(backToPro.body.cards.find((c) => c.cardId === 'openai')?.enabled).toBe(true);
+    expect((backToPro.body.pools ?? []).find((p) => p.id === 'region-hk')?.include).toBe('IPLC');
+    expect(backToPro.body.cards.some((c) => c.cardId === customCard.id && c.enabled)).toBe(true);
   });
 });

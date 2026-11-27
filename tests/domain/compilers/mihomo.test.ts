@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
 import { BUILTIN_CARDS } from '../../../src/builtin/cards';
 import { BUILTIN_CATALOG } from '../../../src/builtin/catalog';
-import { buildStarterTemplate, STARTER_TEMPLATE_TIERS } from '../../../src/builtin/templates';
+import {
+  buildComplexityStarterTemplate,
+  buildStarterTemplate,
+  STARTER_TEMPLATE_TIERS,
+} from '../../../src/builtin/templates';
 import {
   CLIENT_CAPABILITIES,
   compileMihomo,
@@ -758,5 +762,79 @@ describe('compileMihomo — beta.3 reference template features (T1)', () => {
     expect(emptyDoc['proxy-providers']).toBeUndefined();
     expect(Array.isArray(emptyDoc['proxy-groups'])).toBe(true);
     expect(Array.isArray(emptyDoc.rules)).toBe(true);
+  });
+});
+
+describe('compileMihomo — simple complexity starter × (full/minimal) × (select/fallback) snapshots', () => {
+  const outputs: readonly OutputProfile[] = ['full', 'minimal'];
+  const groupModes: readonly TemplateGroupMode[] = ['select', 'fallback'];
+
+  for (const output of outputs) {
+    for (const groupMode of groupModes) {
+      it(`matches snapshot and 3-visible-group invariants: simple / ${output} / ${groupMode}`, () => {
+        const tpl = buildComplexityStarterTemplate('simple', { groupMode, output });
+        const compiled = compileMihomo({
+          body: tpl.baseBody,
+          cards: BUILTIN_CARDS,
+          templateName: tpl.name,
+          generatedAt: FIXED_GENERATED_AT,
+          catalogIndex: BUILTIN_CATALOG,
+          rulesetBehaviors: SAMPLE_RULESET_BEHAVIORS,
+          baseUrl: FIXED_BASE_URL,
+          slotBindings: STANDARD_SLOT_BINDINGS,
+        });
+
+        expect(compiled.client).toBe('mihomo');
+        expect(compiled.output).toBe(output);
+        expect(compiled.extension).toBe('.yaml');
+
+        const doc = parseYaml(compiled.content) as Record<string, unknown>;
+        const proxyGroups = doc['proxy-groups'] as Array<Record<string, unknown>>;
+        const visibleGroups = proxyGroups.filter((g) => g.hidden !== true);
+        expect(visibleGroups.map((g) => g.name)).toEqual(['🚀 代理', '🎯 直连', '🚫 拦截']);
+
+        const rules = doc.rules as string[];
+        expect(rules[rules.length - 1]?.startsWith('MATCH,')).toBe(true);
+        const lanIdx = rules.findIndex((r) => r.includes('lan') || r.includes('private'));
+        const adIdx = rules.findIndex((r) => r.includes('ads'));
+        const cnIdx = rules.findIndex((r) => r.includes('geoip-cn') || r.includes('GEOIP,CN'));
+        expect(lanIdx).toBeGreaterThanOrEqual(0);
+        expect(adIdx).toBeGreaterThan(lanIdx);
+        expect(cnIdx).toBeGreaterThan(adIdx);
+
+        expect(compiled.content).toMatchSnapshot();
+      });
+    }
+  }
+
+  it('keeps DIRECT and REJECT out of all speed-test groups in pro/advanced/simple default compilations', () => {
+    const forbidden = new Set(['DIRECT', 'REJECT', 'REJECT-DROP']);
+    const speedTestTypes = new Set(['url-test', 'fallback', 'load-balance']);
+
+    for (const complexity of ['simple', 'advanced', 'pro'] as const) {
+      const tpl = buildComplexityStarterTemplate(complexity);
+      const compiled = compileMihomo({
+        body: tpl.baseBody,
+        cards: BUILTIN_CARDS,
+        templateName: tpl.name,
+        generatedAt: FIXED_GENERATED_AT,
+        catalogIndex: BUILTIN_CATALOG,
+        rulesetBehaviors: SAMPLE_RULESET_BEHAVIORS,
+        baseUrl: FIXED_BASE_URL,
+        slotBindings: STANDARD_SLOT_BINDINGS,
+      });
+
+      const doc = parseYaml(compiled.content) as Record<string, unknown>;
+      const proxyGroups = doc['proxy-groups'] as Array<Record<string, unknown>>;
+      for (const group of proxyGroups) {
+        if (speedTestTypes.has(String(group.type))) {
+          const members = Array.isArray(group.proxies) ? group.proxies.map(String) : [];
+          for (const member of members) {
+            expect(forbidden.has(member), `${complexity} group ${group.name} contains ${member}`).toBe(false);
+          }
+          expect(group['empty-fallback']).toBeUndefined();
+        }
+      }
+    }
   });
 });

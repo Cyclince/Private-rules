@@ -1,7 +1,13 @@
 import { z } from 'zod';
 import { appCardOverrideSchema, groupHealthCheckSchema, groupTypeSchema, policyRefSchema } from './card';
 import { outputProfileSchema, templateClientIdSchema } from './publication';
-import { nodeCombineModeSchema, templateWizardMetaSchema } from './quick-create';
+import {
+  COMPLEXITY_TIERS,
+  complexityTierSchema,
+  nodeCombineModeSchema,
+  templateWizardMetaSchema,
+  type ComplexityTier,
+} from './quick-create';
 
 /** Origins supported for template `base_kind` (design §8.3). */
 export const TEMPLATE_BASE_KIND_VALUES = ['blank', 'acl4ssr-ini', 'mihomo-yaml', 'builtin'] as const;
@@ -23,9 +29,7 @@ export const logLevelSchema = z.enum(LOG_LEVEL_VALUES);
 export type LogLevel = z.infer<typeof logLevelSchema>;
 
 /** Three template complexity tiers (design §2, D12): simple / advanced / pro. */
-export const COMPLEXITY_TIERS = ['simple', 'advanced', 'pro'] as const;
-export const complexityTierSchema = z.enum(COMPLEXITY_TIERS);
-export type ComplexityTier = z.infer<typeof complexityTierSchema>;
+export { COMPLEXITY_TIERS, complexityTierSchema, type ComplexityTier };
 
 /** Node pool classification kinds (design §3.2). */
 export const NODE_POOL_KINDS = ['region', 'provider', 'trait', 'all', 'stability'] as const;

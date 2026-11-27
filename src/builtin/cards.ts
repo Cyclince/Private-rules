@@ -107,6 +107,23 @@ export const BUILTIN_CARDS: readonly AppCard[] = [
     ],
   },
   {
+    id: 'direct-select',
+    slug: 'direct-select',
+    name: '🎯 直连',
+    icon: 'direct',
+    category: 'domestic',
+    stage: 'pre-direct',
+    origin: 'builtin',
+    group: {
+      type: 'select',
+      candidates: [
+        { kind: 'builtin', id: 'DIRECT' },
+        { kind: 'card', cardId: 'proxy-select' },
+      ],
+    },
+    matchers: [],
+  },
+  {
     id: 'custom-direct',
     slug: 'custom-direct',
     name: '🧭 常用直连补充',

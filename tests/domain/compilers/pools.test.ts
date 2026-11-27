@@ -9,6 +9,7 @@ import {
   STABILITY_FALLBACK_POOL,
   buildProviderPools,
 } from '../../../src/builtin/pools';
+import { buildComplexityStarterTemplate } from '../../../src/builtin/templates';
 import { compileTemplate } from '../../../src/domain/templates/compilers';
 import { TEMPLATE_CLIENT_IDS, type TemplateClientId } from '../../../src/shared/clients';
 import type { CompiledNodeSlotBinding } from '../../../src/domain/templates/compilers/types';
@@ -221,7 +222,94 @@ describe('compilers pools[] adaptation and §3.3 empty-pool protection', () => {
         });
 
         expect(compiled.report.items.some((item) => item.code === 'EMPTY_POOL_FALLBACK_ALL')).toBe(false);
+
+        if (client === 'mihomo') {
+          const doc = parseYaml(compiled.content) as Record<string, unknown>;
+          const groups = doc['proxy-groups'] as Array<Record<string, unknown>>;
+          const jpGroup = groups.find((g) => g.name === jpPool.name);
+          expect(jpGroup?.filter).toBeTypeOf('string');
+          expect(jpGroup?.use).toEqual(['slot-main']);
+          expect(jpGroup?.proxies).toBeUndefined();
+          expect(jpGroup?.['empty-fallback']).toBeUndefined();
+        }
       }
+    },
+  );
+
+  it.each(TEMPLATE_CLIENT_IDS)(
+    'never places DIRECT or REJECT inside speed-tested pools on %s (including pro & slotless edge cases)',
+    (client: TemplateClientId) => {
+      const forbiddenMembers = new Set(['DIRECT', 'direct', 'REJECT', 'REJECT-DROP', 'reject', 'block']);
+      const speedTestTypes = new Set(['url-test', 'fallback', 'load-balance', 'urltest', 'url-latency-benchmark']);
+
+      const proTpl = buildComplexityStarterTemplate('pro');
+      const slotlessProBody: TemplateBody = {
+        ...structuredClone(proTpl.baseBody),
+        slots: [],
+        cards: proTpl.baseBody.cards.filter((c) => c.cardId !== 'auto-select'),
+      };
+
+      const checkScenario = (body: TemplateBody, binding?: CompiledNodeSlotBinding) => {
+        const compiled = compileTemplate(client, {
+          body,
+          cards: BUILTIN_CARDS,
+          templateName: 'No Direct In Speed Test Pools',
+          generatedAt: FIXED_GENERATED_AT,
+          catalogIndex: BUILTIN_CATALOG,
+          baseUrl: FIXED_BASE_URL,
+          experimentalFullConfig: true,
+          slotBindings: binding ? { 'slot-main': binding } : undefined,
+        });
+
+        if (client === 'mihomo' || client === 'stash') {
+          const doc = parseYaml(compiled.content) as Record<string, unknown>;
+          const groups = (doc['proxy-groups'] ?? []) as Array<Record<string, unknown>>;
+          for (const g of groups) {
+            if (speedTestTypes.has(String(g.type))) {
+              const members = Array.isArray(g.proxies) ? g.proxies.map(String) : [];
+              for (const m of members) {
+                expect(forbiddenMembers.has(m), `${client} speed-test group ${g.name} contains ${m}`).toBe(false);
+              }
+            }
+          }
+        } else if (client === 'sing-box') {
+          const doc = JSON.parse(compiled.content) as { outbounds: Array<Record<string, unknown>> };
+          for (const ob of doc.outbounds) {
+            if (ob.type === 'urltest') {
+              const members = Array.isArray(ob.outbounds) ? ob.outbounds.map(String) : [];
+              for (const m of members) {
+                expect(forbiddenMembers.has(m), `sing-box urltest ${ob.tag} contains ${m}`).toBe(false);
+              }
+            }
+          }
+        } else if (client === 'surge' || client === 'shadowrocket' || client === 'loon') {
+          const inGroupSection = compiled.content.split('[Proxy Group]')[1]?.split(/^\[/m)[0] ?? '';
+          for (const line of inGroupSection.split('\n').filter((l) => l.includes('='))) {
+            const rhs = line.split('=').slice(1).join('=');
+            const tokens = rhs.split(',').map((t) => t.trim());
+            const gType = tokens[0] ?? '';
+            if (speedTestTypes.has(gType)) {
+              for (const token of tokens.slice(1)) {
+                expect(forbiddenMembers.has(token), `${client} line "${line}" contains ${token}`).toBe(false);
+              }
+            }
+          }
+        } else if (client === 'quantumult-x') {
+          const inPolicySection = compiled.content.split('[policy]')[1]?.split(/^\[/m)[0] ?? '';
+          for (const line of inPolicySection.split('\n').filter((l) => l.includes('='))) {
+            const [lhs, rhs = ''] = line.split('=');
+            if (lhs === 'url-latency-benchmark') {
+              for (const token of rhs.split(',').map((t) => t.trim())) {
+                expect(forbiddenMembers.has(token), `quanx line "${line}" contains ${token}`).toBe(false);
+              }
+            }
+          }
+        }
+      };
+
+      checkScenario(proTpl.baseBody, { kind: 'http', url: 'https://airport.example.com/sub' });
+      checkScenario(proTpl.baseBody, { kind: 'inline', proxies: SAMPLE_PROXIES });
+      checkScenario(slotlessProBody);
     },
   );
 });

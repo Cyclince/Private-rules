@@ -903,19 +903,24 @@ export function compileLoon(input: CompileTemplateInput): CompiledConfigResult {
     for (const card of enabledCards) {
       const groupName = cardGroupNameById.get(card.cardId)!;
       const members = resolveCandidates(card.effective.group.candidates, groupName, { cardId: card.cardId });
+      // Empty DIRECT fallback uses select so DIRECT is never speed-tested.
+      const effectiveCardType =
+        members.length === 1 && members[0] === 'DIRECT' && card.effectiveGroupType !== 'select'
+          ? 'select'
+          : card.effectiveGroupType;
       const iconUrl = resolveGroupIconUrl(
         {
           explicitIcon: card.effective.icon,
           name: card.effective.name,
           slug: card.effective.slug,
           category: card.effective.category,
-          groupType: card.effectiveGroupType,
+          groupType: effectiveCardType,
           matchers: card.effective.matchers,
         },
         input.iconPack,
       );
       proxyGroupLines.push(
-        formatGroupLine(groupName, card.effectiveGroupType, members, card.effective.group.test, iconUrl, {
+        formatGroupLine(groupName, effectiveCardType, members, card.effective.group.test, iconUrl, {
           cardId: card.cardId,
         }),
       );

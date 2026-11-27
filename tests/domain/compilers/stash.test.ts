@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
 import { BUILTIN_CARDS } from '../../../src/builtin/cards';
 import { BUILTIN_CATALOG } from '../../../src/builtin/catalog';
-import { buildStarterTemplate, STARTER_TEMPLATE_TIERS } from '../../../src/builtin/templates';
+import {
+  buildComplexityStarterTemplate,
+  buildStarterTemplate,
+  STARTER_TEMPLATE_TIERS,
+} from '../../../src/builtin/templates';
 import {
   CLIENT_CAPABILITIES,
   compileStash,
@@ -453,4 +457,41 @@ describe('compileStash — escaping & anti-injection defenses', () => {
 
     expect(compiled.report.items.some((i) => i.code === 'GROUP_NAME_SANITIZED')).toBe(true);
   });
+});
+
+describe('compileStash — simple complexity starter × (full/minimal) × (select/fallback) snapshots', () => {
+  const outputs: readonly OutputProfile[] = ['full', 'minimal'];
+  const groupModes: readonly TemplateGroupMode[] = ['select', 'fallback'];
+
+  for (const output of outputs) {
+    for (const groupMode of groupModes) {
+      it(`matches snapshot and invariants: simple / ${output} / ${groupMode}`, () => {
+        const tpl = buildComplexityStarterTemplate('simple', { groupMode, output });
+        const compiled = compileStash({
+          body: tpl.baseBody,
+          cards: BUILTIN_CARDS,
+          templateName: tpl.name,
+          generatedAt: FIXED_GENERATED_AT,
+          catalogIndex: BUILTIN_CATALOG,
+          rulesetBehaviors: SAMPLE_RULESET_BEHAVIORS,
+          baseUrl: FIXED_BASE_URL,
+          slotBindings: STANDARD_SLOT_BINDINGS,
+        });
+
+        expect(compiled.client).toBe('stash');
+        expect(compiled.output).toBe(output);
+        expect(compiled.extension).toBe('.yaml');
+
+        const doc = parseYaml(compiled.content) as Record<string, unknown>;
+        const rules = doc.rules as string[];
+        expect(rules[rules.length - 1]?.startsWith('MATCH,')).toBe(true);
+        const groups = doc['proxy-groups'] as Array<Record<string, unknown>>;
+        expect(groups.some((g) => g.name === '🚀 代理')).toBe(true);
+        expect(groups.some((g) => g.name === '🎯 直连')).toBe(true);
+        expect(groups.some((g) => g.name === '🚫 拦截')).toBe(true);
+
+        expect(compiled.content).toMatchSnapshot();
+      });
+    }
+  }
 });

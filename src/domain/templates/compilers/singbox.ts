@@ -1616,6 +1616,7 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
       allNodesTag ? [allNodesTag] : allInlinedNodeTags.length > 0 ? allInlinedNodeTags : targetSlotAllTags,
     );
 
+    let effectiveGroupType = pool.type;
     if (emptyProtection.fallbackToAll && uniqueFallbackAllTags.length > 0) {
       members = uniqueFallbackAllTags;
       poolHasRealNodes.set(pool.id, true);
@@ -1629,6 +1630,8 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
       members = uniqueMatchedTags;
       poolHasRealNodes.set(pool.id, true);
     } else {
+      // Never put `direct` inside a urltest outbound; downgrade to selector when empty.
+      effectiveGroupType = 'select';
       members = [DIRECT_TAG];
       poolHasRealNodes.set(pool.id, false);
       items.push({
@@ -1643,7 +1646,7 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
       pool.id,
       buildSingboxGroupOutbound({
         tag,
-        groupType: pool.type,
+        groupType: effectiveGroupType,
         outbounds: members,
         healthCheck: pool.test,
         location,
@@ -1659,6 +1662,7 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
     const location = poolCompatibilityLocation(pool, hasExplicitPools);
     const resolvedMembers = resolveStabilityPoolMembers(pool, poolTagById, items, hasExplicitPools);
     let members: string[];
+    let effectiveGroupType = pool.type;
     if (resolvedMembers.length > 0) {
       members = resolvedMembers;
       const memberIds = pool.members ?? [];
@@ -1676,6 +1680,8 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
         location,
       });
     } else {
+      // Never put `direct` inside a urltest outbound; downgrade to selector when empty.
+      effectiveGroupType = 'select';
       members = [DIRECT_TAG];
       poolHasRealNodes.set(pool.id, false);
       items.push({
@@ -1690,7 +1696,7 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
       pool.id,
       buildSingboxGroupOutbound({
         tag,
-        groupType: pool.type,
+        groupType: effectiveGroupType,
         outbounds: members,
         healthCheck: pool.test,
         location,
@@ -1714,7 +1720,7 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
       airportOutbounds.push(
         buildSingboxGroupOutbound({
           tag: slotTag,
-          groupType: 'url-test',
+          groupType: slotNodeTags.length > 0 ? 'url-test' : 'select',
           outbounds: members,
           location: { slotId: slot.id },
           items,
@@ -1904,6 +1910,7 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
     }
 
     let members = resolvedCandidates.outbounds;
+    let effectiveGroupType = card.effectiveGroupType;
     if (members.length === 0) {
       if (resolvedCandidates.fallbackReject && !resolvedCandidates.hasDirect) {
         cardEmittedAsReject.set(card.cardId, {
@@ -1913,6 +1920,8 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
         cardTagById.delete(card.cardId);
         continue;
       }
+      // Never put `direct` inside a urltest outbound; downgrade to selector when empty.
+      effectiveGroupType = 'select';
       members = [DIRECT_TAG];
       items.push({
         code: 'GROUP_FALLBACK_DIRECT',
@@ -1924,7 +1933,7 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
 
     const groupOutbound = buildSingboxGroupOutbound({
       tag,
-      groupType: card.effectiveGroupType,
+      groupType: effectiveGroupType,
       outbounds: members,
       healthCheck: card.effective.group.test,
       location: { cardId: card.cardId },

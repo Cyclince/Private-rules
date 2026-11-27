@@ -974,6 +974,8 @@ export function compileStash(input: CompileTemplateInput): CompiledConfigResult 
     }
 
     if (proxies.length === 0 && use.length === 0) {
+      // Empty fallback uses select instead of url-test/fallback/load-balance so DIRECT is never speed-tested.
+      effectiveGroupType = 'select';
       proxies.push('DIRECT');
       items.push({
         code: 'GROUP_FALLBACK_DIRECT',
@@ -1068,6 +1070,9 @@ export function compileStash(input: CompileTemplateInput): CompiledConfigResult 
           location,
         });
       } else {
+        // Never leave DIRECT inside a speed-tested pool when no slots/members exist.
+        effectiveType = 'select';
+        groupObj.type = 'select';
         groupObj.proxies = ['DIRECT'];
         items.push({
           code: 'GROUP_FALLBACK_DIRECT',
@@ -1168,6 +1173,9 @@ export function compileStash(input: CompileTemplateInput): CompiledConfigResult 
         }
       }
       if (inlineMatchedProxies.length === 0 && use.length === 0) {
+        // Never leave DIRECT inside a speed-tested pool when no slots exist.
+        effectiveType = 'select';
+        groupObj.type = 'select';
         groupObj.proxies = ['DIRECT'];
         items.push({
           code: 'GROUP_FALLBACK_DIRECT',

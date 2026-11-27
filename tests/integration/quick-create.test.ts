@@ -211,6 +211,7 @@ describe('M2a quick-create & preview-subscription integration tests', () => {
             method: 'POST',
             body: JSON.stringify({
               name: '我的多端配置',
+              complexity: 'advanced',
               clients: ['mihomo', 'sing-box', 'loon', 'quantumult-x', 'mihomo'],
               clientDisplayNames: ['Clash Verge', 'sing-box', 'Loon', '圈X'],
               clientLabels: { mihomo: 'Clash Verge Rev', loon: 'Loon', 'quantumult-x': 'Quantumult X' },
@@ -317,6 +318,7 @@ describe('M2a quick-create & preview-subscription integration tests', () => {
             method: 'POST',
             body: JSON.stringify({
               name: '无机场配置',
+              complexity: 'advanced',
               clients: ['mihomo'],
               groupMode: 'region',
             }),
@@ -405,6 +407,7 @@ describe('M2a quick-create & preview-subscription integration tests', () => {
             method: 'POST',
             body: JSON.stringify({
               name: '多机场全家桶',
+              complexity: 'advanced',
               clients: ['mihomo', 'sing-box'],
               groupMode: 'region',
               combineMode: 'perProvider',
@@ -759,6 +762,39 @@ describe('M2a quick-create & preview-subscription integration tests', () => {
           harness.env,
         );
         expect(previewRes.status).toBe(403);
+      } finally {
+        await harness.cleanup();
+      }
+    });
+
+    it('defaults omitted complexity to simple via HTTP API with 3 visible mihomo groups', async () => {
+      const harness = await createBackendHarness('SQLite');
+      try {
+        const res = await harness.adminRequest('/api/templates/quick-create', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: '极简默认',
+            clients: ['mihomo'],
+            rulesets: [{ rulesetId: harness.rulesetDirectId, route: 'direct' }],
+            subscriptionUrl: 'https://sub.airport.example/sub?token=simpledefault',
+          }),
+        });
+        expect(res.status).toBe(201);
+        const payload = (await res.json()) as QuickCreateTemplateResult;
+        expect(payload.template.baseBody.complexity).toBe('simple');
+        expect((payload.resolvedBody.pools ?? []).map((p) => p.id)).toEqual(['pool-all-auto']);
+
+        const compiled = await previewTemplateById(harness.env, payload.template.id, {
+          client: 'mihomo',
+          baseUrl: 'https://rules.example.com',
+        });
+        const doc = parseYaml(compiled.content) as {
+          'proxy-groups': Array<{ name: string; hidden?: boolean }>;
+          rules: string[];
+        };
+        const visibleGroups = doc['proxy-groups'].filter((g) => g.hidden !== true).map((g) => g.name);
+        expect(visibleGroups).toEqual(['🚀 代理', '🎯 直连', '🚫 拦截']);
+        expect(doc.rules[0]).toContain('Emby_Direct');
       } finally {
         await harness.cleanup();
       }

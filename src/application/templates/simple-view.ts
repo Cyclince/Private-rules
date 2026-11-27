@@ -35,7 +35,7 @@ import {
   type SimpleTemplatePatchInput,
   type WizardGroupMode,
 } from '../../shared/schemas/quick-create';
-import type { NodeSlot, TemplateBody, TemplateRecord } from '../../shared/schemas/template';
+import type { ComplexityTier, NodeSlot, TemplateBody, TemplateRecord } from '../../shared/schemas/template';
 import type { Env } from '../../types';
 import { loadCardLookup } from '../cards';
 import { bindingAad, snapshotAad } from '../publications/nodes';
@@ -111,6 +111,7 @@ export type SimpleTemplateView = {
     description: string;
     currentVersion: number;
     baseKind: TemplateRecord['baseKind'];
+    complexity: ComplexityTier;
     updatedAt: string;
     createdAt: string;
     createdByWizard: boolean;
@@ -428,6 +429,7 @@ async function assembleSimpleTemplateView(
       description: template.description,
       currentVersion: template.currentVersion,
       baseKind: template.baseKind,
+      complexity: routing.complexity,
       updatedAt: template.updatedAt ?? '',
       createdAt: template.createdAt ?? '',
       createdByWizard: Boolean(resolvedBody.wizardMeta?.createdByWizard),
@@ -728,6 +730,7 @@ export async function patchSimpleTemplateView(
     builtinCards: BUILTIN_CARDS,
     rulesetMap,
     patch: {
+      complexity: input.complexity,
       scenarios: input.scenarios,
       rulesets: resolvedRulesets,
       groupMode: input.groupMode,

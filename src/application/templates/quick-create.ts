@@ -1,4 +1,4 @@
-import { BUILTIN_CARDS, buildStarterTemplate } from '../../builtin';
+import { BUILTIN_CARDS, buildComplexityStarterTemplate } from '../../builtin';
 import { createRepositories, serializeCardBody } from '../../data/repositories';
 import {
   getRegionDefinition,
@@ -391,10 +391,12 @@ export async function quickCreateTemplate(
   }
   const detectedRegions = detectedRegionSet.size > 0 ? Array.from(detectedRegionSet) : undefined;
 
-  const standardStarter = buildStarterTemplate('standard');
+  const complexity = input.complexity ?? 'simple';
+  const starterBase = buildComplexityStarterTemplate(complexity === 'simple' ? 'advanced' : complexity);
   const { body, generatedCards } = buildQuickCreateTemplateBody({
-    standardBaseBody: standardStarter.baseBody,
+    standardBaseBody: starterBase.baseBody,
     builtinCards: BUILTIN_CARDS,
+    complexity,
     scenarios: input.scenarios,
     rulesets: resolvedRulesets,
     groupMode: input.groupMode,
@@ -486,8 +488,8 @@ export async function quickCreateTemplate(
     );
   }
 
-  const baseBodyJson = serializeTemplateBodyForStorage(body);
-  const resolvedBodyJson = serializeTemplateBodyForStorage(resolvedBody);
+  const baseBodyJson = serializeTemplateBodyForStorage(body, { starterTier: complexity });
+  const resolvedBodyJson = serializeTemplateBodyForStorage(resolvedBody, { starterTier: complexity });
 
   statements.push(
     env.DB.prepare(

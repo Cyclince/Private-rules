@@ -176,6 +176,7 @@ describe.each(['SQLite', 'D1'] as const)('B3 Simple Template View & Patch API (%
       h.env,
       {
         name: '我的主模板',
+        complexity: 'advanced',
         clients: ['mihomo'],
         scenarios: [
           { id: 'domestic-direct', enabled: true },
@@ -405,6 +406,7 @@ describe.each(['SQLite', 'D1'] as const)('B3 Simple Template View & Patch API (%
       h.env,
       {
         name: 'Inherit Test',
+        complexity: 'advanced',
         clients: ['mihomo'],
         scenarios: [
           { id: 'domestic-direct', enabled: true },
@@ -514,6 +516,7 @@ describe.each(['SQLite', 'D1'] as const)('B3 Simple Template View & Patch API (%
       h.env,
       {
         name: '多机场管理测试',
+        complexity: 'advanced',
         clients: ['mihomo'],
         scenarios: [
           { id: 'domestic-direct', enabled: true },
@@ -713,5 +716,70 @@ describe.each(['SQLite', 'D1'] as const)('B3 Simple Template View & Patch API (%
     expect(singboxEmptyRes.status).toBe(200);
     const singboxEmptyDoc = (await singboxEmptyRes.json()) as { outbounds: Array<{ tag: string }> };
     expect(singboxEmptyDoc.outbounds.some((o) => o.tag === 'direct')).toBe(true);
+  });
+
+  it('returns complexity from GET /simple and switches complexity across simple <-> pro via PATCH /simple', async () => {
+    const h = await createBackendHarness(backendKind);
+    harnesses.push(h);
+
+    // Quick-create omitting complexity -> defaults to simple
+    const created = await quickCreateTemplate(
+      h.env,
+      {
+        name: '档位切换测试',
+        clients: ['mihomo'],
+        rulesets: [{ rulesetId: h.rulesetDirectId, route: 'direct' }],
+        subscriptionUrl: 'https://provider-tier.example.test/sub?token=TIER_SECRET',
+      },
+      { baseUrl: 'https://rules.example.com', ruleToken: 'm2b-secret-token' },
+    );
+    const templateId = created.template.id;
+    const mihomoPath = new URL(created.publications[0].url!).pathname;
+
+    const getSimpleRes = await h.adminRequest(`/api/templates/${templateId}/simple`);
+    expect(getSimpleRes.status).toBe(200);
+    const simpleView = (await getSimpleRes.json()) as SimpleTemplateView;
+    expect(simpleView.template.complexity).toBe('simple');
+    expect(simpleView.routing.complexity).toBe('simple');
+
+    // Upgrade simple -> pro via PATCH /simple
+    const patchToProRes = await h.adminRequest(`/api/templates/${templateId}/simple`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ complexity: 'pro' }),
+    });
+    expect(patchToProRes.status).toBe(200);
+    const proJson = (await patchToProRes.json()) as { view: SimpleTemplateView; version: number };
+    expect(proJson.version).toBe(2);
+    expect(proJson.view.template.complexity).toBe('pro');
+    expect(proJson.view.routing.complexity).toBe('pro');
+
+    const proYamlRes = await h.app.request(mihomoPath, { method: 'GET' }, h.env);
+    expect(proYamlRes.status).toBe(200);
+    const proDoc = parseYaml(await proYamlRes.text()) as { 'proxy-groups': Array<{ name: string; hidden?: boolean }> };
+    expect(proDoc['proxy-groups'].some((g) => g.name.includes('低倍率'))).toBe(true);
+    expect(proDoc['proxy-groups'].some((g) => g.name.includes('故障转移'))).toBe(true);
+
+    // Downgrade pro -> simple via PATCH /simple: saves version 3, restores 3 visible groups & preserves user ruleset
+    const patchToSimpleRes = await h.adminRequest(`/api/templates/${templateId}/simple`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ complexity: 'simple' }),
+    });
+    expect(patchToSimpleRes.status).toBe(200);
+    const backSimpleJson = (await patchToSimpleRes.json()) as { view: SimpleTemplateView; version: number };
+    expect(backSimpleJson.version).toBe(3);
+    expect(backSimpleJson.view.template.complexity).toBe('simple');
+    expect(backSimpleJson.view.routing.rulesets.map((r) => r.rulesetId)).toEqual([h.rulesetDirectId]);
+
+    const simpleYamlRes = await h.app.request(mihomoPath, { method: 'GET' }, h.env);
+    expect(simpleYamlRes.status).toBe(200);
+    const simpleDoc = parseYaml(await simpleYamlRes.text()) as {
+      'proxy-groups': Array<{ name: string; hidden?: boolean }>;
+      rules: string[];
+    };
+    const visibleNames = simpleDoc['proxy-groups'].filter((g) => g.hidden !== true).map((g) => g.name);
+    expect(visibleNames).toEqual(['🚀 代理', '🎯 直连', '🚫 拦截']);
+    expect(simpleDoc.rules[0]).toContain('Emby_Direct');
   });
 });

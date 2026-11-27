@@ -1,5 +1,5 @@
 import type { TemplateClientId } from '../../../shared/clients';
-import type { TemplateModuleBinding } from '../../../shared/schemas/template';
+import type { ComplexityTier, TemplateModuleBinding } from '../../../shared/schemas/template';
 import type { ResolvedTemplate } from '../model';
 import { BLOCK_ENCRYPTED_DNS_CARD_ID, blockEncryptedDnsModule } from './block-encrypted-dns';
 import { DNS_LEAK_FINAL_CARD_ID, dnsLeakGuardModule } from './dns-leak';
@@ -97,6 +97,44 @@ export function getEnhancementModule(id: string): EnhancementModule | undefined 
 
 export function listEnhancementModules(): readonly EnhancementModule[] {
   return ENHANCEMENT_MODULES;
+}
+
+/**
+ * Resolves the default `TemplateModuleBinding[]` list for a complexity tier (`simple` | `advanced` | `pro`)
+ * from module `tierDefaults`, automatically resolving mutual conflicts (preferring `defaultEnabled: true`
+ * modules such as `dns-leak-guard` over conflicting `block-encrypted-dns`) so the returned combination
+ * always passes `validateModuleCombination` cleanly.
+ */
+export function buildDefaultModulesForComplexity(
+  complexity: ComplexityTier,
+  registry: readonly EnhancementModule[] = ENHANCEMENT_MODULES,
+): TemplateModuleBinding[] {
+  const ordered = [...registry].sort(
+    (a, b) => Number(b.defaultEnabled) - Number(a.defaultEnabled) || a.order - b.order,
+  );
+  const enabledSet = new Set<string>();
+
+  for (const mod of ordered) {
+    if (!mod.tierDefaults[complexity]) continue;
+    const conflictsWithAccepted = (mod.conflictsWith ?? []).some((id) => enabledSet.has(id));
+    if (conflictsWithAccepted) continue;
+    let conflictsReverse = false;
+    for (const acceptedId of enabledSet) {
+      const accepted = ordered.find((m) => m.id === acceptedId);
+      if (accepted?.conflictsWith?.includes(mod.id)) {
+        conflictsReverse = true;
+        break;
+      }
+    }
+    if (!conflictsReverse) {
+      enabledSet.add(mod.id);
+    }
+  }
+
+  return registry.map((mod) => ({
+    id: mod.id,
+    enabled: enabledSet.has(mod.id),
+  }));
 }
 
 /** Returns enhancement modules grouped by §5.2 `group` buckets in stable order. */

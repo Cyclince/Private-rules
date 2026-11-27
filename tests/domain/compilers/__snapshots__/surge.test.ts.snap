@@ -18,7 +18,7 @@ skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 100.64.0.0/10
 
 [Proxy Group]
 ⚡ 自动选择 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$, interval=300, tolerance=50
-🚀 节点选择 = select, ⚡ 自动选择, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点, 🇬🇧 英国节点, 🇩🇪 德国节点, 🇫🇷 法国节点, 🇳🇱 荷兰节点, 🇨🇦 加拿大节点, 🇦🇺 澳大利亚节点, DIRECT, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
+🚀 节点选择 = select, ⚡ 自动选择, 🔁 故障转移, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点, 🇬🇧 英国节点, 🇩🇪 德国节点, 🇫🇷 法国节点, 🇳🇱 荷兰节点, 🇨🇦 加拿大节点, 🇦🇺 澳大利亚节点, 🏷️ 低倍率, 🏠 家宽 / 原生, 🚄 专线 (IPLC / IEPL), 🎮 游戏, DIRECT, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
 🏠 局域网直连 = select, DIRECT, 🚀 节点选择
 🧭 常用直连补充 = select, DIRECT, 🚀 节点选择
 🛡️ 广告拦截 = select, REJECT, REJECT-DROP, DIRECT
@@ -49,6 +49,11 @@ skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 100.64.0.0/10
 🇨🇳 国内直连 = select, DIRECT, 🚀 节点选择
 🔌 非标准端口 = select, DIRECT, 🚀 节点选择
 🐟 漏网之鱼 = select, 🚀 节点选择, DIRECT, ⚡ 自动选择, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点
+🏷️ 低倍率 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="(?:^|[^0-9.])0?\\\\.\\\\d+\\\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\\\s*0?\\\\.\\\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount", interval=300, tolerance=50
+🏠 家宽 / 原生 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z])", interval=300, tolerance=50
+🚄 专线 (IPLC / IEPL) = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z]), interval=300, tolerance=50
+🎮 游戏 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z])", interval=300, tolerance=50
+🔁 故障转移 = fallback, 🚄 专线 (IPLC / IEPL), 🇭🇰 香港节点, 🇸🇬 新加坡节点, 🇯🇵 日本节点, interval=300
 🇭🇰 香港节点 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="(?i)🇭🇰|香港|深港|沪港|滬港|京港|广港|廣港|港线|港線|港服|Hong[ _-]?Kong|HongKong|Hong-Kong|Hong_Kong|(?<![A-Za-z])(?:HK|HKG)(?![A-Za-z])|(?<!东|東|空|海)(?<!连云|連雲|防城|张家|張家|高雄)(?<!鹿特丹|新加坡)港(?!口|台)", interval=300, tolerance=50
 🇹🇼 台湾节点 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)🇹🇼|台湾|台灣|台北|臺北|台中|臺中|高雄|台南|臺南|彰化|桃园|桃園|新北|新竹|中华电信|中華電信|Taiwan|Taipei|Taichung|Kaohsiung|(?<![A-Za-z])(?:Hinet)(?![A-Za-z])|Chunghwa|(?<![A-Za-z])(?:TW|TWN|TPE|KHH)(?![A-Za-z])|(?<!平|后|後|前|电|電|烟|煙|邢|茅|天|站|中|舞|讲|櫃|柜)(?<!电视|電視|控制)台(?!风)|(?<!平)臺, interval=300, tolerance=50
 🇯🇵 日本节点 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)🇯🇵|日本|东京|東京|大阪|名古屋|埼玉|北海道|札幌|福冈|福岡|冲绳|沖繩|软银|軟銀|日线|日線|(?<![A-Za-z])(?:Japan)(?![A-Za-z])|(?<![A-Za-z])(?:Tokyo)(?![A-Za-z])|(?<![A-Za-z])(?:Osaka)(?![A-Za-z])|Nagoya|Saitama|Fukuoka|Sapporo|SoftBank|(?<![A-Za-z])(?:KDDI)(?![A-Za-z])|(?<![A-Za-z])(?:IIJ)(?![A-Za-z])|(?<![A-Za-z])(?:JP|JPN|NRT|HND|KIX|TYO|OSA)(?![A-Za-z])|(?<!尼|每|今|次|节|節|生|昨|明)(?<!工作|续费|續費|到期|重置)日(?!志|誌|常|期|历|曆), interval=300, tolerance=50
@@ -141,7 +146,7 @@ skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 100.64.0.0/10
 
 [Proxy Group]
 ⚡ 自动选择 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$, interval=300, tolerance=50
-🚀 节点选择 = select, ⚡ 自动选择, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点, 🇬🇧 英国节点, 🇩🇪 德国节点, 🇫🇷 法国节点, 🇳🇱 荷兰节点, 🇨🇦 加拿大节点, 🇦🇺 澳大利亚节点, DIRECT, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
+🚀 节点选择 = select, ⚡ 自动选择, 🔁 故障转移, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点, 🇬🇧 英国节点, 🇩🇪 德国节点, 🇫🇷 法国节点, 🇳🇱 荷兰节点, 🇨🇦 加拿大节点, 🇦🇺 澳大利亚节点, 🏷️ 低倍率, 🏠 家宽 / 原生, 🚄 专线 (IPLC / IEPL), 🎮 游戏, DIRECT, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
 🏠 局域网直连 = select, DIRECT, 🚀 节点选择
 🧭 常用直连补充 = select, DIRECT, 🚀 节点选择
 🛡️ 广告拦截 = select, REJECT, REJECT-DROP, DIRECT
@@ -172,6 +177,11 @@ skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 100.64.0.0/10
 🇨🇳 国内直连 = select, DIRECT, 🚀 节点选择
 🔌 非标准端口 = select, DIRECT, 🚀 节点选择
 🐟 漏网之鱼 = select, 🚀 节点选择, DIRECT, ⚡ 自动选择, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点
+🏷️ 低倍率 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="(?:^|[^0-9.])0?\\\\.\\\\d+\\\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\\\s*0?\\\\.\\\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount", interval=300, tolerance=50
+🏠 家宽 / 原生 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z])", interval=300, tolerance=50
+🚄 专线 (IPLC / IEPL) = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z]), interval=300, tolerance=50
+🎮 游戏 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z])", interval=300, tolerance=50
+🔁 故障转移 = fallback, 🚄 专线 (IPLC / IEPL), 🇭🇰 香港节点, 🇸🇬 新加坡节点, 🇯🇵 日本节点, interval=300
 🇭🇰 香港节点 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="(?i)🇭🇰|香港|深港|沪港|滬港|京港|广港|廣港|港线|港線|港服|Hong[ _-]?Kong|HongKong|Hong-Kong|Hong_Kong|(?<![A-Za-z])(?:HK|HKG)(?![A-Za-z])|(?<!东|東|空|海)(?<!连云|連雲|防城|张家|張家|高雄)(?<!鹿特丹|新加坡)港(?!口|台)", interval=300, tolerance=50
 🇹🇼 台湾节点 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)🇹🇼|台湾|台灣|台北|臺北|台中|臺中|高雄|台南|臺南|彰化|桃园|桃園|新北|新竹|中华电信|中華電信|Taiwan|Taipei|Taichung|Kaohsiung|(?<![A-Za-z])(?:Hinet)(?![A-Za-z])|Chunghwa|(?<![A-Za-z])(?:TW|TWN|TPE|KHH)(?![A-Za-z])|(?<!平|后|後|前|电|電|烟|煙|邢|茅|天|站|中|舞|讲|櫃|柜)(?<!电视|電視|控制)台(?!风)|(?<!平)臺, interval=300, tolerance=50
 🇯🇵 日本节点 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)🇯🇵|日本|东京|東京|大阪|名古屋|埼玉|北海道|札幌|福冈|福岡|冲绳|沖繩|软银|軟銀|日线|日線|(?<![A-Za-z])(?:Japan)(?![A-Za-z])|(?<![A-Za-z])(?:Tokyo)(?![A-Za-z])|(?<![A-Za-z])(?:Osaka)(?![A-Za-z])|Nagoya|Saitama|Fukuoka|Sapporo|SoftBank|(?<![A-Za-z])(?:KDDI)(?![A-Za-z])|(?<![A-Za-z])(?:IIJ)(?![A-Za-z])|(?<![A-Za-z])(?:JP|JPN|NRT|HND|KIX|TYO|OSA)(?![A-Za-z])|(?<!尼|每|今|次|节|節|生|昨|明)(?<!工作|续费|續費|到期|重置)日(?!志|誌|常|期|历|曆), interval=300, tolerance=50
@@ -253,7 +263,7 @@ exports[`compileSurge — 4 starter tiers × (full/minimal) × (select/fallback)
 
 [Proxy Group]
 ⚡ 自动选择 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$, interval=300, tolerance=50
-🚀 节点选择 = select, ⚡ 自动选择, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点, 🇬🇧 英国节点, 🇩🇪 德国节点, 🇫🇷 法国节点, 🇳🇱 荷兰节点, 🇨🇦 加拿大节点, 🇦🇺 澳大利亚节点, DIRECT, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
+🚀 节点选择 = select, ⚡ 自动选择, 🔁 故障转移, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点, 🇬🇧 英国节点, 🇩🇪 德国节点, 🇫🇷 法国节点, 🇳🇱 荷兰节点, 🇨🇦 加拿大节点, 🇦🇺 澳大利亚节点, 🏷️ 低倍率, 🏠 家宽 / 原生, 🚄 专线 (IPLC / IEPL), 🎮 游戏, DIRECT, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
 🏠 局域网直连 = select, DIRECT, 🚀 节点选择
 🧭 常用直连补充 = select, DIRECT, 🚀 节点选择
 🛡️ 广告拦截 = select, REJECT, REJECT-DROP, DIRECT
@@ -284,6 +294,11 @@ exports[`compileSurge — 4 starter tiers × (full/minimal) × (select/fallback)
 🇨🇳 国内直连 = select, DIRECT, 🚀 节点选择
 🔌 非标准端口 = select, DIRECT, 🚀 节点选择
 🐟 漏网之鱼 = select, 🚀 节点选择, DIRECT, ⚡ 自动选择, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点
+🏷️ 低倍率 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="(?:^|[^0-9.])0?\\\\.\\\\d+\\\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\\\s*0?\\\\.\\\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount", interval=300, tolerance=50
+🏠 家宽 / 原生 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z])", interval=300, tolerance=50
+🚄 专线 (IPLC / IEPL) = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z]), interval=300, tolerance=50
+🎮 游戏 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z])", interval=300, tolerance=50
+🔁 故障转移 = fallback, 🚄 专线 (IPLC / IEPL), 🇭🇰 香港节点, 🇸🇬 新加坡节点, 🇯🇵 日本节点, interval=300
 🇭🇰 香港节点 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="(?i)🇭🇰|香港|深港|沪港|滬港|京港|广港|廣港|港线|港線|港服|Hong[ _-]?Kong|HongKong|Hong-Kong|Hong_Kong|(?<![A-Za-z])(?:HK|HKG)(?![A-Za-z])|(?<!东|東|空|海)(?<!连云|連雲|防城|张家|張家|高雄)(?<!鹿特丹|新加坡)港(?!口|台)", interval=300, tolerance=50
 🇹🇼 台湾节点 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)🇹🇼|台湾|台灣|台北|臺北|台中|臺中|高雄|台南|臺南|彰化|桃园|桃園|新北|新竹|中华电信|中華電信|Taiwan|Taipei|Taichung|Kaohsiung|(?<![A-Za-z])(?:Hinet)(?![A-Za-z])|Chunghwa|(?<![A-Za-z])(?:TW|TWN|TPE|KHH)(?![A-Za-z])|(?<!平|后|後|前|电|電|烟|煙|邢|茅|天|站|中|舞|讲|櫃|柜)(?<!电视|電視|控制)台(?!风)|(?<!平)臺, interval=300, tolerance=50
 🇯🇵 日本节点 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)🇯🇵|日本|东京|東京|大阪|名古屋|埼玉|北海道|札幌|福冈|福岡|冲绳|沖繩|软银|軟銀|日线|日線|(?<![A-Za-z])(?:Japan)(?![A-Za-z])|(?<![A-Za-z])(?:Tokyo)(?![A-Za-z])|(?<![A-Za-z])(?:Osaka)(?![A-Za-z])|Nagoya|Saitama|Fukuoka|Sapporo|SoftBank|(?<![A-Za-z])(?:KDDI)(?![A-Za-z])|(?<![A-Za-z])(?:IIJ)(?![A-Za-z])|(?<![A-Za-z])(?:JP|JPN|NRT|HND|KIX|TYO|OSA)(?![A-Za-z])|(?<!尼|每|今|次|节|節|生|昨|明)(?<!工作|续费|續費|到期|重置)日(?!志|誌|常|期|历|曆), interval=300, tolerance=50
@@ -365,7 +380,7 @@ exports[`compileSurge — 4 starter tiers × (full/minimal) × (select/fallback)
 
 [Proxy Group]
 ⚡ 自动选择 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$, interval=300, tolerance=50
-🚀 节点选择 = select, ⚡ 自动选择, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点, 🇬🇧 英国节点, 🇩🇪 德国节点, 🇫🇷 法国节点, 🇳🇱 荷兰节点, 🇨🇦 加拿大节点, 🇦🇺 澳大利亚节点, DIRECT, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
+🚀 节点选择 = select, ⚡ 自动选择, 🔁 故障转移, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点, 🇬🇧 英国节点, 🇩🇪 德国节点, 🇫🇷 法国节点, 🇳🇱 荷兰节点, 🇨🇦 加拿大节点, 🇦🇺 澳大利亚节点, 🏷️ 低倍率, 🏠 家宽 / 原生, 🚄 专线 (IPLC / IEPL), 🎮 游戏, DIRECT, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
 🏠 局域网直连 = select, DIRECT, 🚀 节点选择
 🧭 常用直连补充 = select, DIRECT, 🚀 节点选择
 🛡️ 广告拦截 = select, REJECT, REJECT-DROP, DIRECT
@@ -396,6 +411,11 @@ exports[`compileSurge — 4 starter tiers × (full/minimal) × (select/fallback)
 🇨🇳 国内直连 = select, DIRECT, 🚀 节点选择
 🔌 非标准端口 = select, DIRECT, 🚀 节点选择
 🐟 漏网之鱼 = select, 🚀 节点选择, DIRECT, ⚡ 自动选择, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 🇰🇷 韩国节点
+🏷️ 低倍率 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="(?:^|[^0-9.])0?\\\\.\\\\d+\\\\s*[xX×倍]|(?:^|[^A-Za-z0-9])[xX×]\\\\s*0?\\\\.\\\\d+|低倍率|低倍|免费|免費|公益|福利|试用|試用|low[ _-]?rate|discount", interval=300, tolerance=50
+🏠 家宽 / 原生 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="家宽|家寬|住宅|商宽|商寬|原生|双ISP|雙ISP|(?:^|[^A-Za-z])(?:ISP|Residential|Home[ _-]?Broadband|Comcast|Verizon|Spectrum|AT&T|Hinet|So-net)(?:$|[^A-Za-z])", interval=300, tolerance=50
+🚄 专线 (IPLC / IEPL) = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=专线|專線|深港|沪港|滬港|沪日|滬日|京德|粤港|粵港|广港|廣港|莞港|过境|過境|CN2\\s*GIA|(?:^|[^A-Za-z])(?:IPLC|IEPL|EPL|AIA|Dedicated)(?:$|[^A-Za-z]), interval=300, tolerance=50
+🎮 游戏 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="游戏|遊戲|低延迟|低延遲|全锥形|加速器|(?:^|[^A-Za-z])(?:Gaming|Game|Low[ _-]?Latency|Full[ _-]?Cone|UDP|Steam|PSN|Xbox|Switch|NAT1)(?:$|[^A-Za-z])", interval=300, tolerance=50
+🔁 故障转移 = fallback, 🚄 专线 (IPLC / IEPL), 🇭🇰 香港节点, 🇸🇬 新加坡节点, 🇯🇵 日本节点, interval=300
 🇭🇰 香港节点 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter="(?i)🇭🇰|香港|深港|沪港|滬港|京港|广港|廣港|港线|港線|港服|Hong[ _-]?Kong|HongKong|Hong-Kong|Hong_Kong|(?<![A-Za-z])(?:HK|HKG)(?![A-Za-z])|(?<!东|東|空|海)(?<!连云|連雲|防城|张家|張家|高雄)(?<!鹿特丹|新加坡)港(?!口|台)", interval=300, tolerance=50
 🇹🇼 台湾节点 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)🇹🇼|台湾|台灣|台北|臺北|台中|臺中|高雄|台南|臺南|彰化|桃园|桃園|新北|新竹|中华电信|中華電信|Taiwan|Taipei|Taichung|Kaohsiung|(?<![A-Za-z])(?:Hinet)(?![A-Za-z])|Chunghwa|(?<![A-Za-z])(?:TW|TWN|TPE|KHH)(?![A-Za-z])|(?<!平|后|後|前|电|電|烟|煙|邢|茅|天|站|中|舞|讲|櫃|柜)(?<!电视|電視|控制)台(?!风)|(?<!平)臺, interval=300, tolerance=50
 🇯🇵 日本节点 = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)🇯🇵|日本|东京|東京|大阪|名古屋|埼玉|北海道|札幌|福冈|福岡|冲绳|沖繩|软银|軟銀|日线|日線|(?<![A-Za-z])(?:Japan)(?![A-Za-z])|(?<![A-Za-z])(?:Tokyo)(?![A-Za-z])|(?<![A-Za-z])(?:Osaka)(?![A-Za-z])|Nagoya|Saitama|Fukuoka|Sapporo|SoftBank|(?<![A-Za-z])(?:KDDI)(?![A-Za-z])|(?<![A-Za-z])(?:IIJ)(?![A-Za-z])|(?<![A-Za-z])(?:JP|JPN|NRT|HND|KIX|TYO|OSA)(?![A-Za-z])|(?<!尼|每|今|次|节|節|生|昨|明)(?<!工作|续费|續費|到期|重置)日(?!志|誌|常|期|历|曆), interval=300, tolerance=50
@@ -827,5 +847,119 @@ RULE-SET,https://rules.example.com/rules/geosite-cn-surge.list,🇨🇳 国内�
 GEOIP,CN,🇨🇳 国内直连,no-resolve
 NOT,((OR,((DEST-PORT,80),(DEST-PORT,443)))),🔌 非标准端口
 FINAL,🐟 漏网之鱼,dns-failed
+"
+`;
+
+exports[`compileSurge — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot and invariants: simple / full / fallback 1`] = `
+"# Generated by Private Rules (surge / full)
+# TEMPLATE: 极简
+# UPDATED: 2026-01-01T00:00:00.000Z
+
+[General]
+loglevel = notify
+ipv6 = false
+internet-test-url = http://www.gstatic.com/generate_204
+proxy-test-url = https://cp.cloudflare.com/generate_204
+test-timeout = 5
+dns-server = 223.5.5.5, 119.29.29.29, system
+encrypted-dns-server = https://dns.alidns.com/dns-query, https://doh.pub/dns-query
+always-real-ip = *.lan, *.local, time.*.com, ntp.*.com, *.msftconnecttest.com
+skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 100.64.0.0/10, localhost, *.local
+
+[Proxy Group]
+🚀 代理 = select, ⚡ 全部节点（自动）, DIRECT, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
+🎯 直连 = select, DIRECT, 🚀 代理
+🏠 局域网直连 = select, DIRECT, 🚀 代理
+🚫 拦截 = select, REJECT, REJECT-DROP, DIRECT
+🇨🇳 国内直连 = select, DIRECT, 🚀 代理
+⚡ 全部节点（自动） = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$, interval=300, tolerance=50
+
+[Rule]
+RULE-SET,https://rules.example.com/rules/geosite-private-surge.list,🏠 局域网直连,update-interval=28800
+GEOIP,PRIVATE,🏠 局域网直连,no-resolve
+RULE-SET,https://rules.example.com/rules/geosite-category-ads-all-surge.list,🚫 拦截,update-interval=28800
+RULE-SET,https://rules.example.com/rules/geosite-cn-surge.list,🇨🇳 国内直连,update-interval=28800
+GEOIP,CN,🇨🇳 国内直连,no-resolve
+FINAL,🚀 代理,dns-failed
+"
+`;
+
+exports[`compileSurge — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot and invariants: simple / full / select 1`] = `
+"# Generated by Private Rules (surge / full)
+# TEMPLATE: 极简
+# UPDATED: 2026-01-01T00:00:00.000Z
+
+[General]
+loglevel = notify
+ipv6 = false
+internet-test-url = http://www.gstatic.com/generate_204
+proxy-test-url = https://cp.cloudflare.com/generate_204
+test-timeout = 5
+dns-server = 223.5.5.5, 119.29.29.29, system
+encrypted-dns-server = https://dns.alidns.com/dns-query, https://doh.pub/dns-query
+always-real-ip = *.lan, *.local, time.*.com, ntp.*.com, *.msftconnecttest.com
+skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 100.64.0.0/10, localhost, *.local
+
+[Proxy Group]
+🚀 代理 = select, ⚡ 全部节点（自动）, DIRECT, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
+🎯 直连 = select, DIRECT, 🚀 代理
+🏠 局域网直连 = select, DIRECT, 🚀 代理
+🚫 拦截 = select, REJECT, REJECT-DROP, DIRECT
+🇨🇳 国内直连 = select, DIRECT, 🚀 代理
+⚡ 全部节点（自动） = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$, interval=300, tolerance=50
+
+[Rule]
+RULE-SET,https://rules.example.com/rules/geosite-private-surge.list,🏠 局域网直连,update-interval=28800
+GEOIP,PRIVATE,🏠 局域网直连,no-resolve
+RULE-SET,https://rules.example.com/rules/geosite-category-ads-all-surge.list,🚫 拦截,update-interval=28800
+RULE-SET,https://rules.example.com/rules/geosite-cn-surge.list,🇨🇳 国内直连,update-interval=28800
+GEOIP,CN,🇨🇳 国内直连,no-resolve
+FINAL,🚀 代理,dns-failed
+"
+`;
+
+exports[`compileSurge — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot and invariants: simple / minimal / fallback 1`] = `
+"# Generated by Private Rules (surge / minimal)
+# TEMPLATE: 极简
+# UPDATED: 2026-01-01T00:00:00.000Z
+
+[Proxy Group]
+🚀 代理 = select, ⚡ 全部节点（自动）, DIRECT, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
+🎯 直连 = select, DIRECT, 🚀 代理
+🏠 局域网直连 = select, DIRECT, 🚀 代理
+🚫 拦截 = select, REJECT, REJECT-DROP, DIRECT
+🇨🇳 国内直连 = select, DIRECT, 🚀 代理
+⚡ 全部节点（自动） = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$, interval=300, tolerance=50
+
+[Rule]
+RULE-SET,https://rules.example.com/rules/geosite-private-surge.list,🏠 局域网直连,update-interval=28800
+GEOIP,PRIVATE,🏠 局域网直连,no-resolve
+RULE-SET,https://rules.example.com/rules/geosite-category-ads-all-surge.list,🚫 拦截,update-interval=28800
+RULE-SET,https://rules.example.com/rules/geosite-cn-surge.list,🇨🇳 国内直连,update-interval=28800
+GEOIP,CN,🇨🇳 国内直连,no-resolve
+FINAL,🚀 代理,dns-failed
+"
+`;
+
+exports[`compileSurge — simple complexity starter × (full/minimal) × (select/fallback) snapshots > matches snapshot and invariants: simple / minimal / select 1`] = `
+"# Generated by Private Rules (surge / minimal)
+# TEMPLATE: 极简
+# UPDATED: 2026-01-01T00:00:00.000Z
+
+[Proxy Group]
+🚀 代理 = select, ⚡ 全部节点（自动）, DIRECT, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$
+🎯 直连 = select, DIRECT, 🚀 代理
+🏠 局域网直连 = select, DIRECT, 🚀 代理
+🚫 拦截 = select, REJECT, REJECT-DROP, DIRECT
+🇨🇳 国内直连 = select, DIRECT, 🚀 代理
+⚡ 全部节点（自动） = url-test, policy-path=https://sub.example.com/airport?token=demo, update-interval=3600, external-policy-modifier="udp-relay=true", policy-regex-filter=(?i)^(?!.*(?:流量|到期|官网|官網|剩余|剩餘|过期|過期|重置|套餐|公告|群组|群組|失联|失聯|网址|網址|最新域名|订阅|訂閱|客服|续费|續費|频道|頻道|防失联|Traffic|Expire|Expired|Reset|Website|Official|Remaining|Bandwidth|Support|Channel)).*$, interval=300, tolerance=50
+
+[Rule]
+RULE-SET,https://rules.example.com/rules/geosite-private-surge.list,🏠 局域网直连,update-interval=28800
+GEOIP,PRIVATE,🏠 局域网直连,no-resolve
+RULE-SET,https://rules.example.com/rules/geosite-category-ads-all-surge.list,🚫 拦截,update-interval=28800
+RULE-SET,https://rules.example.com/rules/geosite-cn-surge.list,🇨🇳 国内直连,update-interval=28800
+GEOIP,CN,🇨🇳 国内直连,no-resolve
+FINAL,🚀 代理,dns-failed
 "
 `;
