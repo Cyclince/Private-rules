@@ -21,6 +21,7 @@ import {
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { EmptyState } from '../components/ui/empty-state';
+import { QrCodeButton } from '../components/ui/QrCodeButton';
 import { loadPageTranslations, useI18n, type MessageKey } from '../i18n';
 import { api, formatApiError, readApiJson } from '../lib/api';
 import { isTelegramSession, requireAuthBeforeLoad } from '../lib/auth-guard';
@@ -343,20 +344,30 @@ function SubscriptionDetailPage() {
                 >
                   {appDisplayUrl}
                 </code>
-                <Button
-                  size="sm"
-                  variant={copiedId === 'app-link' ? 'secondary' : 'primary'}
-                  data-testid="copy-subscription-link-app"
-                  onClick={() => void handleCopy('app-link', appLink.recommendedUrl)}
-                  className="w-full sm:w-auto"
-                >
-                  {copiedId === 'app-link' ? (
-                    <Check className="motion-success-icon h-3.5 w-3.5" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" />
-                  )}
-                  <span>{copiedId === 'app-link' ? t('common.copied') : t('subscriptions.copyAppLink')}</span>
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={copiedId === 'app-link' ? 'secondary' : 'primary'}
+                    data-testid="copy-subscription-link-app"
+                    onClick={() => void handleCopy('app-link', appLink.recommendedUrl)}
+                    className="flex-1 sm:flex-initial"
+                  >
+                    {copiedId === 'app-link' ? (
+                      <Check className="motion-success-icon h-3.5 w-3.5" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                    <span>{copiedId === 'app-link' ? t('common.copied') : t('subscriptions.copyAppLink')}</span>
+                  </Button>
+                  <QrCodeButton
+                    url={appDisplayUrl}
+                    title={app.name}
+                    size="sm"
+                    variant="outline"
+                    testId="qr-subscription-link-app"
+                    className="shrink-0"
+                  />
+                </div>
 
                 <div
                   data-testid="subscription-app-howto"
@@ -500,21 +511,32 @@ function SubscriptionDetailPage() {
                                     ) : null}
                                   </div>
 
-                                  <Button
-                                    size="sm"
-                                    variant={isCopied ? 'secondary' : 'primary'}
-                                    disabled={!displayUrl}
-                                    data-testid={`copy-subscription-link-${format.id}`}
-                                    onClick={() => void handleCopy(format.id, rawUrl)}
-                                    className="w-full"
-                                  >
-                                    {isCopied ? (
-                                      <Check className="motion-success-icon h-3.5 w-3.5" />
-                                    ) : (
-                                      <Copy className="h-3.5 w-3.5" />
-                                    )}
-                                    <span>{isCopied ? t('common.copied') : t('subscriptions.copyButton')}</span>
-                                  </Button>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant={isCopied ? 'secondary' : 'primary'}
+                                      disabled={!displayUrl}
+                                      data-testid={`copy-subscription-link-${format.id}`}
+                                      onClick={() => void handleCopy(format.id, rawUrl)}
+                                      className="min-w-0 flex-1"
+                                    >
+                                      {isCopied ? (
+                                        <Check className="motion-success-icon h-3.5 w-3.5" />
+                                      ) : (
+                                        <Copy className="h-3.5 w-3.5" />
+                                      )}
+                                      <span>{isCopied ? t('common.copied') : t('subscriptions.copyButton')}</span>
+                                    </Button>
+                                    <QrCodeButton
+                                      url={displayUrl}
+                                      title={title}
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={!displayUrl}
+                                      testId={`qr-subscription-link-${format.id}`}
+                                      className="shrink-0"
+                                    />
+                                  </div>
                                 </article>
                               );
                             })}

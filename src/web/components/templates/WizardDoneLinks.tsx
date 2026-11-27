@@ -8,6 +8,7 @@ import type { TemplateClientId } from '../../../shared/clients';
 import { useI18n, type MessageKey } from '../../i18n';
 import { AppIcon } from '../apps/AppIcon';
 import { Button } from '../ui/button';
+import { QrCodeButton } from '../ui/QrCodeButton';
 import { ClientImportButton } from './ClientImportButton';
 
 function clientGuideKey(client: TemplateClientId): MessageKey {
@@ -125,6 +126,7 @@ export function WizardDoneLinks({
         const urlRefKey = app ? `app:${app.id}` : pub.id;
 
         const copyTestId = isFirstForClient ? `wizard-done-copy-${pub.client}` : `wizard-done-copy-${entry.key}`;
+        const qrTestId = isFirstForClient ? `wizard-done-qr-${pub.client}` : `wizard-done-qr-${entry.key}`;
         const importTestId = isFirstForClient ? `wizard-done-import-${pub.client}` : `wizard-done-import-${entry.key}`;
         const urlTestId = isFirstForClient ? `wizard-done-url-${pub.client}` : `wizard-done-url-${entry.key}`;
 
@@ -140,22 +142,25 @@ export function WizardDoneLinks({
               </div>
               <div className="flex flex-wrap gap-2">
                 {pub.url ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={isCopied ? 'outline' : 'primary'}
-                    data-testid={copyTestId}
-                    onClick={() => {
-                      if (pub.url) void onCopy(copyStateId, pub.url);
-                    }}
-                  >
-                    {isCopied ? (
-                      <Check className="motion-success-icon h-3.5 w-3.5 text-success" />
-                    ) : (
-                      <Copy className="h-3.5 w-3.5" />
-                    )}
-                    <span>{isCopied ? t('wizard.doneCopiedBtn') : t('wizard.doneCopyBtn')}</span>
-                  </Button>
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={isCopied ? 'outline' : 'primary'}
+                      data-testid={copyTestId}
+                      onClick={() => {
+                        if (pub.url) void onCopy(copyStateId, pub.url);
+                      }}
+                    >
+                      {isCopied ? (
+                        <Check className="motion-success-icon h-3.5 w-3.5 text-success" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                      <span>{isCopied ? t('wizard.doneCopiedBtn') : t('wizard.doneCopyBtn')}</span>
+                    </Button>
+                    <QrCodeButton url={pub.url} title={entry.title} size="sm" variant="outline" testId={qrTestId} />
+                  </>
                 ) : null}
                 <ClientImportButton
                   client={pub.client}

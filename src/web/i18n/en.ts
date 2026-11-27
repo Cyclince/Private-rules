@@ -35,6 +35,13 @@ export const en: Messages = {
   'common.empty': 'No data yet',
   'common.enabled': 'Enabled',
   'common.disabled': 'Disabled',
+  'qr.buttonLabel': 'QR Code',
+  'qr.dialogTitle': 'Scan QR Code',
+  'qr.dialogTitleWithTarget': '{target} · QR Code',
+  'qr.scanHint': 'Scan with your phone to import',
+  'qr.svgAriaLabel': 'Subscription link QR code',
+  'qr.copyButton': 'Copy link',
+  'qr.copiedToast': 'Link copied',
 
   // Theme & language
   'theme.label': 'Appearance',

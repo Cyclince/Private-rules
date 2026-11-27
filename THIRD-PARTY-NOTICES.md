@@ -26,6 +26,7 @@ Private Rules incorporates open-source packages under permissive licenses (MIT /
 | Drizzle ORM (`drizzle-orm`, `drizzle-kit`) | Schema & query builder | Apache-2.0 |
 | Zod | Runtime & static schema validation | MIT |
 | `better-sqlite3` | Node.js SQLite driver | MIT |
+| `uqr` | Local client-side QR code SVG generation | MIT |
 | `opencc-js` | Build-time Simplified-to-Traditional Chinese dictionary generation (devDependency only in 1.1.0) | MIT |
 
 ## Built-in Data, Rule Catalog & Reference Projects
