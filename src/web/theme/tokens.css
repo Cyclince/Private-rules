@@ -291,6 +291,137 @@ html.theme-transition input {
   }
 }
 
+/* M4a global motion: page direction, feedback, lists, themes, tabs */
+@keyframes page-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes page-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes vt-page-out-left {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+
+@keyframes tab-content-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes content-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes skeleton-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes success-pop {
+  0% {
+    transform: scale(0.55);
+  }
+  60% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes nav-icon-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.16);
+  }
+  70% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes field-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-2px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes locale-swap {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @layer components {
   .motion-press {
     transition-property: transform, background-color, color, border-color, box-shadow, opacity;
@@ -465,6 +596,135 @@ html.theme-transition input {
   .motion-page {
     animation: fade-in var(--motion-base) var(--ease-out) both;
   }
+
+  /* Entering a detail page: View Transition handles it when available (shared
+     elements), CSS slides the page in otherwise. */
+  html:not(.vt-ready) .motion-page[data-motion='forward'] {
+    animation: page-in-right var(--motion-slow) var(--ease-out) both;
+  }
+
+  html.vt-ready .motion-page[data-motion='forward'] {
+    animation: none;
+  }
+
+  /* Returns and same-level fades never use View Transitions (the overlay would
+     block the next interaction), so they always animate here. Fade-through only
+     touches opacity; returns slide the new page in from the left. */
+  html .motion-page[data-motion='back'] {
+    animation: page-in-left var(--motion-slow) var(--ease-out) both;
+  }
+
+  .motion-content-in {
+    animation: content-in var(--motion-base) var(--ease-out) both;
+  }
+
+  .motion-skeleton-out {
+    animation: skeleton-out var(--motion-fast) var(--ease-in) both;
+  }
+
+  .motion-tab-panel {
+    animation: tab-content-in var(--motion-base) var(--ease-out) both;
+  }
+
+  .motion-stagger-item {
+    animation: stagger-in var(--motion-base) var(--ease-out) both;
+    animation-delay: calc(var(--stagger-index, 0) * 24ms);
+  }
+
+  .motion-indicator {
+    transition-property: transform, width, height, opacity;
+    transition-duration: var(--motion-base);
+    transition-timing-function: var(--ease-out);
+  }
+
+  .motion-success-icon {
+    animation: success-pop var(--motion-slow) var(--ease-out) both;
+  }
+
+  .motion-field-error,
+  input[aria-invalid='true'],
+  textarea[aria-invalid='true'],
+  select[aria-invalid='true'] {
+    animation: field-shake var(--motion-base) var(--ease-out);
+  }
+
+  .nav-item-active .nav-icon {
+    animation: nav-icon-pop var(--motion-slow) var(--ease-out);
+  }
+
+  html[data-locale-motion='true'] .shell-main,
+  html[data-locale-motion='true'] .shell-topbar {
+    animation: locale-swap var(--motion-base) var(--ease-out) both;
+  }
+}
+
+/* ---- M4a View Transitions ----
+   The router wraps navigations in document.startViewTransition(); direction is
+   published as html[data-motion-nav]. Stable chrome (sidebar, bottom nav,
+   topbar) is named so it does not slide with the page content.
+   Pseudo-element animations stay on the fast token (120ms): the overlay is
+   painted above the page, so a longer animation would delay the next click and
+   break the unchanged 10k-rule route-transition budget. */
+
+html.vt-ready .shell-sidebar {
+  view-transition-name: app-sidebar;
+}
+
+html.vt-ready .shell-bottom-nav {
+  view-transition-name: app-bottom-nav;
+}
+
+html.vt-ready .shell-topbar {
+  view-transition-name: app-topbar;
+}
+
+html.vt-ready::view-transition-group(app-sidebar),
+html.vt-ready::view-transition-group(app-bottom-nav),
+html.vt-ready::view-transition-group(app-topbar) {
+  animation: none;
+}
+
+html.vt-ready::view-transition-old(app-sidebar),
+html.vt-ready::view-transition-new(app-sidebar),
+html.vt-ready::view-transition-old(app-bottom-nav),
+html.vt-ready::view-transition-new(app-bottom-nav) {
+  animation: none;
+}
+
+html.vt-ready::view-transition-group(root) {
+  animation-duration: var(--motion-fast);
+  animation-timing-function: var(--ease-out);
+}
+
+html.vt-ready::view-transition-old(app-topbar) {
+  animation: fade-out var(--motion-fast) var(--ease-in) both;
+}
+
+html.vt-ready::view-transition-new(app-topbar) {
+  animation: fade-in var(--motion-fast) var(--ease-out) both;
+}
+
+html[data-motion-nav='forward']::view-transition-old(root) {
+  animation: vt-page-out-left var(--motion-fast) var(--ease-in) both;
+}
+
+html[data-motion-nav='forward']::view-transition-new(root) {
+  animation: page-in-right var(--motion-fast) var(--ease-out) both;
+}
+
+html.vt-ready::view-transition-group(shared-rules-icon),
+html.vt-ready::view-transition-group(shared-rules-title),
+html.vt-ready::view-transition-group(shared-subscription-icon),
+html.vt-ready::view-transition-group(shared-subscription-title) {
+  animation-duration: var(--motion-fast);
+  animation-timing-function: var(--ease-out);
+}
+
+html.vt-ready::view-transition-old(shared-rules-icon),
+html.vt-ready::view-transition-old(shared-rules-title),
+html.vt-ready::view-transition-old(shared-subscription-icon),
+html.vt-ready::view-transition-old(shared-subscription-title) {
+  animation-duration: var(--motion-fast);
 }
 
 [data-testid='toast-viewport'] > [role='status'],
@@ -517,5 +777,13 @@ html.theme-transition input {
   .motion-card:active,
   .motion-press:active {
     transform: none !important;
+  }
+
+  /* View Transition pseudo-elements need their own reduced-motion override. */
+  html::view-transition-group(*),
+  html::view-transition-old(*),
+  html::view-transition-new(*) {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
   }
 }

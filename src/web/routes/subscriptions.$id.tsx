@@ -24,6 +24,7 @@ import { EmptyState } from '../components/ui/empty-state';
 import { loadPageTranslations, useI18n, type MessageKey } from '../i18n';
 import { api, formatApiError, readApiJson } from '../lib/api';
 import { isTelegramSession, requireAuthBeforeLoad } from '../lib/auth-guard';
+import { sharedElementStyle, SHARED_ELEMENT_NAMES } from '../lib/shared-element';
 import {
   authMeQueryOptions,
   invalidateRulesets,
@@ -220,11 +221,14 @@ function SubscriptionDetailPage() {
         </div>
 
         <div className="flex items-center gap-3.5">
-          <CategoryIcon icon={selectedCategory.icon} name={selectedCategory.name} size={56} className="text-base" />
+          <span style={sharedElementStyle(SHARED_ELEMENT_NAMES.subscriptionIcon)} className="inline-flex shrink-0">
+            <CategoryIcon icon={selectedCategory.icon} name={selectedCategory.name} size={56} className="text-base" />
+          </span>
           <div className="min-w-0">
             <h2
               data-testid="subscription-detail-title"
               className="truncate text-2xl font-bold tracking-tight text-text sm:text-3xl"
+              style={sharedElementStyle(SHARED_ELEMENT_NAMES.subscriptionTitle)}
             >
               {selectedCategory.name} {t('subscriptions.detailTitleSuffix')}
             </h2>
@@ -346,7 +350,11 @@ function SubscriptionDetailPage() {
                   onClick={() => void handleCopy('app-link', appLink.recommendedUrl)}
                   className="w-full sm:w-auto"
                 >
-                  {copiedId === 'app-link' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copiedId === 'app-link' ? (
+                    <Check className="motion-success-icon h-3.5 w-3.5" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
                   <span>{copiedId === 'app-link' ? t('common.copied') : t('subscriptions.copyAppLink')}</span>
                 </Button>
 
@@ -500,7 +508,11 @@ function SubscriptionDetailPage() {
                                     onClick={() => void handleCopy(format.id, rawUrl)}
                                     className="w-full"
                                   >
-                                    {isCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                    {isCopied ? (
+                                      <Check className="motion-success-icon h-3.5 w-3.5" />
+                                    ) : (
+                                      <Copy className="h-3.5 w-3.5" />
+                                    )}
                                     <span>{isCopied ? t('common.copied') : t('subscriptions.copyButton')}</span>
                                   </Button>
                                 </article>

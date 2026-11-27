@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ErrorCode } from '../../shared/errors';
 import type { MessageKey, Messages } from './zh-CN';
 import { zhCNCore } from './zh-CN.core';
@@ -104,6 +104,7 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 export function I18nProvider({ children, initialLocale }: { children: ReactNode; initialLocale?: Locale }) {
   const [locale, setLocaleState] = useState<Locale>(() => initialLocale ?? readInitialLocale());
   const [version, setVersion] = useState(0);
+  const localeMounted = useRef(false);
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
@@ -129,6 +130,22 @@ export function I18nProvider({ children, initialLocale }: { children: ReactNode;
     if (locale !== 'zh-CN') {
       void loadLocaleDictionary(locale);
     }
+    // M4a: language switches fade the text in (no remount, no flash). The first
+    // effect run only records the initial locale. The window covers lazy dictionaries.
+    if (!localeMounted.current) {
+      localeMounted.current = true;
+      return;
+    }
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    root.dataset.localeMotion = 'true';
+    const timer = window.setTimeout(() => {
+      delete root.dataset.localeMotion;
+    }, 320);
+    return () => {
+      window.clearTimeout(timer);
+      delete root.dataset.localeMotion;
+    };
   }, [locale]);
 
   const value = useMemo<I18nContextValue>(() => {

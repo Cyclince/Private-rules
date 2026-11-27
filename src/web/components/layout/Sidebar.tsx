@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import aboutEmblemUrl from '../../assets/miku-about-emblem.webp';
 import { useI18n } from '../../i18n';
 import { SIDEBAR_NAV_SECTIONS } from './nav-items';
+import { SlidingIndicator, useSlidingIndicator } from '../ui/sliding-indicator';
 
 function SidebarBrand() {
   const { t } = useI18n();
@@ -29,8 +30,14 @@ function SidebarBrand() {
 
 function SidebarNavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const { t } = useI18n();
+  const { containerRef, rect } = useSlidingIndicator<HTMLElement>({ selector: 'a[data-status="active"]' });
   return (
-    <nav aria-label={t('layout.navigation')} className="flex flex-1 flex-col gap-1 px-3 py-2">
+    <nav
+      ref={containerRef}
+      aria-label={t('layout.navigation')}
+      className="relative flex flex-1 flex-col gap-1 px-3 py-2"
+    >
+      <SlidingIndicator rect={rect} dataTestId="sidebar-active-indicator" className="bg-surface-muted shadow-sm" />
       {SIDEBAR_NAV_SECTIONS.map((section, sectionIndex) => (
         <div
           key={section.id}
@@ -52,9 +59,9 @@ function SidebarNavLinks({ onNavigate }: { onNavigate?: () => void }) {
                 to={item.to}
                 activeOptions={{ exact: item.to === '/' }}
                 onClick={onNavigate}
-                className="motion-press flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm font-medium text-text-muted hover:bg-surface-muted hover:text-text"
+                className="motion-press relative z-10 flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm font-medium text-text-muted hover:bg-surface-muted hover:text-text"
                 activeProps={{
-                  className: 'bg-surface-muted text-primary shadow-sm',
+                  className: 'text-primary',
                 }}
               >
                 <Icon className="h-4 w-4 shrink-0" />

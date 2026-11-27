@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, RefreshCw, Sparkles } from 'lucide-react';
 import { dashboardTemplatesQueryOptions } from '../lib/dashboard';
 import { useState } from 'react';
 import dashboardBannerUrl from '../assets/miku-dashboard-banner.webp';
+import { AnimatedNumber } from '../components/ui/animated-number';
 import { loadPageTranslations, useI18n } from '../i18n';
 import { api, formatApiError, readApiJson } from '../lib/api';
 import { requireAuthBeforeLoad } from '../lib/auth-guard';
@@ -159,19 +160,19 @@ function DashboardPage() {
               <div data-testid="stat-card-rulesets">
                 <dt className="text-xs text-text-muted">{t('dashboard.rulesCount')}</dt>
                 <dd className="mt-1 text-2xl font-semibold" data-testid="stat-rulesets-count">
-                  {summaryQuery.isLoading ? '…' : categories.length}
+                  {summaryQuery.isLoading ? '…' : <AnimatedNumber value={categories.length} />}
                 </dd>
               </div>
               <div data-testid="stat-card-rules">
                 <dt className="text-xs text-text-muted">{t('dashboard.ruleEntries')}</dt>
                 <dd className="mt-1 text-2xl font-semibold" data-testid="stat-rules-count">
-                  {summaryQuery.isLoading ? '…' : totalRules.toLocaleString()}
+                  {summaryQuery.isLoading ? '…' : <AnimatedNumber value={totalRules} />}
                 </dd>
               </div>
               <div data-testid="stat-card-sources">
                 <dt className="text-xs text-text-muted">{t('dashboard.statSources')}</dt>
                 <dd className="mt-1 text-2xl font-semibold" data-testid="stat-sources-count">
-                  {summaryQuery.isLoading ? '…' : allSources.length}
+                  {summaryQuery.isLoading ? '…' : <AnimatedNumber value={allSources.length} />}
                 </dd>
                 <span className={errorSources.length ? 'text-xs text-danger' : 'text-xs text-text-muted'}>
                   {t('dashboard.sourceErrors').replace('{count}', String(errorSources.length))}
@@ -236,13 +237,13 @@ function DashboardPage() {
                 <div>
                   <dt className="text-xs text-text-muted">{t('dashboard.templateCount')}</dt>
                   <dd className="mt-1 text-2xl font-semibold" data-testid="dashboard-template-count">
-                    {templateStats.templateCount}
+                    <AnimatedNumber value={templateStats.templateCount} />
                   </dd>
                 </div>
                 <div>
                   <dt className="text-xs text-text-muted">{t('dashboard.outputCount')}</dt>
                   <dd className="mt-1 text-2xl font-semibold" data-testid="dashboard-output-count">
-                    {templateStats.outputCount}
+                    <AnimatedNumber value={templateStats.outputCount} />
                   </dd>
                 </div>
               </dl>

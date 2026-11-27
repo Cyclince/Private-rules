@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { ShieldAlert } from 'lucide-react';
 import { lazy, Suspense } from 'react';
+import { SlidingIndicator, useSlidingIndicator } from '../components/ui/sliding-indicator';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { loadPageTranslations, useI18n } from '../i18n';
@@ -43,6 +44,9 @@ function SettingsPage() {
   const navigate = Route.useNavigate();
   const authQuery = useQuery(authMeQueryOptions());
   const inTelegram = isTelegramSession(authQuery.data);
+  const { containerRef: tabsRef, rect: tabsRect } = useSlidingIndicator<HTMLDivElement>({
+    selector: '[role="tab"][aria-selected="true"]',
+  });
 
   const rawTab: SettingsTab = search.tab ?? 'general';
   const tab: SettingsTab = inTelegram && TELEGRAM_HIDDEN_SETTINGS_TABS.has(rawTab) ? 'general' : rawTab;
@@ -67,18 +71,36 @@ function SettingsPage() {
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap gap-2">
-            {visibleTabs.map((item) => (
-              <Button
-                key={item.id}
-                size="sm"
-                data-testid={`settings-tab-${item.id}`}
-                variant={tab === item.id ? 'primary' : 'outline'}
-                onClick={() => navigate({ search: item.id === 'general' ? {} : { tab: item.id }, replace: true })}
-              >
-                {item.label}
-              </Button>
-            ))}
+          <div
+            ref={tabsRef}
+            role="tablist"
+            aria-label={t('settings.title')}
+            data-testid="settings-tab-list"
+            className="relative flex flex-wrap gap-2"
+          >
+            <SlidingIndicator rect={tabsRect} dataTestId="settings-tab-indicator" className="bg-primary shadow-sm" />
+            {visibleTabs.map((item) => {
+              const active = tab === item.id;
+              return (
+                <Button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  size="sm"
+                  variant="ghost"
+                  aria-selected={active}
+                  data-testid={`settings-tab-${item.id}`}
+                  onClick={() => navigate({ search: item.id === 'general' ? {} : { tab: item.id }, replace: true })}
+                  className={`relative z-10 border ${
+                    active
+                      ? 'border-transparent text-primary-foreground hover:bg-transparent'
+                      : 'border-border text-text'
+                  }`}
+                >
+                  {item.label}
+                </Button>
+              );
+            })}
           </div>
           {inTelegram ? (
             <div
@@ -93,10 +115,12 @@ function SettingsPage() {
       </Card>
 
       <Suspense fallback={<div className="h-40 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />}>
-        {tab === 'general' ? <GeneralSettingsTab inTelegram={inTelegram} /> : null}
-        {tab === 'api-keys' && !inTelegram ? <ApiKeysTab /> : null}
-        {tab === 'backup' && !inTelegram ? <BackupTab /> : null}
-        {tab === 'about' ? <AboutTab /> : null}
+        <div key={tab} className="motion-tab-panel">
+          {tab === 'general' ? <GeneralSettingsTab inTelegram={inTelegram} /> : null}
+          {tab === 'api-keys' && !inTelegram ? <ApiKeysTab /> : null}
+          {tab === 'backup' && !inTelegram ? <BackupTab /> : null}
+          {tab === 'about' ? <AboutTab /> : null}
+        </div>
       </Suspense>
     </div>
   );

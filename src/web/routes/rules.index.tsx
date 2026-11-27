@@ -33,9 +33,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { CollapsibleDetails } from '../components/ui/collapsible';
 import { EmptyState } from '../components/ui/empty-state';
 import { Input } from '../components/ui/input';
+import { SkeletonSwap } from '../components/ui/skeleton';
 import { loadPageTranslations, useI18n, type MessageKey } from '../i18n';
 import { api, formatApiError, readApiJson } from '../lib/api';
 import { isTelegramSession, requireAuthBeforeLoad } from '../lib/auth-guard';
+import { primeSharedElements, SHARED_ELEMENT_NAMES, staggerStyle } from '../lib/shared-element';
 import {
   authMeQueryOptions,
   invalidateRulesets,
@@ -543,85 +545,103 @@ function RulesIndexPage() {
         </CardHeader>
 
         <CardContent>
-          {summaryQuery.isLoading ? (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="h-20 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
-              <div className="h-20 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
-            </div>
-          ) : sortedCategories.length === 0 ? (
-            <EmptyState
-              title={t('ruleLibrary.emptyCategoriesTitle')}
-              description={t('ruleLibrary.emptyCategoriesDesc')}
-              action={
-                !isTelegram ? (
-                  <Button type="button" size="sm" onClick={() => setCreateDialogOpen(true)}>
-                    <Plus className="h-4 w-4" />
-                    <span>{t('ruleLibrary.newRule')}</span>
-                  </Button>
-                ) : undefined
-              }
-            />
-          ) : (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2" data-testid="rulesets-list">
-              {sortedCategories.map((category) => {
-                const sourceCount = category.sources?.length ?? 0;
-                const syncedTime = formatSyncTimestamp(category.lastSyncedAt);
-                const subtext =
-                  sourceCount > 0
-                    ? syncedTime
-                      ? `${sourceCount} ${t('ruleLibrary.upstreamsPrefix')} ${syncedTime}`
-                      : `${sourceCount} ${t('ruleLibrary.upstreamsNeverSynced')}`
-                    : category.description?.trim() || t('ruleLibrary.noDescription');
+          <SkeletonSwap
+            loading={summaryQuery.isLoading}
+            testId="rules-categories-swap"
+            skeleton={
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="h-20 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
+                <div className="h-20 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
+              </div>
+            }
+          >
+            {sortedCategories.length === 0 ? (
+              <EmptyState
+                title={t('ruleLibrary.emptyCategoriesTitle')}
+                description={t('ruleLibrary.emptyCategoriesDesc')}
+                action={
+                  !isTelegram ? (
+                    <Button type="button" size="sm" onClick={() => setCreateDialogOpen(true)}>
+                      <Plus className="h-4 w-4" />
+                      <span>{t('ruleLibrary.newRule')}</span>
+                    </Button>
+                  ) : undefined
+                }
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2" data-testid="rulesets-list">
+                {sortedCategories.map((category, index) => {
+                  const sourceCount = category.sources?.length ?? 0;
+                  const syncedTime = formatSyncTimestamp(category.lastSyncedAt);
+                  const subtext =
+                    sourceCount > 0
+                      ? syncedTime
+                        ? `${sourceCount} ${t('ruleLibrary.upstreamsPrefix')} ${syncedTime}`
+                        : `${sourceCount} ${t('ruleLibrary.upstreamsNeverSynced')}`
+                      : category.description?.trim() || t('ruleLibrary.noDescription');
 
-                return (
-                  <div
-                    key={category.id}
-                    data-testid={`ruleset-row-${category.id}`}
-                    className="motion-card group flex items-center gap-2 rounded-[var(--radius-md)] border border-border bg-surface p-3.5 hover:border-primary/50 hover:bg-surface-muted/40"
-                  >
-                    <Link
-                      to="/rules/$id"
-                      params={{ id: category.id }}
-                      data-testid={`ruleset-item-${category.id}`}
-                      className="flex min-w-0 flex-1 items-center gap-3.5 focus-visible:outline-2 focus-visible:outline-primary"
+                  return (
+                    <div
+                      key={category.id}
+                      data-testid={`ruleset-row-${category.id}`}
+                      style={staggerStyle(index)}
+                      className="motion-card motion-stagger-item group flex items-center gap-2 rounded-[var(--radius-md)] border border-border bg-surface p-3.5 hover:border-primary/50 hover:bg-surface-muted/40"
                     >
-                      <CategoryIcon icon={category.icon} name={category.name} size={44} />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold text-text group-hover:text-primary">
-                          {category.name}
+                      <Link
+                        to="/rules/$id"
+                        params={{ id: category.id }}
+                        data-testid={`ruleset-item-${category.id}`}
+                        onClick={(event) =>
+                          primeSharedElements(event, {
+                            icon: SHARED_ELEMENT_NAMES.rulesIcon,
+                            title: SHARED_ELEMENT_NAMES.rulesTitle,
+                          })
+                        }
+                        className="flex min-w-0 flex-1 items-center gap-3.5 focus-visible:outline-2 focus-visible:outline-primary"
+                      >
+                        <span data-shared-icon className="inline-flex shrink-0">
+                          <CategoryIcon icon={category.icon} name={category.name} size={44} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div
+                            data-shared-title
+                            className="truncate text-sm font-semibold text-text group-hover:text-primary"
+                          >
+                            {category.name}
+                          </div>
+                          <div className="mt-0.5 truncate text-xs text-text-muted">{subtext}</div>
                         </div>
-                        <div className="mt-0.5 truncate text-xs text-text-muted">{subtext}</div>
-                      </div>
-                      <span className="shrink-0 rounded-full border border-border bg-surface-muted px-2.5 py-0.5 text-xs font-semibold tabular-nums text-text">
-                        {(category.ruleCount ?? category.rules.length).toLocaleString()}
-                      </span>
-                    </Link>
+                        <span className="shrink-0 rounded-full border border-border bg-surface-muted px-2.5 py-0.5 text-xs font-semibold tabular-nums text-text">
+                          {(category.ruleCount ?? category.rules.length).toLocaleString()}
+                        </span>
+                      </Link>
 
-                    <Link
-                      to="/subscriptions/$id"
-                      params={{ id: category.id }}
-                      aria-label={`${t('ruleLibrary.copyLink')} ${category.name}`}
-                      title={t('ruleLibrary.copyLink')}
-                      data-testid={`ruleset-copy-link-${category.id}`}
-                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-text-muted transition-colors hover:bg-surface-muted hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
-                    >
-                      <Link2 className="h-4 w-4" />
-                    </Link>
+                      <Link
+                        to="/subscriptions/$id"
+                        params={{ id: category.id }}
+                        aria-label={`${t('ruleLibrary.copyLink')} ${category.name}`}
+                        title={t('ruleLibrary.copyLink')}
+                        data-testid={`ruleset-copy-link-${category.id}`}
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-text-muted transition-colors hover:bg-surface-muted hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+                      >
+                        <Link2 className="h-4 w-4" />
+                      </Link>
 
-                    <Link
-                      to="/rules/$id"
-                      params={{ id: category.id }}
-                      aria-hidden="true"
-                      tabIndex={-1}
-                      className="inline-flex shrink-0 items-center text-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Link>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                      <Link
+                        to="/rules/$id"
+                        params={{ id: category.id }}
+                        aria-hidden="true"
+                        tabIndex={-1}
+                        className="inline-flex shrink-0 items-center text-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </SkeletonSwap>
         </CardContent>
       </Card>
 

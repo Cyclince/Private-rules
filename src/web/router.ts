@@ -8,6 +8,9 @@ export function createAppRouter(queryClient: QueryClient, basepath = '/admin') {
     basepath,
     context: { queryClient },
     defaultPreload: 'intent',
+    // M4a: wrap navigations in the View Transitions API where available. Direction is
+    // published by useRouteMotion before the snapshot; unsupported browsers use CSS.
+    defaultViewTransition: true,
   });
 }
 

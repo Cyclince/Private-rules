@@ -41,7 +41,7 @@ export function Topbar({ onOpenTabletSidebar }: { onOpenTabletSidebar: () => voi
   return (
     <header
       data-testid="app-topbar"
-      className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-surface/90 px-4 backdrop-blur sm:px-6"
+      className="shell-topbar sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-surface/90 px-4 backdrop-blur sm:px-6"
     >
       <div className="flex min-w-0 items-center gap-2.5">
         <button

@@ -24,9 +24,11 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { EmptyState } from '../components/ui/empty-state';
 import { Input } from '../components/ui/input';
+import { SkeletonSwap } from '../components/ui/skeleton';
 import { loadPageTranslations, useI18n, type MessageKey } from '../i18n';
 import { api, formatApiError, readApiJson } from '../lib/api';
 import { isTelegramSession, requireAuthBeforeLoad } from '../lib/auth-guard';
+import { staggerStyle } from '../lib/shared-element';
 import {
   authMeQueryOptions,
   invalidatePublications,
@@ -366,202 +368,215 @@ function TemplatesListPage() {
       ) : null}
 
       {/* Main list or empty state */}
-      {listQuery.isLoading ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="h-44 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />
-          <div className="h-44 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />
-        </div>
-      ) : templates.length === 0 ? (
-        <EmptyState
-          data-testid="templates-empty-state"
-          title={t('templates.emptyTitlePlain')}
-          description={searchQ ? t('templates.searchPlaceholderPlain') : t('templates.listSubtitle')}
-          action={
-            !inTelegram ? (
-              <div className="flex flex-col items-center gap-3">
-                <Link
-                  to="/templates/new"
-                  data-testid="templates-empty-new-btn"
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-primary px-5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  <span>{t('templates.newBtn')}</span>
-                </Link>
-                <p className="text-xs text-text-muted">
-                  {t('templates.emptyCtaHint')}{' '}
-                  <button
-                    type="button"
-                    data-testid="templates-empty-import-btn"
-                    onClick={() => setImportOpen(true)}
-                    className="cursor-pointer font-medium text-primary underline-offset-2 hover:underline"
+      <SkeletonSwap
+        loading={listQuery.isLoading}
+        testId="templates-list-swap"
+        skeleton={
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="h-44 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />
+            <div className="h-44 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />
+          </div>
+        }
+      >
+        {templates.length === 0 ? (
+          <EmptyState
+            data-testid="templates-empty-state"
+            title={t('templates.emptyTitlePlain')}
+            description={searchQ ? t('templates.searchPlaceholderPlain') : t('templates.listSubtitle')}
+            action={
+              !inTelegram ? (
+                <div className="flex flex-col items-center gap-3">
+                  <Link
+                    to="/templates/new"
+                    data-testid="templates-empty-new-btn"
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-primary px-5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover"
                   >
-                    {t('templates.emptyCtaImport')}
-                  </button>
-                </p>
-              </div>
-            ) : undefined
-          }
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {templates.map((tpl) => {
-            const pubs = publicationsByTemplateId.get(tpl.id) ?? [];
-            const clientDisplay = deriveClientDisplayText(tpl, pubs);
-            const airport = deriveAirportStatus(tpl, pubs);
-            const copyLinks = deriveTemplateCopyLinks(tpl, pubs);
-            const scenarioTags = deriveScenarioTags(tpl, rulesetNamesById, t);
-            const visibleTags = scenarioTags.slice(0, 6);
-            const extraTagCount = Math.max(0, scenarioTags.length - visibleTags.length);
+                    <Sparkles className="h-4 w-4" />
+                    <span>{t('templates.newBtn')}</span>
+                  </Link>
+                  <p className="text-xs text-text-muted">
+                    {t('templates.emptyCtaHint')}{' '}
+                    <button
+                      type="button"
+                      data-testid="templates-empty-import-btn"
+                      onClick={() => setImportOpen(true)}
+                      className="cursor-pointer font-medium text-primary underline-offset-2 hover:underline"
+                    >
+                      {t('templates.emptyCtaImport')}
+                    </button>
+                  </p>
+                </div>
+              ) : undefined
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {templates.map((tpl, index) => {
+              const pubs = publicationsByTemplateId.get(tpl.id) ?? [];
+              const clientDisplay = deriveClientDisplayText(tpl, pubs);
+              const airport = deriveAirportStatus(tpl, pubs);
+              const copyLinks = deriveTemplateCopyLinks(tpl, pubs);
+              const scenarioTags = deriveScenarioTags(tpl, rulesetNamesById, t);
+              const visibleTags = scenarioTags.slice(0, 6);
+              const extraTagCount = Math.max(0, scenarioTags.length - visibleTags.length);
 
-            return (
-              <Card
-                key={tpl.id}
-                interactive
-                data-testid={`template-card-${tpl.id}`}
-                className="relative flex flex-col justify-between hover:border-primary/40 focus-within:z-10"
-              >
-                <CardContent className="flex flex-1 flex-col justify-between gap-4 p-4 sm:p-5">
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
+              return (
+                <Card
+                  key={tpl.id}
+                  interactive
+                  data-testid={`template-card-${tpl.id}`}
+                  style={staggerStyle(index)}
+                  className="motion-card motion-stagger-item relative flex flex-col justify-between hover:border-primary/40 focus-within:z-10"
+                >
+                  <CardContent className="flex flex-1 flex-col justify-between gap-4 p-4 sm:p-5">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <Link
+                            to="/templates/$id"
+                            params={{ id: tpl.id }}
+                            className="block truncate text-base font-semibold text-text hover:text-primary"
+                          >
+                            {tpl.name}
+                          </Link>
+                          {tpl.description ? (
+                            <p className="mt-0.5 line-clamp-1 text-xs text-text-muted">{tpl.description}</p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="w-10 shrink-0 text-text-muted">{t('templates.cardOutputLabel')}</span>
+                          <span
+                            className="truncate font-medium text-text"
+                            data-testid={`template-card-output-${tpl.id}`}
+                          >
+                            {clientDisplay ?? t('templates.cardOutputEmpty')}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-10 shrink-0 text-text-muted">{t('templates.cardAirportLabel')}</span>
+                          <span data-testid={`template-card-airport-${tpl.id}`}>
+                            {airport.kind === 'ok' && typeof airport.nodeCount === 'number' ? (
+                              <span className="inline-flex items-center gap-1.5 font-medium text-success">
+                                <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                                {t('templates.cardAirportNodesOk').replace('{count}', String(airport.nodeCount))}
+                              </span>
+                            ) : airport.kind === 'bound' ? (
+                              <span className="inline-flex items-center gap-1.5 font-medium text-text">
+                                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                                {t('templates.cardAirportBound')}
+                              </span>
+                            ) : airport.kind === 'error' ? (
+                              <span className="inline-flex items-center gap-1.5 font-medium text-danger">
+                                <span className="h-1.5 w-1.5 rounded-full bg-danger" />
+                                {t('templates.cardAirportError')}
+                              </span>
+                            ) : (
+                              <span className="text-text-muted">{t('templates.cardAirportEmpty')}</span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      {visibleTags.length > 0 ? (
+                        <div
+                          className="flex flex-wrap items-center gap-1.5"
+                          data-testid={`template-card-tags-${tpl.id}`}
+                        >
+                          {visibleTags.map((tag) => (
+                            <Badge key={tag} variant="outline" className="text-[11px] font-normal">
+                              {tag}
+                            </Badge>
+                          ))}
+                          {extraTagCount > 0 ? (
+                            <Badge variant="outline" className="text-[11px] font-normal text-text-muted">
+                              {t('templates.cardScenariosMore').replace('{count}', String(extraTagCount))}
+                            </Badge>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ActionMenu
+                          align="start"
+                          trigger={({ open, toggle }) => (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              aria-expanded={open}
+                              aria-haspopup="menu"
+                              data-testid={`template-copy-links-${tpl.id}`}
+                              onClick={toggle}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              <span>{t('templates.copyLinkBtn')}</span>
+                              <ChevronDown className="h-3.5 w-3.5 text-text-muted" />
+                            </Button>
+                          )}
+                          items={copyLinks.map((item) => ({
+                            key: item.key,
+                            label: item.label,
+                            icon: <Copy className="h-3.5 w-3.5 text-text-muted" />,
+                            testId: `template-copy-item-${tpl.id}-${item.key}`,
+                            onSelect: () => {
+                              void handleCopyLink(item.url);
+                            },
+                          }))}
+                          emptyContent={
+                            <div className="px-2.5 py-2 text-xs text-text-muted">
+                              {!ruleTokenConfigured ? t('templates.copyLinkNoToken') : t('templates.copyLinkEmpty')}
+                            </div>
+                          }
+                        />
+
                         <Link
                           to="/templates/$id"
                           params={{ id: tpl.id }}
-                          className="block truncate text-base font-semibold text-text hover:text-primary"
+                          data-testid={`template-open-${tpl.id}`}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
                         >
-                          {tpl.name}
+                          <FolderOpen className="h-3.5 w-3.5" />
+                          <span>{inTelegram ? t('templates.viewBtn') : t('templates.openBtn')}</span>
                         </Link>
-                        {tpl.description ? (
-                          <p className="mt-0.5 line-clamp-1 text-xs text-text-muted">{tpl.description}</p>
-                        ) : null}
                       </div>
-                    </div>
 
-                    <div className="flex flex-col gap-1.5 text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="w-10 shrink-0 text-text-muted">{t('templates.cardOutputLabel')}</span>
-                        <span className="truncate font-medium text-text" data-testid={`template-card-output-${tpl.id}`}>
-                          {clientDisplay ?? t('templates.cardOutputEmpty')}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-10 shrink-0 text-text-muted">{t('templates.cardAirportLabel')}</span>
-                        <span data-testid={`template-card-airport-${tpl.id}`}>
-                          {airport.kind === 'ok' && typeof airport.nodeCount === 'number' ? (
-                            <span className="inline-flex items-center gap-1.5 font-medium text-success">
-                              <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                              {t('templates.cardAirportNodesOk').replace('{count}', String(airport.nodeCount))}
-                            </span>
-                          ) : airport.kind === 'bound' ? (
-                            <span className="inline-flex items-center gap-1.5 font-medium text-text">
-                              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                              {t('templates.cardAirportBound')}
-                            </span>
-                          ) : airport.kind === 'error' ? (
-                            <span className="inline-flex items-center gap-1.5 font-medium text-danger">
-                              <span className="h-1.5 w-1.5 rounded-full bg-danger" />
-                              {t('templates.cardAirportError')}
-                            </span>
-                          ) : (
-                            <span className="text-text-muted">{t('templates.cardAirportEmpty')}</span>
-                          )}
-                        </span>
-                      </div>
-                    </div>
-
-                    {visibleTags.length > 0 ? (
-                      <div className="flex flex-wrap items-center gap-1.5" data-testid={`template-card-tags-${tpl.id}`}>
-                        {visibleTags.map((tag) => (
-                          <Badge key={tag} variant="outline" className="text-[11px] font-normal">
-                            {tag}
-                          </Badge>
-                        ))}
-                        {extraTagCount > 0 ? (
-                          <Badge variant="outline" className="text-[11px] font-normal text-text-muted">
-                            {t('templates.cardScenariosMore').replace('{count}', String(extraTagCount))}
-                          </Badge>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <ActionMenu
-                        align="start"
-                        trigger={({ open, toggle }) => (
+                      {!inTelegram ? (
+                        <div className="flex items-center gap-1">
                           <Button
                             size="sm"
-                            variant="outline"
-                            aria-expanded={open}
-                            aria-haspopup="menu"
-                            data-testid={`template-copy-links-${tpl.id}`}
-                            onClick={toggle}
+                            variant="ghost"
+                            data-testid={`template-duplicate-${tpl.id}`}
+                            disabled={duplicateMutation.isPending}
+                            onClick={() => duplicateMutation.mutate(tpl)}
+                            aria-label={t('templates.duplicateBtn')}
+                            title={t('templates.duplicateBtn')}
                           >
-                            <Copy className="h-3.5 w-3.5" />
-                            <span>{t('templates.copyLinkBtn')}</span>
-                            <ChevronDown className="h-3.5 w-3.5 text-text-muted" />
+                            <Copy className="h-3.5 w-3.5 text-text-muted" />
                           </Button>
-                        )}
-                        items={copyLinks.map((item) => ({
-                          key: item.key,
-                          label: item.label,
-                          icon: <Copy className="h-3.5 w-3.5 text-text-muted" />,
-                          testId: `template-copy-item-${tpl.id}-${item.key}`,
-                          onSelect: () => {
-                            void handleCopyLink(item.url);
-                          },
-                        }))}
-                        emptyContent={
-                          <div className="px-2.5 py-2 text-xs text-text-muted">
-                            {!ruleTokenConfigured ? t('templates.copyLinkNoToken') : t('templates.copyLinkEmpty')}
-                          </div>
-                        }
-                      />
-
-                      <Link
-                        to="/templates/$id"
-                        params={{ id: tpl.id }}
-                        data-testid={`template-open-${tpl.id}`}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
-                      >
-                        <FolderOpen className="h-3.5 w-3.5" />
-                        <span>{inTelegram ? t('templates.viewBtn') : t('templates.openBtn')}</span>
-                      </Link>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            data-testid={`template-delete-${tpl.id}`}
+                            onClick={() => setDeleteTarget(tpl)}
+                            aria-label={t('common.delete')}
+                            title={t('common.delete')}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-danger" />
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
-
-                    {!inTelegram ? (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          data-testid={`template-duplicate-${tpl.id}`}
-                          disabled={duplicateMutation.isPending}
-                          onClick={() => duplicateMutation.mutate(tpl)}
-                          aria-label={t('templates.duplicateBtn')}
-                          title={t('templates.duplicateBtn')}
-                        >
-                          <Copy className="h-3.5 w-3.5 text-text-muted" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          data-testid={`template-delete-${tpl.id}`}
-                          onClick={() => setDeleteTarget(tpl)}
-                          aria-label={t('common.delete')}
-                          title={t('common.delete')}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-danger" />
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </SkeletonSwap>
 
       {importOpen ? (
         <Suspense fallback={null}>

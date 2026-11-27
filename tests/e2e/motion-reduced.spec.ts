@@ -100,7 +100,7 @@ test.describe('M3.5 reduced-motion accessibility across key routes and overlays'
       await expect(page.getByTestId('app-shell')).toBeVisible();
       await expectNearZeroMotion(page.getByTestId('desktop-sidebar'));
       await expectNearZeroMotion(page.getByTestId('app-main'));
-      await expectNearZeroMotion(page.locator('.motion-page'));
+      await expectNearZeroMotion(page.locator('[data-testid="app-main"] > .motion-page'));
       await expectNoHoverDisplacement(page.getByTestId('dashboard-manage-rulesets'));
       await expectNoHoverDisplacement(page.getByTestId('dashboard-new-template'));
       await expectNoHoverDisplacement(
@@ -110,7 +110,7 @@ test.describe('M3.5 reduced-motion accessibility across key routes and overlays'
       // 2. Rules summary page + create rule dialog
       await page.getByTestId('desktop-sidebar').getByRole('link', { name: '规则' }).click();
       await expect(page).toHaveURL(/\/admin\/rules$/);
-      await expectNearZeroMotion(page.locator('.motion-page'));
+      await expectNearZeroMotion(page.locator('[data-testid="app-main"] > .motion-page'));
       await expectNearZeroMotion(page.getByTestId(`ruleset-item-${ruleset.id}`));
 
       await page.getByTestId('create-ruleset-btn').click();
@@ -121,7 +121,7 @@ test.describe('M3.5 reduced-motion accessibility across key routes and overlays'
       // 3. Rule detail page: row toggle, batch bar, dropdown menu
       await page.getByTestId(`ruleset-item-${ruleset.id}`).click();
       await expect(page).toHaveURL(new RegExp(`/admin/rules/${ruleset.id}$`));
-      await expectNearZeroMotion(page.locator('.motion-page'));
+      await expectNearZeroMotion(page.locator('[data-testid="app-main"] > .motion-page'));
 
       const firstRow = page.getByTestId('rules-list').locator('[data-testid^="rule-row-"]').first();
       const ruleId = (await firstRow.getAttribute('data-testid'))!.replace('rule-row-', '');
@@ -139,7 +139,7 @@ test.describe('M3.5 reduced-motion accessibility across key routes and overlays'
       // 4. Subscriptions page transition & rule card
       await page.getByTestId('desktop-sidebar').getByRole('link', { name: '订阅' }).click();
       await expect(page).toHaveURL(/\/admin\/subscriptions$/);
-      await expectNearZeroMotion(page.locator('.motion-page'));
+      await expectNearZeroMotion(page.locator('[data-testid="app-main"] > .motion-page'));
       await expectNoHoverDisplacement(page.getByTestId(`subscription-card-${ruleset.id}`));
 
       // 5. Templates wizard client buttons, presets & node selection mode cards
@@ -152,6 +152,39 @@ test.describe('M3.5 reduced-motion accessibility across key routes and overlays'
       await expect(page.getByTestId('wizard-step-2')).toBeVisible();
       await expectNoHoverDisplacement(page.getByTestId('wizard-preset-recommended'));
       await expectNoHoverDisplacement(page.getByTestId('wizard-group-mode-auto'));
+
+      // 6. M4a: staggered list rows, detail header shared elements and page motion stay instant
+      const staggerRow = page.getByTestId(`ruleset-row-${ruleset.id}`);
+      await page.goto('/admin/rules');
+      await expect(staggerRow).toBeVisible();
+      await expectNearZeroMotion(staggerRow);
+      const staggerTiming = await staggerRow.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return {
+          delay: style.animationDelay,
+          hasMotionAttribute: el.closest('.motion-page')?.getAttribute('data-motion'),
+        };
+      });
+      expect(parseMaxDurationMs(staggerTiming.delay)).toBeLessThanOrEqual(1);
+      expect(staggerTiming.hasMotionAttribute).toBeTruthy();
+
+      await staggerRow.getByTestId(`ruleset-item-${ruleset.id}`).click();
+      await expect(page).toHaveURL(new RegExp(`/admin/rules/${ruleset.id}$`));
+      await expectNearZeroMotion(page.getByTestId('rule-detail-title'));
+
+      // 7. M4a settings tab indicator, panel fade and theme switch
+      await page.goto('/admin/settings');
+      await expect(page.getByTestId('settings-page')).toBeVisible();
+      await expectNearZeroMotion(page.getByTestId('settings-tab-indicator'));
+      await page.getByTestId('settings-tab-about').click();
+      await expect(page.locator('.motion-tab-panel')).toBeVisible();
+      await expectNearZeroMotion(page.locator('.motion-tab-panel'));
+      await page.getByTestId('settings-tab-general').click();
+      await page.getByTestId('settings-theme-light').click();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+      await page.getByTestId('settings-theme-dark').click();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+      await expectNearZeroMotion(page.getByTestId('settings-tab-indicator'));
     } finally {
       await request.delete(`/api/rulesets/${ruleset.id}`, { headers: JSON_HEADERS });
     }

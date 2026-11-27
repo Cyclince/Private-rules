@@ -22,8 +22,10 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { EmptyState } from '../components/ui/empty-state';
+import { SkeletonSwap } from '../components/ui/skeleton';
 import { loadPageTranslations, useI18n, type MessageKey } from '../i18n';
 import { requireAuthBeforeLoad } from '../lib/auth-guard';
+import { primeSharedElements, SHARED_ELEMENT_NAMES, staggerStyle } from '../lib/shared-element';
 import { rulesetsListQueryOptions } from '../lib/query-core';
 import { useToast } from '../lib/toast';
 
@@ -160,91 +162,113 @@ function SubscriptionsIndexPage() {
         </CardHeader>
 
         <CardContent>
-          {summaryQuery.isLoading ? (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="h-20 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
-              <div className="h-20 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
-              <div className="h-20 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
-              <div className="h-20 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
-            </div>
-          ) : categories.length === 0 ? (
-            <EmptyState
-              title={t('subscriptions.emptyTitle')}
-              description={t('subscriptions.emptyDesc')}
-              action={
-                <Button asChild size="sm">
-                  <Link to="/rules">{t('subscriptions.goToRules')}</Link>
-                </Button>
-              }
-            />
-          ) : (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2" data-testid="subscriptions-category-grid">
-              {categories.map((category) => {
-                const policy = resolveAccessPolicy(category);
-                const enabledCount = getEnabledRuleCount(category);
-                const appLink = app ? ruleLinkForApp(app, summaryLinks?.[category.id] ?? []) : null;
-                const { displayUrl, canCopy } = linkCopyState(appLink);
-                const copied = copiedId === category.id;
-                return (
-                  <div
-                    key={category.id}
-                    className="motion-card flex items-stretch overflow-hidden rounded-[var(--radius-md)] border border-border bg-surface hover:border-primary/50"
-                  >
-                    <Link
-                      to="/subscriptions/$id"
-                      params={{ id: category.id }}
-                      data-testid={`subscription-card-${category.id}`}
-                      className="group flex min-w-0 flex-1 items-center gap-3.5 p-4 hover:bg-surface-muted/40 focus-visible:outline-2 focus-visible:outline-primary"
+          <SkeletonSwap
+            loading={summaryQuery.isLoading}
+            testId="subscriptions-categories-swap"
+            skeleton={
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="h-20 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
+                <div className="h-20 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
+                <div className="h-20 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
+                <div className="h-20 animate-pulse rounded-[var(--radius-md)] bg-surface-muted" />
+              </div>
+            }
+          >
+            {categories.length === 0 ? (
+              <EmptyState
+                title={t('subscriptions.emptyTitle')}
+                description={t('subscriptions.emptyDesc')}
+                action={
+                  <Button asChild size="sm">
+                    <Link to="/rules">{t('subscriptions.goToRules')}</Link>
+                  </Button>
+                }
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2" data-testid="subscriptions-category-grid">
+                {categories.map((category, index) => {
+                  const policy = resolveAccessPolicy(category);
+                  const enabledCount = getEnabledRuleCount(category);
+                  const appLink = app ? ruleLinkForApp(app, summaryLinks?.[category.id] ?? []) : null;
+                  const { displayUrl, canCopy } = linkCopyState(appLink);
+                  const copied = copiedId === category.id;
+                  return (
+                    <div
+                      key={category.id}
+                      style={staggerStyle(index)}
+                      className="motion-card motion-stagger-item flex items-stretch overflow-hidden rounded-[var(--radius-md)] border border-border bg-surface hover:border-primary/50"
                     >
-                      <CategoryIcon icon={category.icon} name={category.name} size={44} />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold text-text group-hover:text-primary">
-                          {category.name}
-                        </div>
-                        <div className="mt-0.5 text-xs text-text-muted">
-                          {enabledCount.toLocaleString()} {t('subscriptions.enabledRulesSuffix')}
-                        </div>
-                      </div>
-                      <Badge
-                        data-testid={`subscription-policy-badge-${category.id}`}
-                        className={`shrink-0 ${policyBadgeClass(policy)}`}
+                      <Link
+                        to="/subscriptions/$id"
+                        params={{ id: category.id }}
+                        data-testid={`subscription-card-${category.id}`}
+                        onClick={(event) =>
+                          primeSharedElements(event, {
+                            icon: SHARED_ELEMENT_NAMES.subscriptionIcon,
+                            title: SHARED_ELEMENT_NAMES.subscriptionTitle,
+                          })
+                        }
+                        className="group flex min-w-0 flex-1 items-center gap-3.5 p-4 hover:bg-surface-muted/40 focus-visible:outline-2 focus-visible:outline-primary"
                       >
-                        {t(policyBadgeLabelKey(policy))}
-                      </Badge>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-                    </Link>
-                    {app ? (
-                      <div className="flex w-14 shrink-0 flex-col items-center justify-center gap-1 border-l border-border bg-surface-muted/30 p-1.5 sm:w-24">
-                        <Button
-                          size="sm"
-                          variant={copied ? 'secondary' : 'ghost'}
-                          disabled={!canCopy}
-                          data-testid={`copy-subscription-quick-${category.id}`}
-                          aria-label={canCopy ? t('subscriptions.copyShort') : t('subscriptions.quickCopyDisabled')}
-                          title={canCopy ? t('subscriptions.copyShort') : t('subscriptions.quickCopyDisabled')}
-                          onClick={() => void handleQuickCopy(category.id, displayUrl)}
-                          className="px-2"
-                        >
-                          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                          <span className="hidden text-xs sm:inline">
-                            {copied ? t('common.copied') : t('subscriptions.copyShort')}
-                          </span>
-                        </Button>
-                        {!canCopy ? (
-                          <span
-                            data-testid={`subscription-quick-disabled-${category.id}`}
-                            className="text-center text-[10px] leading-tight text-text-muted"
+                        <span data-shared-icon className="inline-flex shrink-0">
+                          <CategoryIcon icon={category.icon} name={category.name} size={44} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div
+                            data-shared-title
+                            className="truncate text-sm font-semibold text-text group-hover:text-primary"
                           >
-                            {t('subscriptions.quickCopyDisabledShort')}
-                          </span>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                            {category.name}
+                          </div>
+                          <div className="mt-0.5 text-xs text-text-muted">
+                            {enabledCount.toLocaleString()} {t('subscriptions.enabledRulesSuffix')}
+                          </div>
+                        </div>
+                        <Badge
+                          data-testid={`subscription-policy-badge-${category.id}`}
+                          className={`shrink-0 ${policyBadgeClass(policy)}`}
+                        >
+                          {t(policyBadgeLabelKey(policy))}
+                        </Badge>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                      </Link>
+                      {app ? (
+                        <div className="flex w-14 shrink-0 flex-col items-center justify-center gap-1 border-l border-border bg-surface-muted/30 p-1.5 sm:w-24">
+                          <Button
+                            size="sm"
+                            variant={copied ? 'secondary' : 'ghost'}
+                            disabled={!canCopy}
+                            data-testid={`copy-subscription-quick-${category.id}`}
+                            aria-label={canCopy ? t('subscriptions.copyShort') : t('subscriptions.quickCopyDisabled')}
+                            title={canCopy ? t('subscriptions.copyShort') : t('subscriptions.quickCopyDisabled')}
+                            onClick={() => void handleQuickCopy(category.id, displayUrl)}
+                            className="px-2"
+                          >
+                            {copied ? (
+                              <Check className="motion-success-icon h-3.5 w-3.5" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                            <span className="hidden text-xs sm:inline">
+                              {copied ? t('common.copied') : t('subscriptions.copyShort')}
+                            </span>
+                          </Button>
+                          {!canCopy ? (
+                            <span
+                              data-testid={`subscription-quick-disabled-${category.id}`}
+                              className="text-center text-[10px] leading-tight text-text-muted"
+                            >
+                              {t('subscriptions.quickCopyDisabledShort')}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </SkeletonSwap>
         </CardContent>
       </Card>
     </div>

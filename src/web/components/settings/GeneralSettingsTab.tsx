@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, Globe, Monitor, Moon, RefreshCw, ShieldAlert, Sparkles, Sun } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, Globe, Monitor, Moon, RefreshCw, ShieldAlert, Sparkles, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
@@ -56,6 +56,7 @@ export function GeneralSettingsTab({ inTelegram }: GeneralSettingsTabProps) {
 
   const [optPreview, setOptPreview] = useState<ManualRuleOptimizationPreview | null>(null);
   const [optLoading, setOptLoading] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState(false);
   const [packPriority, setPackPriority] = useState<string[]>([]);
   const [disabledPacks, setDisabledPacks] = useState<string[]>([]);
 
@@ -149,6 +150,8 @@ export function GeneralSettingsTab({ inTelegram }: GeneralSettingsTabProps) {
     onSuccess: async () => {
       await Promise.all([invalidateSettings(queryClient), invalidateRulesets(queryClient)]);
       notify({ title: t('settings.saved'), variant: 'success' });
+      setSaveFeedback(true);
+      window.setTimeout(() => setSaveFeedback(false), 1600);
     },
     onError: (error) => {
       notify({ title: formatApiError(error, locale), variant: 'danger' });
@@ -581,6 +584,7 @@ export function GeneralSettingsTab({ inTelegram }: GeneralSettingsTabProps) {
               </div>
               <Button type="submit" size="sm" data-testid="settings-save-btn" disabled={saveSettingsMutation.isPending}>
                 {saveSettingsMutation.isPending ? t('common.loading') : t('common.save')}
+                {saveFeedback ? <Check aria-hidden="true" className="motion-success-icon h-3.5 w-3.5" /> : null}
               </Button>
             </div>
           </form>

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { prefersReducedMotion, startThemeViewTransition } from '../lib/motion';
 import { isTelegramMiniApp } from '../lib/telegram/webapp';
 
 export type Theme = 'dark' | 'light';
@@ -113,6 +114,22 @@ export function ThemeProvider({ children, initialTheme }: { children: ReactNode;
     }
     const animate = mounted.current;
     mounted.current = true;
+    // M4a: cross-fade the whole page's colors with a View Transition when possible,
+    // otherwise keep the property-level theme-transition fallback.
+    if (
+      animate &&
+      !prefersReducedMotion() &&
+      startThemeViewTransition(() => {
+        document.documentElement.classList.remove('theme-transition');
+        applyThemeToDocument(theme, false);
+      })
+    ) {
+      if (transitionTimer.current !== null && typeof window !== 'undefined') {
+        window.clearTimeout(transitionTimer.current);
+        transitionTimer.current = null;
+      }
+      return;
+    }
     applyThemeToDocument(theme, animate);
     if (animate && typeof window !== 'undefined') {
       if (transitionTimer.current !== null) window.clearTimeout(transitionTimer.current);

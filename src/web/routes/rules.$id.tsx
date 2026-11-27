@@ -56,6 +56,7 @@ import { Switch } from '../components/ui/switch';
 import { loadPageTranslations, useI18n } from '../i18n';
 import { api, ApiClientError, formatApiError, readApiJson } from '../lib/api';
 import { isTelegramSession, requireAuthBeforeLoad } from '../lib/auth-guard';
+import { sharedElementStyle, SHARED_ELEMENT_NAMES } from '../lib/shared-element';
 import {
   authMeQueryOptions,
   invalidateRulesets,
@@ -1003,11 +1004,14 @@ function RuleDetailPage() {
         data-testid="rule-detail-header"
       >
         <div className="flex min-w-0 items-center gap-3.5">
-          <CategoryIcon name={category.name} icon={category.icon} size={44} />
+          <span style={sharedElementStyle(SHARED_ELEMENT_NAMES.rulesIcon)} className="inline-flex shrink-0">
+            <CategoryIcon name={category.name} icon={category.icon} size={44} />
+          </span>
           <div className="min-w-0">
             <h1
               className="truncate text-xl font-bold tracking-tight text-text sm:text-2xl"
               data-testid="rule-detail-title"
+              style={sharedElementStyle(SHARED_ELEMENT_NAMES.rulesTitle)}
             >
               {category.name}
             </h1>

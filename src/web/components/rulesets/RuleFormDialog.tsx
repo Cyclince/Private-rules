@@ -98,6 +98,7 @@ export function RuleFormDialog({
               placeholder={t('ruleDetail.fieldAddressPlaceholder')}
               className="font-mono text-xs"
               {...form.register('value')}
+              aria-invalid={Boolean(form.formState.errors.value)}
             />
             {form.formState.errors.value ? (
               <p className="text-xs text-danger" role="alert">
