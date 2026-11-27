@@ -44,8 +44,11 @@ function findPreDirectInsertIndex(template: ResolvedTemplate): number {
 export const gameDownloadDirectModule: EnhancementModule = {
   id: 'game-download-direct',
   name: '游戏下载直连',
+  icon: '🎮',
+  group: 'direct',
   description: '在前置直连层加入 Steam CDN 与主流游戏平台下载域名直连，节省代理流量并提升下载速度。',
   defaultEnabled: false,
+  tierDefaults: { simple: false, advanced: false, pro: true },
   order: 20,
   affects: ['rules', 'groups', 'providers'],
   supportedClients: [...TEMPLATE_CLIENT_IDS],

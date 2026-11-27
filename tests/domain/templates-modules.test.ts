@@ -5,13 +5,17 @@ import {
   DNS_LEAK_FINAL_CARD_ID,
   ENHANCEMENT_MODULES,
   GAME_DOWNLOAD_DIRECT_CARD_ID,
+  MODULE_GROUPS,
+  MODULE_GROUP_DEFINITIONS,
   ModuleConflictError,
   TUNNEL_DIRECT_CARD_ID,
   applyEnhancementModules,
+  listEnhancementModulesByGroup,
   probeTemplate,
   resolveTemplateCards,
   validateModuleCombination,
   type AppCard,
+  type EnhancementModule,
 } from '../../src/domain/templates';
 
 function buildResolvedStandard() {
@@ -266,5 +270,70 @@ describe('5 template enhancement modules (individual, combined, and conflicting)
     expect(badValidation.ok).toBe(false);
     expect(badValidation.errors.map((e) => e.code)).toEqual(['UNKNOWN_MODULE', 'INVALID_MODULE_PARAMS']);
     expect(() => applyEnhancementModules(resolved, { bindings: badBindings })).toThrow(ModuleConflictError);
+  });
+
+  it('exposes complete §5 module metadata (group, icon, tierDefaults, supportedClients) and groups cleanly including runtime extensions', () => {
+    expect(MODULE_GROUP_DEFINITIONS.map((g) => g.id)).toEqual([...MODULE_GROUPS]);
+    expect(MODULE_GROUPS).toEqual(['dns-privacy', 'accuracy', 'direct', 'runtime']);
+
+    for (const mod of ENHANCEMENT_MODULES) {
+      expect(MODULE_GROUPS).toContain(mod.group);
+      expect(mod.icon.trim().length).toBeGreaterThan(0);
+      expect(typeof mod.tierDefaults.simple).toBe('boolean');
+      expect(typeof mod.tierDefaults.advanced).toBe('boolean');
+      expect(typeof mod.tierDefaults.pro).toBe('boolean');
+      expect(mod.supportedClients.length).toBeGreaterThan(0);
+    }
+
+    const byId = new Map(ENHANCEMENT_MODULES.map((m) => [m.id, m]));
+    expect(byId.get('dns-leak-guard')).toMatchObject({
+      group: 'dns-privacy',
+      icon: '🛡️',
+      tierDefaults: { simple: true, advanced: true, pro: true },
+    });
+    expect(byId.get('block-encrypted-dns')).toMatchObject({
+      group: 'dns-privacy',
+      icon: '🚫',
+      tierDefaults: { simple: false, advanced: false, pro: true },
+    });
+    expect(byId.get('ip-no-resolve')).toMatchObject({
+      group: 'accuracy',
+      icon: '📌',
+      tierDefaults: { simple: true, advanced: true, pro: true },
+    });
+    expect(byId.get('tunnel-direct')).toMatchObject({
+      group: 'direct',
+      icon: '🔗',
+      tierDefaults: { simple: false, advanced: true, pro: true },
+    });
+    expect(byId.get('game-download-direct')).toMatchObject({
+      group: 'direct',
+      icon: '🎮',
+      tierDefaults: { simple: false, advanced: false, pro: true },
+    });
+
+    const grouped = listEnhancementModulesByGroup();
+    expect(grouped.map((b) => b.id)).toEqual(['dns-privacy', 'accuracy', 'direct', 'runtime']);
+    expect(grouped[0].modules.map((m) => m.id)).toEqual(['block-encrypted-dns', 'dns-leak-guard']);
+    expect(grouped[1].modules.map((m) => m.id)).toEqual(['ip-no-resolve']);
+    expect(grouped[2].modules.map((m) => m.id)).toEqual(['game-download-direct', 'tunnel-direct']);
+    expect(grouped[3].modules).toEqual([]);
+
+    // Custom future runtime module fits cleanly without structural changes
+    const syntheticRuntimeModule: EnhancementModule = {
+      id: 'tun-mode',
+      name: 'TUN 模式',
+      icon: '⚙️',
+      group: 'runtime',
+      description: 'Mock runtime module for extensibility check.',
+      defaultEnabled: false,
+      tierDefaults: { simple: false, advanced: false, pro: true },
+      order: 60,
+      affects: ['dns'],
+      supportedClients: ['mihomo'],
+      apply: (tpl) => tpl,
+    };
+    const extendedGroups = listEnhancementModulesByGroup([...ENHANCEMENT_MODULES, syntheticRuntimeModule]);
+    expect(extendedGroups.find((b) => b.id === 'runtime')?.modules.map((m) => m.id)).toEqual(['tun-mode']);
   });
 });

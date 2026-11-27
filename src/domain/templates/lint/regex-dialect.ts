@@ -2,6 +2,7 @@ import { TEMPLATE_CLIENT_IDS, type TemplateClientId } from '../../../shared/clie
 import type { Condition, InlineRule } from '../../../shared/schemas/card';
 import { detectRegexDialectIssues, getRegionDefinition, type RegexDialectWarning } from '../../nodes';
 import { resolveTemplateCards } from '../model';
+import { getNormalizedBodyPools } from '../pools';
 import type { LintIssue, LintSeverity, LintTemplateInput } from './types';
 
 function severityForRegexWarning(warning: RegexDialectWarning): LintSeverity {
@@ -53,42 +54,49 @@ export function checkRegexDialectCompatibility(
   const clients = input.clients ?? TEMPLATE_CLIENT_IDS;
   const issues: LintIssue[] = [];
   const cardIndexById = new Map(input.body.cards.map((ref, idx) => [ref.cardId, idx]));
+  const bodyWithFinal = {
+    ...input.body,
+    final: input.body.final ?? { kind: 'builtin' as const, id: 'DIRECT' as const },
+  };
 
-  // 1. Check region groups (unknown region + custom extraInclude / extraExclude regexes)
-  for (const rg of input.body.regionGroups) {
-    if (!getRegionDefinition(rg.region)) {
+  // 1. Check node pools (including migrated legacy region groups)
+  for (const pool of getNormalizedBodyPools(bodyWithFinal)) {
+    const isRegion = pool.kind === 'region';
+    const baseLocation = isRegion ? { regionGroupId: pool.id, poolId: pool.id } : { poolId: pool.id };
+
+    if (isRegion && (!pool.region || !getRegionDefinition(pool.region))) {
       issues.push({
         code: 'regex-dialect-incompatible',
         severity: 'warning',
-        message: `地区组 ${rg.name}（${rg.id}）使用了未知的地区代码 ${rg.region}，无法按内置词典生成跨客户端正则。`,
-        location: { regionGroupId: rg.id, field: 'region' },
+        message: `地区组 ${pool.name}（${pool.id}）使用了未知的地区代码 ${pool.region ?? ''}，无法按内置词典生成跨客户端正则。`,
+        location: { ...baseLocation, field: 'region' },
         suggestion: '请修改为内置地区词典支持的标准 ISO 国家/地区代码（如 HK、TW、JP、SG、US）。',
-        details: { region: rg.region },
+        details: { region: pool.region },
       });
     }
 
     for (const client of clients) {
-      if (rg.extraInclude) {
-        for (const warn of detectRegexDialectIssues(rg.extraInclude, client)) {
+      if (pool.include) {
+        for (const warn of detectRegexDialectIssues(pool.include, client)) {
           issues.push({
             code: 'regex-dialect-incompatible',
             severity: severityForRegexWarning(warn),
-            message: `地区组 ${rg.name} 的 extraInclude 正则在 ${client} 上不兼容：${warn.message}`,
-            location: { regionGroupId: rg.id, client, field: 'extraInclude' },
+            message: `${isRegion ? '地区组' : '节点池'} ${pool.name} 的${isRegion ? ' extraInclude ' : ' include '}正则在 ${client} 上不兼容：${warn.message}`,
+            location: { ...baseLocation, client, field: isRegion ? 'extraInclude' : 'include' },
             suggestion: suggestionForRegexWarning(warn, client),
-            details: { pattern: rg.extraInclude, warningCode: warn.code },
+            details: { pattern: pool.include, warningCode: warn.code },
           });
         }
       }
-      if (rg.extraExclude) {
-        for (const warn of detectRegexDialectIssues(rg.extraExclude, client)) {
+      if (pool.exclude) {
+        for (const warn of detectRegexDialectIssues(pool.exclude, client)) {
           issues.push({
             code: 'regex-dialect-incompatible',
             severity: severityForRegexWarning(warn),
-            message: `地区组 ${rg.name} 的 extraExclude 正则在 ${client} 上不兼容：${warn.message}`,
-            location: { regionGroupId: rg.id, client, field: 'extraExclude' },
+            message: `${isRegion ? '地区组' : '节点池'} ${pool.name} 的${isRegion ? ' extraExclude ' : ' exclude '}正则在 ${client} 上不兼容：${warn.message}`,
+            location: { ...baseLocation, client, field: isRegion ? 'extraExclude' : 'exclude' },
             suggestion: suggestionForRegexWarning(warn, client),
-            details: { pattern: rg.extraExclude, warningCode: warn.code },
+            details: { pattern: pool.exclude, warningCode: warn.code },
           });
         }
       }
@@ -96,10 +104,7 @@ export function checkRegexDialectCompatibility(
   }
 
   // 2. Check slot candidate filters and inline DOMAIN-REGEX / URL-REGEX rules on enabled cards
-  const resolved = resolveTemplateCards(
-    { ...input.body, final: input.body.final ?? { kind: 'builtin', id: 'DIRECT' } },
-    input.cards,
-  );
+  const resolved = resolveTemplateCards(bodyWithFinal, input.cards);
 
   for (const resolvedCard of resolved.cards) {
     if (!resolvedCard.enabled) continue;

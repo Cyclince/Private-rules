@@ -7,10 +7,14 @@ import { GAME_DOWNLOAD_DIRECT_CARD_ID, gameDownloadDirectModule } from './game-d
 import { ipNoResolveModule } from './no-resolve';
 import { TUNNEL_DIRECT_CARD_ID, tunnelDirectModule } from './tunnel-direct';
 import {
+  MODULE_GROUPS,
   ModuleConflictError,
   type ApplyModulesResult,
   type EnhancementModule,
   type ModuleConflict,
+  type ModuleGroup,
+  type ModuleGroupBucket,
+  type ModuleGroupDefinition,
   type ModuleSkipRecord,
   type ModuleValidationError,
   type ModuleValidationResult,
@@ -21,6 +25,7 @@ export {
   DNS_LEAK_FINAL_CARD_ID,
   GAME_DOWNLOAD_DIRECT_CARD_ID,
   TUNNEL_DIRECT_CARD_ID,
+  MODULE_GROUPS,
   ModuleConflictError,
   blockEncryptedDnsModule,
   dnsLeakGuardModule,
@@ -34,10 +39,46 @@ export type {
   EnhancementModuleAffect,
   ModuleCompileContext,
   ModuleConflict,
+  ModuleGroup,
+  ModuleGroupBucket,
+  ModuleGroupDefinition,
   ModuleSkipRecord,
+  ModuleTierDefaults,
   ModuleValidationError,
   ModuleValidationResult,
 } from './types';
+
+/** Ordered definitions of enhancement module UI groups (design §5.2). */
+export const MODULE_GROUP_DEFINITIONS: readonly ModuleGroupDefinition[] = [
+  {
+    id: 'dns-privacy',
+    name: 'DNS 与隐私',
+    icon: '🛡️',
+    description: '控制上游 DNS 行为、防止请求泄漏并阻断应用绕过加密 DNS。',
+    order: 10,
+  },
+  {
+    id: 'accuracy',
+    name: '识别准确度',
+    icon: '🔍',
+    description: '减少不必要的 DNS 触发，提升域名与 IP 规则分流准确度。',
+    order: 20,
+  },
+  {
+    id: 'direct',
+    name: '直连优化',
+    icon: '🏠',
+    description: '将内网穿透、国内常见直连与大流量游戏更新直连分流。',
+    order: 30,
+  },
+  {
+    id: 'runtime',
+    name: '运行',
+    icon: '⚙️',
+    description: '客户端透明代理与运行时模式扩展（N4 起扩充）。',
+    order: 40,
+  },
+];
 
 /** All 5 built-in enhancement modules in deterministic execution order (design §10.12). */
 export const ENHANCEMENT_MODULES: readonly EnhancementModule[] = [
@@ -56,6 +97,28 @@ export function getEnhancementModule(id: string): EnhancementModule | undefined 
 
 export function listEnhancementModules(): readonly EnhancementModule[] {
   return ENHANCEMENT_MODULES;
+}
+
+/** Returns enhancement modules grouped by §5.2 `group` buckets in stable order. */
+export function listEnhancementModulesByGroup(
+  registry: readonly EnhancementModule[] = ENHANCEMENT_MODULES,
+): ModuleGroupBucket[] {
+  const byGroup = new Map<ModuleGroup, EnhancementModule[]>();
+  for (const groupId of MODULE_GROUPS) {
+    byGroup.set(groupId, []);
+  }
+  for (const mod of registry) {
+    const bucket = byGroup.get(mod.group);
+    if (bucket) {
+      bucket.push(mod);
+    }
+  }
+  return [...MODULE_GROUP_DEFINITIONS]
+    .sort((a, b) => a.order - b.order)
+    .map((group) => ({
+      ...group,
+      modules: (byGroup.get(group.id) ?? []).slice().sort((a, b) => a.order - b.order),
+    }));
 }
 
 function toRegistryMap(registry?: readonly EnhancementModule[]): Map<string, EnhancementModule> {

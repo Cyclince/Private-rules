@@ -6,7 +6,7 @@ import type { TemplateBody, TemplateOverlayOp } from '../../src/shared/schemas/t
 function cloneLightBase(): TemplateBody {
   const body = structuredClone(buildStarterTemplate('all').baseBody);
   body.cards = body.cards.filter((c) => c.cardId !== 'discord' && c.cardId !== 'spotify');
-  body.regionGroups = body.regionGroups.filter((g) => g.id !== 'region-gb');
+  body.regionGroups = (body.regionGroups ?? []).filter((g) => g.id !== 'region-gb');
   return body;
 }
 
@@ -45,8 +45,8 @@ describe('template overlay replay and upstream rebase', () => {
     expect(cardIds.indexOf('github')).toBe(cardIds.indexOf('ai-services') - 1);
     expect(result.resolved.cards.find((c) => c.cardId === 'ad-block')?.enabled).toBe(false);
     expect(result.resolved.cards.find((c) => c.cardId === 'youtube')?.overrides?.name).toBe('▶️ My YouTube');
-    expect(result.resolved.regionGroups.map((g) => g.id)).toContain('region-gb');
-    expect(result.resolved.regionGroups.find((g) => g.id === 'region-hk')?.extraInclude).toBe('IPLC');
+    expect((result.resolved.regionGroups ?? []).map((g) => g.id)).toContain('region-gb');
+    expect(result.resolved.regionGroups?.find((g) => g.id === 'region-hk')?.extraInclude).toBe('IPLC');
     expect(result.resolved.slots.map((s) => s.id)).toContain('slot-backup');
     expect(result.resolved.slots.find((s) => s.id === 'slot-main')?.udp).toBe(false);
     expect(result.resolved.groupMode).toBe('fallback');
@@ -61,13 +61,16 @@ describe('template overlay replay and upstream rebase', () => {
     // Upstream adds spotify after netflix and adds a GB region group
     const netflixIdx = nextBase.cards.findIndex((c) => c.cardId === 'netflix');
     nextBase.cards.splice(netflixIdx + 1, 0, { cardId: 'spotify', enabled: true });
-    nextBase.regionGroups.push({
-      id: 'region-gb',
-      name: '🇬🇧 英国节点',
-      region: 'GB',
-      type: 'url-test',
-      slotId: 'slot-main',
-    });
+    nextBase.regionGroups = [
+      ...(nextBase.regionGroups ?? []),
+      {
+        id: 'region-gb',
+        name: '🇬🇧 英国节点',
+        region: 'GB',
+        type: 'url-test',
+        slotId: 'slot-main',
+      },
+    ];
 
     const overlay: TemplateOverlayOp[] = [
       { op: 'setCardEnabled', cardId: 'ad-block', enabled: false },
@@ -92,7 +95,7 @@ describe('template overlay replay and upstream rebase', () => {
     nextBase.cards.push({ cardId: 'discord', enabled: true });
     const yt = nextBase.cards.find((c) => c.cardId === 'youtube')!;
     yt.overrides = { name: '▶️ Upstream YouTube' };
-    nextBase.regionGroups = nextBase.regionGroups.filter((g) => g.id !== 'region-kr');
+    nextBase.regionGroups = (nextBase.regionGroups ?? []).filter((g) => g.id !== 'region-kr');
     nextBase.final = { kind: 'builtin', id: 'DIRECT' };
 
     const overlay: TemplateOverlayOp[] = [

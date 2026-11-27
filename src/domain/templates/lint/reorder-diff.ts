@@ -111,6 +111,7 @@ function formatPolicyLabel(cardId: string | null, cardName: string | null, polic
   if (policy.kind === 'builtin') return policy.id;
   if (policy.kind === 'card') return policy.cardId;
   if (policy.kind === 'region') return policy.regionGroupId;
+  if (policy.kind === 'pool') return policy.poolId;
   return policy.slotId;
 }
 

@@ -201,17 +201,21 @@ function formatPolicyShort(ref: PolicyRef): string {
   if (ref.kind === 'builtin') return ref.id;
   if (ref.kind === 'card') return `card:${ref.cardId}`;
   if (ref.kind === 'region') return `region:${ref.regionGroupId}`;
+  if (ref.kind === 'pool') return `pool:${ref.poolId}`;
   return `slot:${ref.slotId}`;
 }
 
 function summarizeBodyLines(body: TemplateBody): string[] {
+  const regions = body.regionGroups ?? [];
+  const pools = body.pools ?? [];
   const lines: string[] = [
     `groupMode: ${body.groupMode}`,
     `output: ${body.output}`,
     `final: ${formatPolicyShort(body.final)}`,
     `dns.mode: ${body.dns.mode}`,
     `slots (${body.slots.length}): ${body.slots.map((s) => s.id).join(', ') || '-'}`,
-    `regionGroups (${body.regionGroups.length}): ${body.regionGroups.map((r) => `${r.id}(${r.region}:${r.type})`).join(', ') || '-'}`,
+    `regionGroups (${regions.length}): ${regions.map((r) => `${r.id}(${r.region}:${r.type})`).join(', ') || '-'}`,
+    `pools (${pools.length}): ${pools.map((p) => `${p.id}(${p.kind}:${p.type})`).join(', ') || '-'}`,
     `modules: ${
       body.modules
         .filter((m) => m.enabled)
@@ -250,10 +254,12 @@ export function diffTemplateBodies(before: TemplateBody, after: TemplateBody): T
     (id) => JSON.stringify(beforeCardMap.get(id)) !== JSON.stringify(afterCardMap.get(id)),
   );
 
-  const beforeRegionIds = new Set(before.regionGroups.map((r) => r.id));
-  const afterRegionIds = new Set(after.regionGroups.map((r) => r.id));
-  const addedRegionGroups = after.regionGroups.filter((r) => !beforeRegionIds.has(r.id)).map((r) => r.id);
-  const removedRegionGroups = before.regionGroups.filter((r) => !afterRegionIds.has(r.id)).map((r) => r.id);
+  const beforeRegions = before.regionGroups ?? [];
+  const afterRegions = after.regionGroups ?? [];
+  const beforeRegionIds = new Set(beforeRegions.map((r) => r.id));
+  const afterRegionIds = new Set(afterRegions.map((r) => r.id));
+  const addedRegionGroups = afterRegions.filter((r) => !beforeRegionIds.has(r.id)).map((r) => r.id);
+  const removedRegionGroups = beforeRegions.filter((r) => !afterRegionIds.has(r.id)).map((r) => r.id);
 
   const beforeSlotIds = new Set(before.slots.map((s) => s.id));
   const afterSlotIds = new Set(after.slots.map((s) => s.id));
@@ -338,6 +344,10 @@ export function buildRetargetResolution(conflict: OverlayConflict, newTargetId: 
     case 'updateRegionGroup':
       replacement = { ...op, regionGroupId: newTargetId };
       break;
+    case 'removePool':
+    case 'updatePool':
+      replacement = { ...op, poolId: newTargetId };
+      break;
     case 'removeSlot':
     case 'updateSlot':
       replacement = { ...op, slotId: newTargetId };
@@ -374,6 +384,14 @@ export function formatOverlayOpSummary(op: TemplateOverlayOp): string {
       return `removeRegionGroup(${op.regionGroupId})`;
     case 'updateRegionGroup':
       return `updateRegionGroup(${op.regionGroupId})`;
+    case 'addPool':
+      return `addPool(${op.pool.id})`;
+    case 'removePool':
+      return `removePool(${op.poolId})`;
+    case 'updatePool':
+      return `updatePool(${op.poolId})`;
+    case 'setComplexity':
+      return `setComplexity(${op.complexity})`;
     case 'addSlot':
       return `addSlot(${op.slot.id})`;
     case 'removeSlot':

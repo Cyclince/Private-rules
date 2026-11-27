@@ -11,6 +11,7 @@ import type {
 import type { NodeSlot, RegionGroup, TemplateBody, TemplateCardRef } from '../../shared/schemas/template';
 import { getRegionDefinition } from '../nodes/regions';
 import { DEFAULT_HEALTH_CHECK } from './model';
+import { inferTemplateComplexity, regionGroupToNodePool } from './pools';
 
 export type WizardPresetTier = 'less' | 'recommended' | 'all';
 export type LegacyWizardPresetTier = 'minimal' | 'light' | 'standard' | 'heavy';
@@ -480,7 +481,9 @@ function dedupePolicyRefs(refs: readonly PolicyRef[]): PolicyRef[] {
           ? `card:${ref.cardId}`
           : ref.kind === 'region'
             ? `region:${ref.regionGroupId}`
-            : `slot:${ref.slotId}`;
+            : ref.kind === 'pool'
+              ? `pool:${ref.poolId}`
+              : `slot:${ref.slotId}`;
     if (seen.has(key)) continue;
     seen.add(key);
     result.push(ref);
@@ -841,32 +844,36 @@ export function buildQuickCreateTemplateBody(
   }
 
   const baseBody = structuredClone(input.standardBaseBody);
+  const pools = regionGroups.map((rg) => regionGroupToNodePool(rg, { defaultHidden: input.groupMode !== 'region' }));
+  const wizardMeta: TemplateBody['wizardMeta'] = {
+    createdByWizard: true,
+    groupMode: input.groupMode,
+    combineMode,
+    ...(input.clientDisplayNames && input.clientDisplayNames.length > 0
+      ? { clientDisplayNames: [...input.clientDisplayNames] }
+      : {}),
+    ...(input.clientLabels && Object.keys(input.clientLabels).length > 0
+      ? { clientLabels: { ...input.clientLabels } }
+      : {}),
+    scenarios: normalizedScenarios,
+    rulesets: input.rulesets.map((rs) => ({ rulesetId: rs.rulesetId, route: rs.route })),
+    ...(input.previewSummary ? { previewSummary: input.previewSummary } : {}),
+    ...(input.subscriptionPreviews && Object.keys(input.subscriptionPreviews).length > 0
+      ? { subscriptionPreviews: structuredClone(input.subscriptionPreviews) }
+      : {}),
+  };
   const body: TemplateBody = {
     ...baseBody,
     slots: effectiveSlots,
+    pools,
     regionGroups,
+    complexity: inferTemplateComplexity({ pools, regionGroups, wizardMeta, cards }, { starterTier: 'recommended' }),
     cards,
     groupMode: 'select',
     combineMode,
     final: { kind: 'card', cardId: 'final-fallback' },
     output: 'full',
-    wizardMeta: {
-      createdByWizard: true,
-      groupMode: input.groupMode,
-      combineMode,
-      ...(input.clientDisplayNames && input.clientDisplayNames.length > 0
-        ? { clientDisplayNames: [...input.clientDisplayNames] }
-        : {}),
-      ...(input.clientLabels && Object.keys(input.clientLabels).length > 0
-        ? { clientLabels: { ...input.clientLabels } }
-        : {}),
-      scenarios: normalizedScenarios,
-      rulesets: input.rulesets.map((rs) => ({ rulesetId: rs.rulesetId, route: rs.route })),
-      ...(input.previewSummary ? { previewSummary: input.previewSummary } : {}),
-      ...(input.subscriptionPreviews && Object.keys(input.subscriptionPreviews).length > 0
-        ? { subscriptionPreviews: structuredClone(input.subscriptionPreviews) }
-        : {}),
-    },
+    wizardMeta,
   };
 
   return { body, generatedCards, normalizedScenarios };

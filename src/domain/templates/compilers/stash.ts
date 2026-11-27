@@ -7,7 +7,7 @@ import type {
   RemoteRuleBehavior,
   RemoteRuleFormat,
 } from '../../../shared/schemas/card';
-import type { DnsProfile, NodeSlot, RegionGroup, TemplateBody } from '../../../shared/schemas/template';
+import type { DnsProfile, NodePool, NodeSlot, TemplateBody } from '../../../shared/schemas/template';
 import { buildExcludeInfoRegex, buildRegionRegex, detectRegexDialectIssues, matchNodeFilter } from '../../nodes';
 import {
   CLIENT_CAPABILITIES,
@@ -19,6 +19,13 @@ import { recognizeGroupIcon } from '../icons';
 import { DEFAULT_HEALTH_CHECK, resolveTemplateCards, type ResolvedTemplateCard } from '../model';
 import { applyEnhancementModules } from '../modules';
 import { planRulesetReferences, type PlannedMatcherBinding, type PlannedProvider } from '../planner';
+import { getNormalizedBodyPools } from '../pools';
+import {
+  evaluatePoolEmptyProtection,
+  poolCompatibilityLocation,
+  poolToNodeFilter,
+  resolveStabilityPoolMembers,
+} from './pool-helpers';
 import type {
   CompatibilityItem,
   CompiledConfigResult,
@@ -758,10 +765,13 @@ export function compileStash(input: CompileTemplateInput): CompiledConfigResult 
     }
   }
 
-  // 3. Allocate unique sanitized group names for enabled cards and region groups
+  const hasExplicitPools = body.pools !== undefined;
+  const bodyPools = getNormalizedBodyPools(body);
+
+  // 3. Allocate unique sanitized group names for enabled cards and pools
   const usedGroupNames = new Set<string>(usedInlineProxyNames);
   const cardGroupNameById = new Map<string, string>();
-  const regionGroupNameById = new Map<string, string>();
+  const poolGroupNameById = new Map<string, string>();
 
   for (const card of enabledCards) {
     const sanitized = sanitizeStashGroupName(card.effective.name, card.cardId);
@@ -784,8 +794,8 @@ export function compileStash(input: CompileTemplateInput): CompiledConfigResult 
     cardGroupNameById.set(card.cardId, finalName);
   }
 
-  for (const regionGroup of body.regionGroups) {
-    const sanitized = sanitizeStashGroupName(regionGroup.name, regionGroup.id);
+  for (const pool of bodyPools) {
+    const sanitized = sanitizeStashGroupName(pool.name, pool.id);
     const finalName = allocateUniqueName(
       sanitized,
       usedGroupNames,
@@ -795,14 +805,14 @@ export function compileStash(input: CompileTemplateInput): CompiledConfigResult 
           items.push({
             code: 'GROUP_NAME_SANITIZED',
             severity: 'info',
-            message: `地区组名称已安全转义为「${resolvedName}」。`,
-            location: { regionGroupId: regionGroup.id },
+            message: `${pool.kind === 'region' ? '地区组' : '节点池'}名称已安全转义为「${resolvedName}」。`,
+            location: poolCompatibilityLocation(pool, hasExplicitPools),
           });
         }
       },
-      regionGroup.name,
+      pool.name,
     );
-    regionGroupNameById.set(regionGroup.id, finalName);
+    poolGroupNameById.set(pool.id, finalName);
   }
 
   const syntheticFilterGroups: Record<string, unknown>[] = [];
@@ -889,18 +899,25 @@ export function compileStash(input: CompileTemplateInput): CompiledConfigResult 
         continue;
       }
 
-      if (candidate.kind === 'region') {
-        const regionName = regionGroupNameById.get(candidate.regionGroupId);
-        if (!regionName) {
+      if (candidate.kind === 'region' || candidate.kind === 'pool') {
+        const targetId = candidate.kind === 'pool' ? candidate.poolId : candidate.regionGroupId;
+        const poolName = poolGroupNameById.get(targetId);
+        if (!poolName) {
           items.push({
-            code: 'MISSING_REGION_REFERENCE',
+            code: candidate.kind === 'pool' ? 'MISSING_POOL_REFERENCE' : 'MISSING_REGION_REFERENCE',
             severity: 'warning',
-            message: `策略组「${groupName}」引用的地区组 ${candidate.regionGroupId} 不存在，已忽略。`,
-            location: { cardId: card.cardId, regionGroupId: candidate.regionGroupId },
+            message:
+              candidate.kind === 'pool'
+                ? `策略组「${groupName}」引用的节点池 ${targetId} 不存在，已忽略。`
+                : `策略组「${groupName}」引用的地区组 ${targetId} 不存在，已忽略。`,
+            location:
+              candidate.kind === 'pool'
+                ? { cardId: card.cardId, poolId: targetId }
+                : { cardId: card.cardId, regionGroupId: targetId },
           });
           continue;
         }
-        if (!proxies.includes(regionName)) proxies.push(regionName);
+        if (!proxies.includes(poolName)) proxies.push(poolName);
         continue;
       }
 
@@ -1010,75 +1027,26 @@ export function compileStash(input: CompileTemplateInput): CompiledConfigResult 
     proxyGroups.push(groupObj);
   }
 
-  // 5. Build proxy-groups for regionGroups (plus synthesized filtered slot sub-groups)
-  const compileRegionGroup = (regionGroup: RegionGroup): Record<string, unknown> => {
-    const groupName = regionGroupNameById.get(regionGroup.id)!;
-    let effectiveType = regionGroup.type;
+  // 5. Build proxy-groups for node pools (plus synthesized filtered slot sub-groups)
+  const allProviderKeys = [...compiledSlotById.values()]
+    .filter((s): s is Extract<CompiledStashSlot, { kind: 'provider' }> => s.kind === 'provider')
+    .map((s) => s.providerKey);
+  const allInlineProxyNames = [...compiledSlotById.values()]
+    .filter((s): s is Extract<CompiledStashSlot, { kind: 'inline' }> => s.kind === 'inline')
+    .flatMap((s) => s.proxyNames);
+
+  const compilePoolGroup = (pool: NodePool): Record<string, unknown> => {
+    const groupName = poolGroupNameById.get(pool.id)!;
+    const location = poolCompatibilityLocation(pool, hasExplicitPools);
+    let effectiveType = pool.type;
     if (!isGroupTypeSupported('stash', effectiveType)) {
       items.push({
         code: 'UNSUPPORTED_GROUP_TYPE',
         severity: 'warning',
-        message: `Stash 不支持地区组类型 ${effectiveType}（地区组「${groupName}」），已降级为 select。`,
-        location: { regionGroupId: regionGroup.id },
+        message: `Stash 不支持${pool.kind === 'region' ? '地区组' : '节点池'}类型 ${effectiveType}（${pool.kind === 'region' ? '地区组' : '节点池'}「${groupName}」），已降级为 select。`,
+        location,
       });
       effectiveType = 'select';
-    }
-
-    const use: string[] = [];
-    const inlineMatchedProxies: string[] = [];
-
-    const collectSlot = (slotId: string) => {
-      const compiledSlot = compiledSlotById.get(slotId);
-      if (!compiledSlot) {
-        items.push({
-          code: 'MISSING_SLOT_REFERENCE',
-          severity: 'warning',
-          message: `地区组「${groupName}」引用的节点槽位 ${slotId} 不存在。`,
-          location: { regionGroupId: regionGroup.id, slotId },
-        });
-        return;
-      }
-      if (compiledSlot.kind === 'provider') {
-        if (!use.includes(compiledSlot.providerKey)) use.push(compiledSlot.providerKey);
-      } else {
-        const slot = slotById.get(slotId);
-        const excludeInfo = slot?.excludeInfo !== false;
-        const matched = compiledSlot.proxyNames.filter((name) =>
-          matchNodeFilter(
-            name,
-            {
-              regions: [regionGroup.region],
-              include: regionGroup.extraInclude,
-              exclude: regionGroup.extraExclude,
-            },
-            { excludeInfo },
-          ),
-        );
-        for (const nodeName of matched) {
-          if (!inlineMatchedProxies.includes(nodeName)) inlineMatchedProxies.push(nodeName);
-        }
-      }
-    };
-
-    if (regionGroup.slotId) {
-      collectSlot(regionGroup.slotId);
-    } else {
-      for (const slotId of compiledSlotById.keys()) {
-        collectSlot(slotId);
-      }
-    }
-
-    const compiledRegex = buildRegionRegex(regionGroup.region, 'stash', {
-      extraInclude: regionGroup.extraInclude,
-      extraExclude: regionGroup.extraExclude,
-    });
-    for (const warning of compiledRegex.warnings) {
-      items.push({
-        code: 'REGEX_DIALECT_WARNING',
-        severity: 'warning',
-        message: warning.message,
-        location: { regionGroupId: regionGroup.id },
-      });
     }
 
     const groupObj: Record<string, unknown> = {
@@ -1086,31 +1054,137 @@ export function compileStash(input: CompileTemplateInput): CompiledConfigResult 
       type: effectiveType,
     };
 
-    if (inlineMatchedProxies.length > 0) {
-      groupObj.proxies = inlineMatchedProxies;
-    }
-    if (use.length > 0) {
-      groupObj.use = use;
-      groupObj.filter = sanitizeStashScalar(compiledRegex.combined);
-    }
-    if (inlineMatchedProxies.length === 0 && use.length === 0) {
-      groupObj.proxies = ['DIRECT'];
-      items.push({
-        code: 'GROUP_FALLBACK_DIRECT',
-        severity: 'warning',
-        message: `地区组「${groupName}」没有可用节点槽位，已兜底填入 DIRECT。`,
-        location: { regionGroupId: regionGroup.id },
+    if (pool.kind === 'stability') {
+      const members = resolveStabilityPoolMembers(pool, poolGroupNameById, items, hasExplicitPools);
+      if (members.length > 0) {
+        groupObj.proxies = members;
+      } else if (allInlineProxyNames.length > 0 || allProviderKeys.length > 0) {
+        if (allInlineProxyNames.length > 0) groupObj.proxies = [...new Set(allInlineProxyNames)];
+        if (allProviderKeys.length > 0) groupObj.use = [...allProviderKeys];
+        items.push({
+          code: 'EMPTY_POOL_FALLBACK_ALL',
+          severity: 'warning',
+          message: `稳定性节点池「${groupName}」无可用成员池，已退化为引用全部节点。`,
+          location,
+        });
+      } else {
+        groupObj.proxies = ['DIRECT'];
+        items.push({
+          code: 'GROUP_FALLBACK_DIRECT',
+          severity: 'warning',
+          message: `稳定性节点池「${groupName}」没有可用成员或节点槽位，已兜底填入 DIRECT。`,
+          location,
+        });
+      }
+    } else {
+      const use: string[] = [];
+      const inlineMatchedProxies: string[] = [];
+      const nodeFilter = poolToNodeFilter(pool);
+
+      const emptyProtection = evaluatePoolEmptyProtection({
+        pool,
+        client: 'stash',
+        slots: body.slots,
+        slotById,
+        slotBindings: slotBindingMap,
       });
+
+      const collectSlot = (slotId: string, skipNodeFiltering: boolean) => {
+        const compiledSlot = compiledSlotById.get(slotId);
+        if (!compiledSlot) {
+          items.push({
+            code: 'MISSING_SLOT_REFERENCE',
+            severity: 'warning',
+            message: `${pool.kind === 'region' ? '地区组' : '节点池'}「${groupName}」引用的节点槽位 ${slotId} 不存在。`,
+            location: { ...location, slotId },
+          });
+          return;
+        }
+        if (compiledSlot.kind === 'provider') {
+          if (!use.includes(compiledSlot.providerKey)) use.push(compiledSlot.providerKey);
+        } else {
+          const slot = slotById.get(slotId);
+          const excludeInfo = slot?.excludeInfo !== false;
+          const matched =
+            !skipNodeFiltering && nodeFilter
+              ? compiledSlot.proxyNames.filter((name) => matchNodeFilter(name, nodeFilter, { excludeInfo }))
+              : compiledSlot.proxyNames;
+          for (const nodeName of matched) {
+            if (!inlineMatchedProxies.includes(nodeName)) inlineMatchedProxies.push(nodeName);
+          }
+        }
+      };
+
+      const targetSlots = pool.sources === 'all' ? [...compiledSlotById.keys()] : pool.sources;
+      for (const slotId of targetSlots) {
+        collectSlot(slotId, emptyProtection.fallbackToAll);
+      }
+
+      if (emptyProtection.fallbackToAll) {
+        items.push({
+          code: 'EMPTY_POOL_FALLBACK_ALL',
+          severity: 'warning',
+          message: emptyProtection.message ?? `节点池「${groupName}」已退化为引用全部节点。`,
+          location,
+        });
+        if (use.length === 0 && inlineMatchedProxies.length === 0) {
+          for (const key of allProviderKeys) {
+            if (!use.includes(key)) use.push(key);
+          }
+          for (const name of allInlineProxyNames) {
+            if (!inlineMatchedProxies.includes(name)) inlineMatchedProxies.push(name);
+          }
+        }
+      }
+
+      let compiledFilterString: string | undefined;
+      if (!emptyProtection.fallbackToAll && nodeFilter) {
+        if (pool.kind === 'region' && pool.region) {
+          const compiledRegex = buildRegionRegex(pool.region, 'stash', {
+            extraInclude: pool.include,
+            extraExclude: pool.exclude,
+          });
+          for (const warning of compiledRegex.warnings) {
+            items.push({
+              code: 'REGEX_DIALECT_WARNING',
+              severity: 'warning',
+              message: warning.message,
+              location,
+            });
+          }
+          compiledFilterString = sanitizeStashScalar(compiledRegex.combined);
+        } else {
+          compiledFilterString = compileStashNodeFilter(nodeFilter, items, location);
+        }
+      }
+
+      if (inlineMatchedProxies.length > 0) {
+        groupObj.proxies = inlineMatchedProxies;
+      }
+      if (use.length > 0) {
+        groupObj.use = use;
+        if (compiledFilterString) {
+          groupObj.filter = compiledFilterString;
+        }
+      }
+      if (inlineMatchedProxies.length === 0 && use.length === 0) {
+        groupObj.proxies = ['DIRECT'];
+        items.push({
+          code: 'GROUP_FALLBACK_DIRECT',
+          severity: 'warning',
+          message: `${pool.kind === 'region' ? '地区组' : '节点池'}「${groupName}」没有可用节点槽位，已兜底填入 DIRECT。`,
+          location,
+        });
+      }
     }
 
     if (effectiveType === 'url-test' || effectiveType === 'fallback' || effectiveType === 'load-balance') {
       groupObj['benchmark-url'] = sanitizeStashScalar(
-        regionGroup.test?.url ?? body.general?.testUrl ?? DEFAULT_HEALTH_CHECK.url,
+        pool.test?.url ?? body.general?.testUrl ?? DEFAULT_HEALTH_CHECK.url,
       );
-      groupObj.interval =
-        regionGroup.test?.intervalSec ?? body.general?.testIntervalSec ?? DEFAULT_HEALTH_CHECK.intervalSec;
+      groupObj.interval = pool.test?.intervalSec ?? body.general?.testIntervalSec ?? DEFAULT_HEALTH_CHECK.intervalSec;
       if (effectiveType === 'url-test') {
-        groupObj.tolerance = regionGroup.test?.toleranceMs ?? DEFAULT_HEALTH_CHECK.toleranceMs ?? 50;
+        groupObj.tolerance = pool.test?.toleranceMs ?? DEFAULT_HEALTH_CHECK.toleranceMs ?? 50;
       }
       if (effectiveType === 'load-balance') {
         groupObj.strategy = DEFAULT_LOAD_BALANCE_STRATEGY;
@@ -1119,8 +1193,10 @@ export function compileStash(input: CompileTemplateInput): CompiledConfigResult 
 
     const iconUrl = resolveGroupIconUrl(
       {
-        name: regionGroup.name,
-        region: regionGroup.region,
+        ...(pool.kind !== 'region' && pool.icon ? { explicitIcon: pool.icon } : {}),
+        name: pool.name,
+        ...(pool.kind === 'region' && pool.region ? { region: pool.region } : {}),
+        ...(pool.kind === 'all' ? { slug: 'all-nodes' } : pool.kind === 'provider' ? { slug: 'airport' } : {}),
         groupType: effectiveType,
       },
       input.iconPack,
@@ -1132,8 +1208,8 @@ export function compileStash(input: CompileTemplateInput): CompiledConfigResult 
     return groupObj;
   };
 
-  for (const regionGroup of body.regionGroups) {
-    proxyGroups.push(compileRegionGroup(regionGroup));
+  for (const pool of bodyPools) {
+    proxyGroups.push(compilePoolGroup(pool));
   }
   for (const synthGroup of syntheticFilterGroups) {
     proxyGroups.push(synthGroup);
@@ -1256,14 +1332,18 @@ export function compileStash(input: CompileTemplateInput): CompiledConfigResult 
       });
       return 'DIRECT';
     }
-    if (finalRef.kind === 'region') {
-      const target = regionGroupNameById.get(finalRef.regionGroupId);
+    if (finalRef.kind === 'region' || finalRef.kind === 'pool') {
+      const targetId = finalRef.kind === 'pool' ? finalRef.poolId : finalRef.regionGroupId;
+      const target = poolGroupNameById.get(targetId);
       if (target) return target;
       items.push({
-        code: 'MISSING_REGION_REFERENCE',
+        code: finalRef.kind === 'pool' ? 'MISSING_POOL_REFERENCE' : 'MISSING_REGION_REFERENCE',
         severity: 'warning',
-        message: `兜底出口引用的地区组 ${finalRef.regionGroupId} 不存在，已回退为 DIRECT。`,
-        location: { regionGroupId: finalRef.regionGroupId },
+        message:
+          finalRef.kind === 'pool'
+            ? `兜底出口引用的节点池 ${targetId} 不存在，已回退为 DIRECT。`
+            : `兜底出口引用的地区组 ${targetId} 不存在，已回退为 DIRECT。`,
+        location: finalRef.kind === 'pool' ? { poolId: targetId } : { regionGroupId: targetId },
       });
       return 'DIRECT';
     }

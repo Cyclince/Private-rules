@@ -43,8 +43,11 @@ const blockEncryptedDnsParamsSchema = z.object({
 export const blockEncryptedDnsModule: EnhancementModule = {
   id: 'block-encrypted-dns',
   name: '阻断加密 DNS',
+  icon: '🚫',
+  group: 'dns-privacy',
   description: '在规则最前面拦截 853 端口与常见 DoH / DoT / DoQ 域名和 IP，迫使终端使用配置中的 DNS。',
   defaultEnabled: false,
+  tierDefaults: { simple: false, advanced: false, pro: true },
   order: 10,
   affects: ['rules', 'groups'],
   conflictsWith: ['dns-leak-guard'],

@@ -1,6 +1,6 @@
 import type { OutputProfile } from '../../../shared/clients';
-import type { Condition, InlineRule, NodeFilter, PolicyRef } from '../../../shared/schemas/card';
-import type { DnsProfile, NodeSlot, RegionGroup, TemplateBody } from '../../../shared/schemas/template';
+import type { Condition, InlineRule, PolicyRef } from '../../../shared/schemas/card';
+import type { DnsProfile, NodePool, NodeSlot, TemplateBody } from '../../../shared/schemas/template';
 import { filterNodes, matchNodeFilter } from '../../nodes/filter';
 import type {
   Hysteria2Node,
@@ -19,6 +19,13 @@ import { DEFAULT_HEALTH_CHECK, resolveTemplateCards, type ResolvedTemplateCard }
 import { applyEnhancementModules } from '../modules';
 import { DNS_LEAK_FINAL_CARD_ID } from '../modules/dns-leak';
 import { planRulesetReferences, type PlannedMatcherBinding, type PlannedProvider } from '../planner';
+import { getNormalizedBodyPools } from '../pools';
+import {
+  evaluatePoolEmptyProtection,
+  poolCompatibilityLocation,
+  poolToNodeFilter,
+  resolveStabilityPoolMembers,
+} from './pool-helpers';
 import type {
   CompatibilityItem,
   CompiledConfigResult,
@@ -1389,14 +1396,21 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
     return unique;
   };
 
+  const hasExplicitPools = body.pools !== undefined;
+  const bodyPools = getNormalizedBodyPools(body);
+
   // Detect cards whose primary policy is REJECT / REJECT-DROP (compiled directly as route action: reject)
   const cardRejectTarget = new Map<string, { kind: 'reject'; drop: boolean }>();
   const cardTagById = new Map<string, string>();
-  const regionTagById = new Map<string, string>();
+  const poolTagById = new Map<string, string>();
 
-  for (const rg of body.regionGroups) {
-    const tag = allocateOutboundTag(rg.name, `Region-${rg.id}`, { regionGroupId: rg.id });
-    regionTagById.set(rg.id, tag);
+  for (const pool of bodyPools) {
+    const tag = allocateOutboundTag(
+      pool.name,
+      pool.kind === 'region' ? `Region-${pool.id}` : `Pool-${pool.id}`,
+      poolCompatibilityLocation(pool, hasExplicitPools),
+    );
+    poolTagById.set(pool.id, tag);
   }
 
   for (const card of activeCards) {
@@ -1530,78 +1544,164 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
     }
   }
 
-  // 5. Build RegionGroup outbounds (server-side JS regex filtering)
-  const regionOutbounds: SingboxOutbound[] = [];
-  const regionHasRealNodes = new Map<string, boolean>();
+  // 5. Build NodePool outbounds (server-side JS regex filtering)
+  const poolOutboundById = new Map<string, SingboxOutbound>();
+  const poolHasRealNodes = new Map<string, boolean>();
+  const allInlinedNodeTags = allInlinedNodes.map((n) => n.tag);
 
-  for (const rg of body.regionGroups) {
-    const tag = regionTagById.get(rg.id)!;
+  // Pass 1: all non-stability node pools
+  for (const pool of bodyPools) {
+    if (pool.kind === 'stability') continue;
+    const tag = poolTagById.get(pool.id)!;
+    const location = poolCompatibilityLocation(pool, hasExplicitPools);
+    const singleSourceSlotId = Array.isArray(pool.sources) && pool.sources.length === 1 ? pool.sources[0] : undefined;
     const targetSlots =
-      multiSlot && (!rg.slotId || rg.slotId === 'slot-main' || !slotById.has(rg.slotId))
+      pool.kind === 'region' &&
+      multiSlot &&
+      (pool.sources === 'all' ||
+        singleSourceSlotId === 'slot-main' ||
+        (singleSourceSlotId !== undefined && !slotById.has(singleSourceSlotId)))
         ? body.slots.map((s) => s.id)
-        : rg.slotId
-          ? [rg.slotId]
-          : body.slots.map((s) => s.id);
-    const regionFilter: NodeFilter = {
-      regions: [rg.region],
-      ...(rg.extraInclude ? { include: rg.extraInclude } : {}),
-      ...(rg.extraExclude ? { exclude: rg.extraExclude } : {}),
-    };
+        : pool.sources === 'all'
+          ? body.slots.map((s) => s.id)
+          : pool.sources;
+    const nodeFilter = poolToNodeFilter(pool);
 
-    for (const pattern of [rg.extraInclude, rg.extraExclude]) {
+    for (const pattern of [pool.include, pool.exclude]) {
       if (!pattern) continue;
       for (const issue of detectRegexDialectIssues(pattern, 'sing-box')) {
         items.push({
           code: 'REGEX_DIALECT_WARNING',
           severity: 'warning',
-          message: `地区组「${rg.name}」的过滤正则：${issue.message}`,
-          location: { regionGroupId: rg.id },
+          message: `${pool.kind === 'region' ? '地区组' : '节点池'}「${pool.name}」的过滤正则：${issue.message}`,
+          location,
         });
       }
     }
 
+    const emptyProtection = evaluatePoolEmptyProtection({
+      pool,
+      client: 'sing-box',
+      slots: body.slots,
+      slotById,
+      slotBindings,
+      allowEmptyNodeFallback: hasExplicitPools,
+    });
+
     const matchedTags: string[] = [];
+    const targetSlotAllTags: string[] = [];
 
     for (const slotId of targetSlots) {
       if (!slotById.has(slotId)) {
         items.push({
           code: 'MISSING_SLOT_REFERENCE',
           severity: 'warning',
-          message: `地区组「${rg.name}」引用了不存在的节点槽位 ${slotId}。`,
-          location: { regionGroupId: rg.id, slotId },
+          message: `${pool.kind === 'region' ? '地区组' : '节点池'}「${pool.name}」引用了不存在的节点槽位 ${slotId}。`,
+          location: { ...location, slotId },
         });
         continue;
       }
       const entries = slotNodesById.get(slotId) ?? [];
       for (const entry of entries) {
-        if (matchNodeFilter(entry.originalName, regionFilter)) {
+        targetSlotAllTags.push(entry.tag);
+        if (!emptyProtection.fallbackToAll && (!nodeFilter || matchNodeFilter(entry.originalName, nodeFilter))) {
           matchedTags.push(entry.tag);
         }
       }
     }
 
-    const uniqueNodeTags = dedupeStrings(matchedTags);
-    regionHasRealNodes.set(rg.id, uniqueNodeTags.length > 0);
-    const members = uniqueNodeTags.length > 0 ? uniqueNodeTags : [DIRECT_TAG];
-    if (uniqueNodeTags.length === 0) {
+    let members: string[];
+    const uniqueMatchedTags = dedupeStrings(matchedTags);
+    const uniqueFallbackAllTags = dedupeStrings(
+      allNodesTag ? [allNodesTag] : allInlinedNodeTags.length > 0 ? allInlinedNodeTags : targetSlotAllTags,
+    );
+
+    if (emptyProtection.fallbackToAll && uniqueFallbackAllTags.length > 0) {
+      members = uniqueFallbackAllTags;
+      poolHasRealNodes.set(pool.id, true);
+      items.push({
+        code: 'EMPTY_POOL_FALLBACK_ALL',
+        severity: 'warning',
+        message: emptyProtection.message ?? `节点池「${pool.name}」已退化为引用全部节点。`,
+        location,
+      });
+    } else if (uniqueMatchedTags.length > 0) {
+      members = uniqueMatchedTags;
+      poolHasRealNodes.set(pool.id, true);
+    } else {
+      members = [DIRECT_TAG];
+      poolHasRealNodes.set(pool.id, false);
       items.push({
         code: 'GROUP_FALLBACK_DIRECT',
         severity: 'info',
-        message: `地区组「${rg.name}」当前未匹配到任何节点，已回退到 ${DIRECT_TAG} 以确保配置有效。`,
-        location: { regionGroupId: rg.id },
+        message: `${pool.kind === 'region' ? '地区组' : '节点池'}「${pool.name}」当前未匹配到任何节点，已回退到 ${DIRECT_TAG} 以确保配置有效。`,
+        location,
       });
     }
 
-    const groupObj = buildSingboxGroupOutbound({
-      tag,
-      groupType: rg.type,
-      outbounds: members,
-      healthCheck: rg.test,
-      location: { regionGroupId: rg.id },
-      items,
-    });
-    regionOutbounds.push(groupObj);
+    poolOutboundById.set(
+      pool.id,
+      buildSingboxGroupOutbound({
+        tag,
+        groupType: pool.type,
+        outbounds: members,
+        healthCheck: pool.test,
+        location,
+        items,
+      }),
+    );
   }
+
+  // Pass 2: stability pools referencing other pool outbound tags
+  for (const pool of bodyPools) {
+    if (pool.kind !== 'stability') continue;
+    const tag = poolTagById.get(pool.id)!;
+    const location = poolCompatibilityLocation(pool, hasExplicitPools);
+    const resolvedMembers = resolveStabilityPoolMembers(pool, poolTagById, items, hasExplicitPools);
+    let members: string[];
+    if (resolvedMembers.length > 0) {
+      members = resolvedMembers;
+      const memberIds = pool.members ?? [];
+      poolHasRealNodes.set(
+        pool.id,
+        memberIds.some((memberId) => poolHasRealNodes.get(memberId)),
+      );
+    } else if (allInlinedNodeTags.length > 0 || allNodesTag) {
+      members = allNodesTag ? [allNodesTag] : [...allInlinedNodeTags];
+      poolHasRealNodes.set(pool.id, true);
+      items.push({
+        code: 'EMPTY_POOL_FALLBACK_ALL',
+        severity: 'warning',
+        message: `稳定性节点池「${pool.name}」无可用成员池，已退化为引用全部节点。`,
+        location,
+      });
+    } else {
+      members = [DIRECT_TAG];
+      poolHasRealNodes.set(pool.id, false);
+      items.push({
+        code: 'GROUP_FALLBACK_DIRECT',
+        severity: 'info',
+        message: `稳定性节点池「${pool.name}」没有可用成员或节点，已回退到 ${DIRECT_TAG} 以确保配置有效。`,
+        location,
+      });
+    }
+
+    poolOutboundById.set(
+      pool.id,
+      buildSingboxGroupOutbound({
+        tag,
+        groupType: pool.type,
+        outbounds: members,
+        healthCheck: pool.test,
+        location,
+        items,
+      }),
+    );
+  }
+
+  const regionOutbounds: SingboxOutbound[] = bodyPools
+    .map((pool) => poolOutboundById.get(pool.id))
+    .filter((ob): ob is SingboxOutbound => ob !== undefined);
 
   // 5b. Build per-provider & all-nodes groups when combineMode === 'perProvider'
   const airportOutbounds: SingboxOutbound[] = [];
@@ -1709,19 +1809,27 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
           }
           break;
         }
-        case 'region': {
-          const regionTag = regionTagById.get(ref.regionGroupId);
-          if (!regionTag) {
+        case 'region':
+        case 'pool': {
+          const targetId = ref.kind === 'pool' ? ref.poolId : ref.regionGroupId;
+          const poolTag = poolTagById.get(targetId);
+          if (!poolTag) {
             items.push({
-              code: 'MISSING_REGION_REFERENCE',
+              code: ref.kind === 'pool' ? 'MISSING_POOL_REFERENCE' : 'MISSING_REGION_REFERENCE',
               severity: 'warning',
-              message: `应用组件「${card.effective.name}」引用了不存在的地区组 ${ref.regionGroupId}。`,
-              location: { cardId: card.cardId, regionGroupId: ref.regionGroupId },
+              message:
+                ref.kind === 'pool'
+                  ? `应用组件「${card.effective.name}」引用了不存在的节点池 ${targetId}。`
+                  : `应用组件「${card.effective.name}」引用了不存在的地区组 ${targetId}。`,
+              location:
+                ref.kind === 'pool'
+                  ? { cardId: card.cardId, poolId: targetId }
+                  : { cardId: card.cardId, regionGroupId: targetId },
             });
             break;
           }
-          outbounds.push(regionTag);
-          if (regionHasRealNodes.get(ref.regionGroupId)) {
+          outbounds.push(poolTag);
+          if (poolHasRealNodes.get(targetId)) {
             hasRealProxy = true;
           }
           break;
@@ -2069,8 +2177,10 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
         return { kind: 'reject', drop: ref.id === 'REJECT-DROP' };
       case 'card':
         return resolveCardRuleTarget(ref.cardId);
-      case 'region': {
-        const tag = regionTagById.get(ref.regionGroupId);
+      case 'region':
+      case 'pool': {
+        const targetId = ref.kind === 'pool' ? ref.poolId : ref.regionGroupId;
+        const tag = poolTagById.get(targetId);
         return tag ? { kind: 'outbound', tag } : null;
       }
       case 'slot': {
@@ -2251,9 +2361,9 @@ export function compileSingbox(input: CompileTemplateInput): CompiledConfigResul
 
 function buildSingboxGroupOutbound(params: {
   tag: string;
-  groupType: RegionGroup['type'];
+  groupType: NodePool['type'];
   outbounds: string[];
-  healthCheck?: RegionGroup['test'];
+  healthCheck?: NodePool['test'];
   location: CompatibilityItem['location'];
   items: CompatibilityItem[];
 }): SingboxOutbound {

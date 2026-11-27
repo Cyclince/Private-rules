@@ -29,8 +29,21 @@ function buildProxyOnlyCandidates(template: ResolvedTemplate, emptyFallback: 'RE
   if (enabledIds.has('auto-select')) {
     candidates.push({ kind: 'card', cardId: 'auto-select' });
   }
-  for (const rg of template.body.regionGroups) {
-    candidates.push({ kind: 'region', regionGroupId: rg.id });
+  for (const pool of template.body.pools ?? []) {
+    if (pool.kind === 'all') continue;
+    candidates.push({ kind: 'pool', poolId: pool.id });
+  }
+  if (!template.body.pools) {
+    for (const rg of template.body.regionGroups ?? []) {
+      candidates.push({ kind: 'region', regionGroupId: rg.id });
+    }
+  }
+  if (candidates.length === 0) {
+    for (const pool of template.body.pools ?? []) {
+      if (pool.kind === 'all') {
+        candidates.push({ kind: 'pool', poolId: pool.id });
+      }
+    }
   }
   if (candidates.length === 0) {
     for (const slot of template.body.slots) {
@@ -50,9 +63,12 @@ function buildProxyOnlyCandidates(template: ResolvedTemplate, emptyFallback: 'RE
 export const dnsLeakGuardModule: EnhancementModule = {
   id: 'dns-leak-guard',
   name: '防 DNS 泄漏',
+  icon: '🛡️',
+  group: 'dns-privacy',
   description:
     '开启 DNS 规则跟随（respect-rules），移除系统 DNS，并将兜底出口改为不含 DIRECT 的专用代理组（为空时回退拦截）。',
-  defaultEnabled: false,
+  defaultEnabled: true,
+  tierDefaults: { simple: true, advanced: true, pro: true },
   order: 40,
   affects: ['dns', 'groups', 'final'],
   conflictsWith: ['block-encrypted-dns'],

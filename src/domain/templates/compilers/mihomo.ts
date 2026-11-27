@@ -8,13 +8,15 @@ import type {
   RemoteRuleBehavior,
   RemoteRuleFormat,
 } from '../../../shared/schemas/card';
-import type { DnsProfile, NodeSlot, RegionGroup, TemplateBody } from '../../../shared/schemas/template';
+import type { DnsProfile, NodePool, NodeSlot, TemplateBody } from '../../../shared/schemas/template';
 import { buildExcludeInfoRegex, buildRegionRegex, detectRegexDialectIssues } from '../../nodes/regex';
 import { CLIENT_CAPABILITIES, isRemoteFormatSupported, isRuleTypeSupported } from '../capabilities';
 import { buildDefaultIconPack, recognizeGroupIcon } from '../icons';
 import { DEFAULT_HEALTH_CHECK, resolveTemplateCards, type ResolvedTemplateCard } from '../model';
 import { applyEnhancementModules } from '../modules';
 import { planRulesetReferences, type PlannedMatcherBinding, type PlannedProvider } from '../planner';
+import { getNormalizedBodyPools } from '../pools';
+import { evaluatePoolEmptyProtection, poolCompatibilityLocation, resolveStabilityPoolMembers } from './pool-helpers';
 import type {
   CompatibilityItem,
   CompiledConfigResult,
@@ -890,12 +892,15 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
     totalInlineProxies += inlineProxyCount;
   }
 
+  const slotById = new Map<string, NodeSlot>(body.slots.map((slot) => [slot.id, slot]));
   const allProviderKeys = [...slotProviderKeyById.values()];
+  const hasExplicitPools = body.pools !== undefined;
+  const bodyPools = getNormalizedBodyPools(body);
 
-  // 3. Allocate unique sanitized group names for all enabled cards, region groups, and multi-airport helper groups
+  // 3. Allocate unique sanitized group names for all enabled cards, pools, and multi-airport helper groups
   const usedGroupNames = new Set<string>();
   const cardGroupNameById = new Map<string, string>();
-  const regionGroupNameById = new Map<string, string>();
+  const poolGroupNameById = new Map<string, string>();
   const airportGroupNameBySlotId = new Map<string, string>();
   let allNodesGroupName: string | undefined;
 
@@ -920,8 +925,8 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
     cardGroupNameById.set(card.cardId, finalName);
   }
 
-  for (const regionGroup of body.regionGroups) {
-    const sanitized = sanitizeMihomoGroupName(regionGroup.name, regionGroup.id);
+  for (const pool of bodyPools) {
+    const sanitized = sanitizeMihomoGroupName(pool.name, pool.id);
     const finalName = allocateUniqueName(
       sanitized,
       usedGroupNames,
@@ -931,14 +936,14 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
           items.push({
             code: 'GROUP_NAME_SANITIZED',
             severity: 'info',
-            message: `地区组名称已安全转义为「${resolvedName}」。`,
-            location: { regionGroupId: regionGroup.id },
+            message: `${pool.kind === 'region' ? '地区组' : '节点池'}名称已安全转义为「${resolvedName}」。`,
+            location: poolCompatibilityLocation(pool, hasExplicitPools),
           });
         }
       },
-      regionGroup.name,
+      pool.name,
     );
-    regionGroupNameById.set(regionGroup.id, finalName);
+    poolGroupNameById.set(pool.id, finalName);
   }
 
   if (multiSlot) {
@@ -1003,9 +1008,12 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
     return false;
   };
 
-  const shouldHideRegionGroup = (regionGroup: RegionGroup): boolean => {
-    if (regionGroup.hidden !== undefined) return regionGroup.hidden;
-    return body.wizardMeta?.groupMode !== 'region';
+  const shouldHidePool = (pool: NodePool): boolean => {
+    if (pool.hidden !== undefined) return pool.hidden;
+    if (pool.kind === 'region') {
+      return body.wizardMeta?.groupMode !== 'region';
+    }
+    return true;
   };
 
   // 4. Build proxy-groups for enabled cards
@@ -1045,18 +1053,25 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
         continue;
       }
 
-      if (candidate.kind === 'region') {
-        const regionName = regionGroupNameById.get(candidate.regionGroupId);
-        if (!regionName) {
+      if (candidate.kind === 'region' || candidate.kind === 'pool') {
+        const targetId = candidate.kind === 'pool' ? candidate.poolId : candidate.regionGroupId;
+        const poolName = poolGroupNameById.get(targetId);
+        if (!poolName) {
           items.push({
-            code: 'MISSING_REGION_REFERENCE',
+            code: candidate.kind === 'pool' ? 'MISSING_POOL_REFERENCE' : 'MISSING_REGION_REFERENCE',
             severity: 'warning',
-            message: `策略组「${groupName}」引用的地区组 ${candidate.regionGroupId} 不存在，已忽略。`,
-            location: { cardId: card.cardId, regionGroupId: candidate.regionGroupId },
+            message:
+              candidate.kind === 'pool'
+                ? `策略组「${groupName}」引用的节点池 ${targetId} 不存在，已忽略。`
+                : `策略组「${groupName}」引用的地区组 ${targetId} 不存在，已忽略。`,
+            location:
+              candidate.kind === 'pool'
+                ? { cardId: card.cardId, poolId: targetId }
+                : { cardId: card.cardId, regionGroupId: targetId },
           });
           continue;
         }
-        if (!proxies.includes(regionName)) proxies.push(regionName);
+        if (!proxies.includes(poolName)) proxies.push(poolName);
         continue;
       }
 
@@ -1183,96 +1198,167 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
     proxyGroups.push(groupObj);
   }
 
-  // 5. Build proxy-groups for regionGroups, multi-airport helper groups, and synthesized filtered slot sub-groups
-  const compileRegionGroup = (regionGroup: RegionGroup): Record<string, unknown> => {
-    const groupName = regionGroupNameById.get(regionGroup.id)!;
-    const use: string[] = [];
+  // 5. Build proxy-groups for node pools, multi-airport helper groups, and synthesized filtered slot sub-groups
+  const compilePoolGroup = (pool: NodePool): Record<string, unknown> => {
+    const groupName = poolGroupNameById.get(pool.id)!;
+    const location = poolCompatibilityLocation(pool, hasExplicitPools);
+    const groupObj: Record<string, unknown> = {
+      name: groupName,
+      type: pool.type,
+    };
 
-    if (
-      multiSlot &&
-      (!regionGroup.slotId || regionGroup.slotId === 'slot-main' || !slotProviderKeyById.has(regionGroup.slotId))
-    ) {
-      for (const key of allProviderKeys) {
-        use.push(key);
-      }
-    } else if (regionGroup.slotId) {
-      const providerKey = slotProviderKeyById.get(regionGroup.slotId);
-      if (providerKey) {
-        use.push(providerKey);
-      } else {
+    if (pool.kind === 'stability') {
+      const members = resolveStabilityPoolMembers(pool, poolGroupNameById, items, hasExplicitPools);
+      if (members.length > 0) {
+        groupObj.proxies = members;
+      } else if (allProviderKeys.length > 0) {
+        groupObj.use = [...allProviderKeys];
         items.push({
-          code: 'MISSING_SLOT_REFERENCE',
+          code: 'EMPTY_POOL_FALLBACK_ALL',
           severity: 'warning',
-          message: `地区组「${groupName}」引用的节点槽位 ${regionGroup.slotId} 不存在。`,
-          location: { regionGroupId: regionGroup.id, slotId: regionGroup.slotId },
+          message: `稳定性节点池「${groupName}」无可用成员池，已退化为引用全部节点。`,
+          location,
+        });
+      } else {
+        groupObj.proxies = ['DIRECT'];
+        items.push({
+          code: 'GROUP_FALLBACK_DIRECT',
+          severity: 'warning',
+          message: `稳定性节点池「${groupName}」没有可用成员或节点槽位，已兜底填入 DIRECT。`,
+          location,
         });
       }
     } else {
-      for (const key of allProviderKeys) {
-        use.push(key);
-      }
-    }
+      const use: string[] = [];
+      const singleSourceSlotId = Array.isArray(pool.sources) && pool.sources.length === 1 ? pool.sources[0] : undefined;
 
-    const compiledRegex = buildRegionRegex(regionGroup.region, 'mihomo', {
-      extraInclude: regionGroup.extraInclude,
-      extraExclude: regionGroup.extraExclude,
-    });
-    for (const warning of compiledRegex.warnings) {
-      items.push({
-        code: 'REGEX_DIALECT_WARNING',
-        severity: 'warning',
-        message: warning.message,
-        location: { regionGroupId: regionGroup.id },
+      if (
+        pool.kind === 'region' &&
+        multiSlot &&
+        (pool.sources === 'all' ||
+          singleSourceSlotId === 'slot-main' ||
+          (singleSourceSlotId !== undefined && !slotProviderKeyById.has(singleSourceSlotId)))
+      ) {
+        for (const key of allProviderKeys) {
+          use.push(key);
+        }
+      } else if (pool.sources === 'all') {
+        for (const key of allProviderKeys) {
+          use.push(key);
+        }
+      } else {
+        for (const slotId of pool.sources) {
+          const providerKey = slotProviderKeyById.get(slotId);
+          if (providerKey) {
+            if (!use.includes(providerKey)) use.push(providerKey);
+          } else {
+            items.push({
+              code: 'MISSING_SLOT_REFERENCE',
+              severity: 'warning',
+              message: `${pool.kind === 'region' ? '地区组' : '节点池'}「${groupName}」引用的节点槽位 ${slotId} 不存在。`,
+              location: { ...location, slotId },
+            });
+          }
+        }
+      }
+
+      const emptyProtection = evaluatePoolEmptyProtection({
+        pool,
+        client: 'mihomo',
+        slots: body.slots,
+        slotById,
+        slotBindings: slotBindingMap,
       });
+
+      if (emptyProtection.fallbackToAll) {
+        items.push({
+          code: 'EMPTY_POOL_FALLBACK_ALL',
+          severity: 'warning',
+          message: emptyProtection.message ?? `节点池「${groupName}」已退化为引用全部节点。`,
+          location,
+        });
+        if (use.length === 0) {
+          for (const key of allProviderKeys) {
+            if (!use.includes(key)) use.push(key);
+          }
+        }
+      }
+
+      if (use.length > 0) {
+        groupObj.use = use;
+        if (!emptyProtection.fallbackToAll) {
+          if (pool.kind === 'region' && pool.region) {
+            const compiledRegex = buildRegionRegex(pool.region, 'mihomo', {
+              extraInclude: pool.include,
+              extraExclude: pool.exclude,
+            });
+            for (const warning of compiledRegex.warnings) {
+              items.push({
+                code: 'REGEX_DIALECT_WARNING',
+                severity: 'warning',
+                message: warning.message,
+                location,
+              });
+            }
+            groupObj.filter = sanitizeMihomoScalar(compiledRegex.include);
+            if (compiledRegex.exclude) {
+              groupObj['exclude-filter'] = sanitizeMihomoScalar(compiledRegex.exclude);
+            }
+          } else if (pool.include || pool.exclude) {
+            const compiledFilter = compileNodeFilter(
+              {
+                ...(pool.include ? { include: pool.include } : {}),
+                ...(pool.exclude ? { exclude: pool.exclude } : {}),
+              },
+              items,
+              location,
+            );
+            if (compiledFilter.filter) {
+              groupObj.filter = compiledFilter.filter;
+            }
+            if (compiledFilter.excludeFilter) {
+              groupObj['exclude-filter'] = compiledFilter.excludeFilter;
+            }
+          }
+        }
+      } else {
+        groupObj.proxies = ['DIRECT'];
+        items.push({
+          code: 'GROUP_FALLBACK_DIRECT',
+          severity: 'warning',
+          message: `${pool.kind === 'region' ? '地区组' : '节点池'}「${groupName}」没有可用节点槽位，已兜底填入 DIRECT。`,
+          location,
+        });
+      }
     }
 
-    const groupObj: Record<string, unknown> = {
-      name: groupName,
-      type: regionGroup.type,
-    };
-
-    if (use.length > 0) {
-      groupObj.use = use;
-      groupObj.filter = sanitizeMihomoScalar(compiledRegex.include);
-      if (compiledRegex.exclude) {
-        groupObj['exclude-filter'] = sanitizeMihomoScalar(compiledRegex.exclude);
+    if (pool.type === 'url-test' || pool.type === 'fallback' || pool.type === 'load-balance') {
+      groupObj.url = sanitizeMihomoScalar(pool.test?.url ?? body.general?.testUrl ?? DEFAULT_HEALTH_CHECK.url);
+      groupObj.interval = pool.test?.intervalSec ?? body.general?.testIntervalSec ?? DEFAULT_HEALTH_CHECK.intervalSec;
+      if (pool.type === 'url-test') {
+        groupObj.tolerance = pool.test?.toleranceMs ?? DEFAULT_HEALTH_CHECK.toleranceMs ?? 50;
       }
-    } else {
-      groupObj.proxies = ['DIRECT'];
-      items.push({
-        code: 'GROUP_FALLBACK_DIRECT',
-        severity: 'warning',
-        message: `地区组「${groupName}」没有可用节点槽位，已兜底填入 DIRECT。`,
-        location: { regionGroupId: regionGroup.id },
-      });
-    }
-
-    if (regionGroup.type === 'url-test' || regionGroup.type === 'fallback' || regionGroup.type === 'load-balance') {
-      groupObj.url = sanitizeMihomoScalar(regionGroup.test?.url ?? body.general?.testUrl ?? DEFAULT_HEALTH_CHECK.url);
-      groupObj.interval =
-        regionGroup.test?.intervalSec ?? body.general?.testIntervalSec ?? DEFAULT_HEALTH_CHECK.intervalSec;
-      if (regionGroup.type === 'url-test') {
-        groupObj.tolerance = regionGroup.test?.toleranceMs ?? DEFAULT_HEALTH_CHECK.toleranceMs ?? 50;
-      }
-      if (regionGroup.type === 'url-test' || regionGroup.type === 'fallback') {
+      if (pool.type === 'url-test' || pool.type === 'fallback') {
         groupObj.lazy = true;
         groupObj.timeout = DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
         groupObj['expected-status'] = DEFAULT_EXPECTED_STATUS;
       }
-      if (regionGroup.type === 'load-balance') {
+      if (pool.type === 'load-balance') {
         groupObj.strategy = DEFAULT_LOAD_BALANCE_STRATEGY;
       }
     }
 
-    if (shouldHideRegionGroup(regionGroup)) {
+    if (shouldHidePool(pool)) {
       groupObj.hidden = true;
     }
 
     const iconUrl = resolveGroupIconUrl(
       {
-        name: regionGroup.name,
-        region: regionGroup.region,
-        groupType: regionGroup.type,
+        ...(pool.kind !== 'region' && pool.icon ? { explicitIcon: pool.icon } : {}),
+        name: pool.name,
+        ...(pool.kind === 'region' && pool.region ? { region: pool.region } : {}),
+        ...(pool.kind === 'all' ? { slug: 'all-nodes' } : pool.kind === 'provider' ? { slug: 'airport' } : {}),
+        groupType: pool.type,
       },
       effectiveIconPack,
       githubMirrorUrl,
@@ -1284,8 +1370,8 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
     return groupObj;
   };
 
-  for (const regionGroup of body.regionGroups) {
-    proxyGroups.push(compileRegionGroup(regionGroup));
+  for (const pool of bodyPools) {
+    proxyGroups.push(compilePoolGroup(pool));
   }
 
   if (multiSlot) {
@@ -1498,14 +1584,18 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
       });
       return 'DIRECT';
     }
-    if (finalRef.kind === 'region') {
-      const target = regionGroupNameById.get(finalRef.regionGroupId);
+    if (finalRef.kind === 'region' || finalRef.kind === 'pool') {
+      const targetId = finalRef.kind === 'pool' ? finalRef.poolId : finalRef.regionGroupId;
+      const target = poolGroupNameById.get(targetId);
       if (target) return target;
       items.push({
-        code: 'MISSING_REGION_REFERENCE',
+        code: finalRef.kind === 'pool' ? 'MISSING_POOL_REFERENCE' : 'MISSING_REGION_REFERENCE',
         severity: 'warning',
-        message: `兜底出口引用的地区组 ${finalRef.regionGroupId} 不存在，已回退为 DIRECT。`,
-        location: { regionGroupId: finalRef.regionGroupId },
+        message:
+          finalRef.kind === 'pool'
+            ? `兜底出口引用的节点池 ${targetId} 不存在，已回退为 DIRECT。`
+            : `兜底出口引用的地区组 ${targetId} 不存在，已回退为 DIRECT。`,
+        location: finalRef.kind === 'pool' ? { poolId: targetId } : { regionGroupId: targetId },
       });
       return 'DIRECT';
     }

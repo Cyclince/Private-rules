@@ -84,6 +84,8 @@ export function serializePolicyRef(ref: PolicyRef): string {
       return `card:${ref.cardId}`;
     case 'region':
       return `region:${ref.regionGroupId}`;
+    case 'pool':
+      return `pool:${ref.poolId}`;
     case 'slot':
       return `slot:${ref.slotId}`;
   }
@@ -103,6 +105,9 @@ export function parsePolicyRef(raw: string): PolicyRef {
   if (kind === 'region' && target) {
     return { kind: 'region', regionGroupId: target };
   }
+  if (kind === 'pool' && target) {
+    return { kind: 'pool', poolId: target };
+  }
   if (kind === 'slot' && target) {
     return { kind: 'slot', slotId: target };
   }
@@ -119,6 +124,7 @@ export function formatPolicyRefLabel(
   if (preset) return t(preset.labelKey);
   if (ref.kind === 'card') return cardNames?.get(ref.cardId) ?? ref.cardId;
   if (ref.kind === 'region') return ref.regionGroupId;
+  if (ref.kind === 'pool') return ref.poolId;
   if (ref.kind === 'slot') return ref.slotId;
   return ref.id;
 }

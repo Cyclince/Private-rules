@@ -45,9 +45,12 @@ function addNoResolveToMatcher(matcher: Matcher): Matcher {
 export const ipNoResolveModule: EnhancementModule = {
   id: 'ip-no-resolve',
   name: 'IP 规则补 no-resolve',
+  icon: '📌',
+  group: 'accuracy',
   description:
     '为目标 IP 类规则（IP-CIDR / IP-ASN / GEOIP）与 ipcidr 行为的规则集补充 no-resolve，避免提前触发 DNS 解析。',
   defaultEnabled: true,
+  tierDefaults: { simple: true, advanced: true, pro: true },
   order: 50,
   affects: ['rules', 'providers'],
   supportedClients: ['mihomo', 'stash', 'surge', 'loon', 'quantumult-x', 'shadowrocket'],

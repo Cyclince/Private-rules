@@ -20,6 +20,7 @@ import {
   WIZARD_SCENARIO_MAP,
   type QuickCreateResolvedRuleset,
 } from './quick-create';
+import { nodePoolToRegionGroup, regionGroupToNodePool } from './pools';
 
 export type SimpleRulesetRef = {
   id: string;
@@ -76,12 +77,27 @@ function dedupePolicyRefs(refs: readonly PolicyRef[]): PolicyRef[] {
           ? `card:${ref.cardId}`
           : ref.kind === 'region'
             ? `region:${ref.regionGroupId}`
-            : `slot:${ref.slotId}`;
+            : ref.kind === 'pool'
+              ? `pool:${ref.poolId}`
+              : `slot:${ref.slotId}`;
     if (seen.has(key)) continue;
     seen.add(key);
     result.push(ref);
   }
   return result;
+}
+
+function getSimpleRegionGroups(body: TemplateBody): RegionGroup[] {
+  if (body.regionGroups && body.regionGroups.length > 0) {
+    return [...body.regionGroups];
+  }
+  const fromPools = (body.pools ?? [])
+    .map((pool) => nodePoolToRegionGroup(pool))
+    .filter((rg): rg is RegionGroup => rg !== null);
+  if (fromPools.length > 0) {
+    return fromPools;
+  }
+  return [...(body.regionGroups ?? [])];
 }
 
 /**
@@ -103,12 +119,13 @@ export function mapPolicyRefToWizardRoute(
     if (ref.cardId === 'proxy-select') return 'proxy';
     return null;
   }
-  if (ref.kind === 'region') {
-    const group = regionGroupById.get(ref.regionGroupId);
+  if (ref.kind === 'region' || ref.kind === 'pool') {
+    const id = ref.kind === 'pool' ? ref.poolId : ref.regionGroupId;
+    const group = regionGroupById.get(id);
     if (group?.region) {
       return `region:${group.region.toUpperCase()}`;
     }
-    const match = /^region-([a-z]{2,8})$/i.exec(ref.regionGroupId);
+    const match = /^region-([a-z]{2,8})$/i.exec(id);
     if (match) {
       return `region:${match[1].toUpperCase()}`;
     }
@@ -154,6 +171,8 @@ function deriveGroupMode(body: TemplateBody, cardMap: ReadonlyMap<string, AppCar
   const fallbackCard = fallbackRef ? cardMap.get(fallbackRef.cardId) : undefined;
   const fallbackPrimary = fallbackRef?.overrides?.group?.candidates?.[0] ?? fallbackCard?.group.candidates[0];
 
+  const regionGroups = getSimpleRegionGroups(body);
+
   // Collect region IDs explicitly targeted by non-hub cards
   const explicitlyTargetedRegions = new Set<string>();
   for (const ref of body.cards) {
@@ -162,12 +181,14 @@ function deriveGroupMode(body: TemplateBody, cardMap: ReadonlyMap<string, AppCar
     const primary = ref.overrides?.group?.candidates?.[0] ?? card?.group.candidates[0];
     if (primary?.kind === 'region') {
       explicitlyTargetedRegions.add(primary.regionGroupId);
+    } else if (primary?.kind === 'pool') {
+      explicitlyTargetedRegions.add(primary.poolId);
     }
   }
-  const hasUnreferencedRegionGroups = body.regionGroups.some((rg) => !explicitlyTargetedRegions.has(rg.id));
+  const hasUnreferencedRegionGroups = regionGroups.some((rg) => !explicitlyTargetedRegions.has(rg.id));
 
   if (body.wizardMeta?.groupMode) {
-    if (body.wizardMeta.groupMode === 'region' && body.regionGroups.length > 0) return 'region';
+    if (body.wizardMeta.groupMode === 'region' && regionGroups.length > 0) return 'region';
     if (body.wizardMeta.groupMode === 'auto' && !hasUnreferencedRegionGroups) return 'auto';
     if (body.wizardMeta.groupMode === 'select') return 'select';
   }
@@ -175,7 +196,7 @@ function deriveGroupMode(body: TemplateBody, cardMap: ReadonlyMap<string, AppCar
   if (fallbackPrimary?.kind === 'card' && fallbackPrimary.cardId === 'auto-select' && !hasUnreferencedRegionGroups) {
     return 'auto';
   }
-  if (body.regionGroups.length > 0) {
+  if (regionGroups.length > 0) {
     return 'region';
   }
   return 'auto';
@@ -198,7 +219,7 @@ function hasTemplateLevelAdvancedCustomizations(body: TemplateBody): boolean {
   if (nonDefaultModule) {
     return true;
   }
-  if (body.regionGroups.some((rg) => Boolean(rg.extraInclude || rg.extraExclude))) {
+  if (getSimpleRegionGroups(body).some((rg) => Boolean(rg.extraInclude || rg.extraExclude))) {
     return true;
   }
   return false;
@@ -213,7 +234,8 @@ export function mapTemplateToSimpleRouting(
   cardMap: ReadonlyMap<string, AppCard>,
   rulesetMap: ReadonlyMap<string, SimpleRulesetRef>,
 ): SimpleRoutingView {
-  const regionGroupById = new Map<string, RegionGroup>(body.regionGroups.map((rg) => [rg.id, rg]));
+  const simpleRegionGroups = getSimpleRegionGroups(body);
+  const regionGroupById = new Map<string, RegionGroup>(simpleRegionGroups.map((rg) => [rg.id, rg]));
   const refByCardId = new Map<string, TemplateCardRef>();
   for (const ref of body.cards) {
     refByCardId.set(ref.cardId, ref);
@@ -326,10 +348,10 @@ export function mapTemplateToSimpleRouting(
     });
   }
 
-  // 3. Collect available regions from template's regionGroups
+  // 3. Collect available regions from template's regionGroups (or migrated region pools)
   const availableRegions: Array<{ code: string; name: string; emoji: string }> = [];
   const seenRegions = new Set<string>();
-  for (const rg of body.regionGroups) {
+  for (const rg of simpleRegionGroups) {
     const code = rg.region.toUpperCase();
     if (seenRegions.has(code)) continue;
     seenRegions.add(code);
@@ -381,6 +403,7 @@ function collectRegionGroupIdsReferencedByCard(ref: TemplateCardRef, card?: AppC
   const ids: string[] = [];
   for (const cand of candidates) {
     if (cand.kind === 'region') ids.push(cand.regionGroupId);
+    else if (cand.kind === 'pool') ids.push(cand.poolId);
   }
   return ids;
 }
@@ -485,7 +508,8 @@ export function applySimpleTemplatePatch(input: ApplySimpleTemplatePatchInput): 
       preservedRegionGroupIds.add(rgId);
     }
   }
-  for (const rg of currentBody.regionGroups) {
+  const currentRegionGroups = getSimpleRegionGroups(currentBody);
+  for (const rg of currentRegionGroups) {
     if (rg.extraInclude || rg.extraExclude) {
       preservedRegionGroupIds.add(rg.id);
     }
@@ -510,14 +534,14 @@ export function applySimpleTemplatePatch(input: ApplySimpleTemplatePatchInput): 
     });
     const byId = new Map<string, RegionGroup>(baseGroups.map((g) => [g.id, g]));
     // Keep any preserved custom region groups
-    for (const existing of currentBody.regionGroups) {
+    for (const existing of currentRegionGroups) {
       if (preservedRegionGroupIds.has(existing.id) && !byId.has(existing.id)) {
         byId.set(existing.id, existing);
       }
     }
     nextRegionGroups = [...byId.values()];
   } else {
-    nextRegionGroups = [...currentBody.regionGroups];
+    nextRegionGroups = [...currentRegionGroups];
     const existingIds = new Set(nextRegionGroups.map((g) => g.id));
     for (const code of requiredRegionCodes) {
       const built = buildRegionGroupForCode(code, regionSlotId);
@@ -818,10 +842,20 @@ export function applySimpleTemplatePatch(input: ApplySimpleTemplatePatchInput): 
     };
   }
 
+  const defaultRegionHidden = nextGroupMode === 'region' ? false : true;
+  const preservedNonRegionPools = (currentBody.pools ?? []).filter((pool) => pool.kind !== 'region');
   const nextBody: TemplateBody = {
     ...currentBody,
     slots: nextSlots,
     regionGroups: nextRegionGroups,
+    ...(currentBody.pools !== undefined
+      ? {
+          pools: [
+            ...nextRegionGroups.map((rg) => regionGroupToNodePool(rg, { defaultHidden: defaultRegionHidden })),
+            ...preservedNonRegionPools,
+          ],
+        }
+      : {}),
     cards: finalCards,
     ...(nextCombineMode ? { combineMode: nextCombineMode } : {}),
     ...(nextWizardMeta ? { wizardMeta: nextWizardMeta } : {}),

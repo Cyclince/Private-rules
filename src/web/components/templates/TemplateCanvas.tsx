@@ -33,6 +33,7 @@ import {
 import { lazy, Suspense, useMemo, useState } from 'react';
 import type { LintIssue } from '../../../domain/templates/lint';
 import { listEnhancementModules } from '../../../domain/templates/modules';
+import { getNormalizedBodyPools, nodePoolToRegionGroup } from '../../../domain/templates/pools';
 import {
   checkStageOrdering,
   getStageMetadata,
@@ -349,6 +350,15 @@ export function TemplateCanvas({
   const stageViolations = useMemo(() => checkStageOrdering(body.cards, cardMap), [body.cards, cardMap]);
   const violationByCardId = useMemo(() => new Map(stageViolations.map((v) => [v.cardId, v])), [stageViolations]);
 
+  const regionGroups = useMemo(
+    () =>
+      body.regionGroups ??
+      getNormalizedBodyPools(body)
+        .map(nodePoolToRegionGroup)
+        .filter((rg): rg is RegionGroup => rg !== null),
+    [body],
+  );
+
   const policyOptions = useMemo<PolicyOption[]>(() => {
     const opts: PolicyOption[] = [
       { value: 'builtin:DIRECT', label: 'DIRECT' },
@@ -362,14 +372,19 @@ export function TemplateCanvas({
         label: card ? `${card.name} (${ref.cardId})` : ref.cardId,
       });
     }
-    for (const rg of body.regionGroups) {
+    for (const rg of regionGroups) {
       opts.push({ value: `region:${rg.id}`, label: `${rg.name} (${rg.id})` });
+    }
+    for (const pool of body.pools ?? []) {
+      if (pool.kind !== 'region') {
+        opts.push({ value: `pool:${pool.id}`, label: `${pool.name} (${pool.id})` });
+      }
     }
     for (const slot of body.slots) {
       opts.push({ value: `slot:${slot.id}`, label: `${slot.name} (${slot.id})` });
     }
     return opts;
-  }, [body.cards, body.regionGroups, body.slots, cardMap]);
+  }, [body.cards, body.pools, body.slots, cardMap, regionGroups]);
 
   const enhancementModules = useMemo(() => listEnhancementModules(), []);
   const moduleEnabledMap = useMemo(() => new Map(body.modules.map((m) => [m.id, m.enabled])), [body.modules]);
@@ -421,7 +436,7 @@ export function TemplateCanvas({
     if (readOnly) return;
     const preset = REGION_PRESETS.find((r) => r.code === newRegionCode);
     const id = `region-${newRegionCode.toLowerCase()}`;
-    if (body.regionGroups.some((rg) => rg.id === id)) return;
+    if (regionGroups.some((rg) => rg.id === id)) return;
     const group: RegionGroup = {
       id,
       name: preset?.name ?? `${newRegionCode} Nodes`,
@@ -687,10 +702,10 @@ export function TemplateCanvas({
           {/* Region Groups */}
           <div className="flex flex-col gap-2 border-t border-border pt-3">
             <h3 className="text-xs font-semibold text-text">
-              {t('templates.editorRegionGroupsTitle')} ({body.regionGroups.length})
+              {t('templates.editorRegionGroupsTitle')} ({regionGroups.length})
             </h3>
             <div className="flex flex-col gap-2">
-              {body.regionGroups.map((rg) => (
+              {regionGroups.map((rg) => (
                 <div
                   key={rg.id}
                   className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] border border-border bg-bg px-3 py-2"

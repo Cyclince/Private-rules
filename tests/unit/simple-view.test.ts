@@ -287,6 +287,6 @@ describe('B3 domain simple-view mapping and patching', () => {
     expect(patched.body.dns.respectRules).toBe(true);
     expect(patched.body.clientPatches).toEqual({ mihomo: 'allow-lan: false\n' });
     // No dangling slotId left on regionGroups or hub cards
-    expect(patched.body.regionGroups.every((rg) => rg.slotId === undefined)).toBe(true);
+    expect((patched.body.regionGroups ?? []).every((rg) => rg.slotId === undefined)).toBe(true);
   });
 });

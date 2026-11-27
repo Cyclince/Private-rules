@@ -8,6 +8,7 @@ import {
 import { appCards, publications, templates } from '../../data/schema';
 import { id, slugify } from '../../domain/rules/slug';
 import { applyOverlay } from '../../domain/templates/overlay';
+import { serializeTemplateBodyForStorage } from '../../domain/templates/pools';
 import { AppError } from '../../shared/errors';
 import {
   BACKUP_FORMAT_VERSION,
@@ -354,6 +355,14 @@ export async function importRulesData(env: Env, input: unknown): Promise<RulesDa
             : template.baseBody;
         const parsedBody = templateBodySchema.safeParse(baseBody);
         const resolvedBody = parsedBody.success ? applyOverlay(parsedBody.data, template.overlay).resolved : baseBody;
+        const storedBaseBodyJson = parsedBody.success
+          ? serializeTemplateBodyForStorage(parsedBody.data, { slug: template.slug })
+          : JSON.stringify(baseBody);
+        const storedResolvedBodyJson = parsedBody.success
+          ? serializeTemplateBodyForStorage(resolvedBody as ReturnType<typeof templateBodySchema.parse>, {
+              slug: template.slug,
+            })
+          : JSON.stringify(resolvedBody);
         statements.push(
           env.DB.prepare(
             'INSERT INTO templates (id, slug, name, description, base_kind, base_source_url, base_body, overlay, current_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)',
@@ -364,7 +373,7 @@ export async function importRulesData(env: Env, input: unknown): Promise<RulesDa
             template.description ?? '',
             template.baseKind,
             template.baseSourceUrl ?? null,
-            JSON.stringify(baseBody),
+            storedBaseBodyJson,
             JSON.stringify(template.overlay),
             createdAt,
             updatedAt,
@@ -373,7 +382,7 @@ export async function importRulesData(env: Env, input: unknown): Promise<RulesDa
         statements.push(
           env.DB.prepare(
             'INSERT INTO template_versions (template_id, version, resolved_body, note, created_at) VALUES (?, 1, ?, ?, ?)',
-          ).bind(templateId, JSON.stringify(resolvedBody), '备份导入', createdAt),
+          ).bind(templateId, storedResolvedBodyJson, '备份导入', createdAt),
         );
       }
     }

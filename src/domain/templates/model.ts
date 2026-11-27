@@ -12,8 +12,12 @@ import type {
   Stage,
 } from '../../shared/schemas/card';
 import type {
+  ComplexityTier,
   DnsProfile,
   GeneralSettings,
+  NodePool,
+  NodePoolKind,
+  NodePoolSources,
   NodeSlot,
   RegionGroup,
   TemplateBody,
@@ -23,12 +27,14 @@ import type {
   TemplateOverlayOp,
   TemplateRecord,
 } from '../../shared/schemas/template';
+import { getNormalizedBodyPools } from './pools';
 
 export type {
   AppCard,
   AppCardGroup,
   AppCardOverride,
   CatalogCategory,
+  ComplexityTier,
   Condition,
   DnsProfile,
   GeneralSettings,
@@ -36,6 +42,9 @@ export type {
   GroupType,
   Matcher,
   NodeFilter,
+  NodePool,
+  NodePoolKind,
+  NodePoolSources,
   NodeSlot,
   PolicyRef,
   RegionGroup,
@@ -172,6 +181,7 @@ export type ReferenceIssueKind =
   | 'MISSING_CARD_IN_TEMPLATE'
   | 'MISSING_CARD_REF'
   | 'MISSING_REGION_GROUP_REF'
+  | 'MISSING_POOL_REF'
   | 'MISSING_SLOT_REF'
   | 'DISABLED_CARD_REF';
 
@@ -191,6 +201,7 @@ export type TemplateGraphValidation = {
   duplicateIds: {
     cards: string[];
     regionGroups: string[];
+    pools: string[];
     slots: string[];
   };
 };
@@ -212,7 +223,10 @@ function findDuplicateStrings(values: readonly string[]): string[] {
 export function validateTemplateGraph(body: TemplateBody, cards: CardLookup): TemplateGraphValidation {
   const cardMap = toCardMap(cards);
   const slotIds = new Set(body.slots.map((slot) => slot.id));
-  const regionGroupIds = new Set(body.regionGroups.map((group) => group.id));
+  const legacyRegionGroups = body.regionGroups ?? [];
+  const regionGroupIds = new Set(legacyRegionGroups.map((group) => group.id));
+  const normalizedPools = getNormalizedBodyPools(body);
+  const poolIds = new Set(normalizedPools.map((pool) => pool.id));
   const templateCardById = new Map<string, TemplateCardRef>();
   for (const ref of body.cards) {
     templateCardById.set(ref.cardId, ref);
@@ -220,7 +234,8 @@ export function validateTemplateGraph(body: TemplateBody, cards: CardLookup): Te
 
   const duplicateIds = {
     cards: findDuplicateStrings(body.cards.map((ref) => ref.cardId)),
-    regionGroups: findDuplicateStrings(body.regionGroups.map((group) => group.id)),
+    regionGroups: findDuplicateStrings(legacyRegionGroups.map((group) => group.id)),
+    pools: findDuplicateStrings(normalizedPools.map((pool) => pool.id)),
     slots: findDuplicateStrings(body.slots.map((slot) => slot.id)),
   };
 
@@ -228,15 +243,31 @@ export function validateTemplateGraph(body: TemplateBody, cards: CardLookup): Te
   const disabledRefs: ReferenceIssue[] = [];
   const adjacency = new Map<string, string[]>();
 
-  // Check region group slot references
-  for (const regionGroup of body.regionGroups) {
-    if (regionGroup.slotId && !slotIds.has(regionGroup.slotId)) {
-      missingRefs.push({
-        kind: 'MISSING_SLOT_REF',
-        sourceId: regionGroup.id,
-        targetId: regionGroup.slotId,
-        message: `地区组 ${regionGroup.id} 引用了不存在的节点槽位 ${regionGroup.slotId}。`,
-      });
+  // Check slot and member references declared by pools (and legacy region groups)
+  for (const pool of normalizedPools) {
+    if (Array.isArray(pool.sources)) {
+      for (const slotId of pool.sources) {
+        if (!slotIds.has(slotId)) {
+          missingRefs.push({
+            kind: 'MISSING_SLOT_REF',
+            sourceId: pool.id,
+            targetId: slotId,
+            message: `节点池 ${pool.id} 引用了不存在的节点槽位 ${slotId}。`,
+          });
+        }
+      }
+    }
+    if (pool.kind === 'stability') {
+      for (const memberId of pool.members ?? []) {
+        if (!poolIds.has(memberId)) {
+          missingRefs.push({
+            kind: 'MISSING_POOL_REF',
+            sourceId: pool.id,
+            targetId: memberId,
+            message: `稳定性节点池 ${pool.id} 引用了不存在的成员节点池 ${memberId}。`,
+          });
+        }
+      }
     }
   }
 
@@ -254,12 +285,23 @@ export function validateTemplateGraph(body: TemplateBody, cards: CardLookup): Te
       return;
     }
     if (policy.kind === 'region') {
-      if (!regionGroupIds.has(policy.regionGroupId)) {
+      if (!regionGroupIds.has(policy.regionGroupId) && !poolIds.has(policy.regionGroupId)) {
         missingRefs.push({
           kind: 'MISSING_REGION_GROUP_REF',
           sourceId,
           targetId: policy.regionGroupId,
           message: `组 ${sourceId} 引用了不存在的地区组 ${policy.regionGroupId}。`,
+        });
+      }
+      return;
+    }
+    if (policy.kind === 'pool') {
+      if (!poolIds.has(policy.poolId) && !regionGroupIds.has(policy.poolId)) {
+        missingRefs.push({
+          kind: 'MISSING_POOL_REF',
+          sourceId,
+          targetId: policy.poolId,
+          message: `组 ${sourceId} 引用了不存在的节点池 ${policy.poolId}。`,
         });
       }
       return;
@@ -362,6 +404,7 @@ export function validateTemplateGraph(body: TemplateBody, cards: CardLookup): Te
     disabledRefs.length === 0 &&
     duplicateIds.cards.length === 0 &&
     duplicateIds.regionGroups.length === 0 &&
+    duplicateIds.pools.length === 0 &&
     duplicateIds.slots.length === 0;
 
   return {

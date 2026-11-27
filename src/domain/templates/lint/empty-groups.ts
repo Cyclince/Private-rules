@@ -1,6 +1,7 @@
 import type { NodeSlot } from '../../../shared/schemas/template';
 import { filterNodes } from '../../nodes/filter';
 import { resolveTemplateCards } from '../model';
+import { getNormalizedBodyPools } from '../pools';
 import type { LintIssue, LintTemplateInput } from './types';
 
 function resolveNodeNamesForSlot(
@@ -48,48 +49,102 @@ export function checkEmptyGroups(
 
   const issues: LintIssue[] = [];
   const slotById = new Map(input.body.slots.map((slot) => [slot.id, slot]));
-  const emptyRegionIds = new Set<string>();
+  const bodyForPools = {
+    ...input.body,
+    final: input.body.final ?? { kind: 'builtin' as const, id: 'DIRECT' as const },
+  };
+  const normalizedPools = getNormalizedBodyPools(bodyForPools);
+  const poolById = new Map(normalizedPools.map((pool) => [pool.id, pool]));
+  const emptyPoolIds = new Set<string>();
 
-  // 1. Check each region group
-  for (const rg of input.body.regionGroups) {
-    const slot = rg.slotId ? slotById.get(rg.slotId) : input.body.slots[0];
-    const rawNodes = resolveNodeNamesForSlot(rg.slotId ?? slot?.id, input.body.slots, input);
+  const resolveRawNodesForSources = (
+    sources: 'all' | readonly string[],
+  ): { rawNodes: readonly string[] | undefined; primarySlot?: NodeSlot } => {
+    if (sources === 'all') {
+      const merged: string[] = [];
+      for (const slot of input.body.slots) {
+        const list = resolveNodeNamesForSlot(slot.id, input.body.slots, input);
+        if (list) merged.push(...list);
+      }
+      if (merged.length > 0) return { rawNodes: merged, primarySlot: input.body.slots[0] };
+      const fallback = resolveNodeNamesForSlot(undefined, input.body.slots, input);
+      return { rawNodes: fallback, primarySlot: input.body.slots[0] };
+    }
+    if (sources.length === 1) {
+      const slot = slotById.get(sources[0]);
+      return { rawNodes: resolveNodeNamesForSlot(sources[0], input.body.slots, input), primarySlot: slot };
+    }
+    const merged: string[] = [];
+    let anyResolved = false;
+    for (const slotId of sources) {
+      const list = resolveNodeNamesForSlot(slotId, input.body.slots, input);
+      if (list) {
+        anyResolved = true;
+        merged.push(...list);
+      }
+    }
+    return { rawNodes: anyResolved ? merged : undefined, primarySlot: slotById.get(sources[0]) };
+  };
+
+  // 1. Check each node pool (including migrated legacy regionGroups)
+  for (const pool of normalizedPools) {
+    if (pool.kind === 'stability') {
+      continue;
+    }
+    const { rawNodes, primarySlot } = resolveRawNodesForSources(pool.sources);
     if (!rawNodes) continue;
 
     const matched = filterNodes(
       rawNodes,
       {
-        regions: [rg.region],
-        include: rg.extraInclude,
-        exclude: rg.extraExclude,
+        ...(pool.region ? { regions: [pool.region] } : {}),
+        ...(pool.include ? { include: pool.include } : {}),
+        ...(pool.exclude ? { exclude: pool.exclude } : {}),
       },
-      { excludeInfo: slot?.excludeInfo ?? true },
+      { excludeInfo: primarySlot?.excludeInfo ?? true },
     );
 
     if (matched.length === 0) {
-      emptyRegionIds.add(rg.id);
+      emptyPoolIds.add(pool.id);
+      const isRegion = pool.kind === 'region';
       issues.push({
         code: 'empty-group',
         severity: 'warning',
-        message: `地区组 ${rg.name}（${rg.id}）筛选后没有匹配到任何节点。`,
-        location: {
-          regionGroupId: rg.id,
-          slotId: rg.slotId ?? slot?.id,
-        },
-        suggestion: `检查订阅节点名预览是否包含 ${rg.region} 地区节点，放宽 extraInclude/extraExclude，或移除该地区组。`,
+        message: isRegion
+          ? `地区组 ${pool.name}（${pool.id}）筛选后没有匹配到任何节点。`
+          : `节点池 ${pool.name}（${pool.id}）筛选后没有匹配到任何节点。`,
+        location: isRegion
+          ? {
+              regionGroupId: pool.id,
+              poolId: pool.id,
+              slotId: Array.isArray(pool.sources) ? pool.sources[0] : primarySlot?.id,
+            }
+          : {
+              poolId: pool.id,
+              slotId: Array.isArray(pool.sources) ? pool.sources[0] : primarySlot?.id,
+            },
+        suggestion: isRegion
+          ? `检查订阅节点名预览是否包含 ${pool.region} 地区节点，放宽 include/exclude，或移除该地区组。`
+          : `检查订阅节点名预览是否包含符合 ${pool.name} 条件的节点，或调整 include/exclude 正则。`,
         details: {
-          region: rg.region,
+          ...(pool.region ? { region: pool.region } : {}),
+          kind: pool.kind,
           totalPreviewNodes: rawNodes.length,
         },
       });
     }
   }
 
-  // 2. Check each enabled card with slot filters or slot/region-only candidates
-  const resolved = resolveTemplateCards(
-    { ...input.body, final: input.body.final ?? { kind: 'builtin', id: 'DIRECT' } },
-    input.cards,
-  );
+  for (const pool of normalizedPools) {
+    if (pool.kind !== 'stability') continue;
+    const members = pool.members ?? [];
+    if (members.length === 0 || members.every((memberId) => !poolById.has(memberId) || emptyPoolIds.has(memberId))) {
+      emptyPoolIds.add(pool.id);
+    }
+  }
+
+  // 2. Check each enabled card with slot filters or slot/region/pool-only candidates
+  const resolved = resolveTemplateCards(bodyForPools, input.cards);
   const cardIndexById = new Map(input.body.cards.map((ref, idx) => [ref.cardId, idx]));
 
   for (const resolvedCard of resolved.cards) {
@@ -105,7 +160,14 @@ export function checkEmptyGroups(
       }
       if (candidate.kind === 'region') {
         checkedAnySlotSource = true;
-        if (!emptyRegionIds.has(candidate.regionGroupId)) {
+        if (!emptyPoolIds.has(candidate.regionGroupId)) {
+          hasNonEmptySource = true;
+        }
+        continue;
+      }
+      if (candidate.kind === 'pool') {
+        checkedAnySlotSource = true;
+        if (!emptyPoolIds.has(candidate.poolId)) {
           hasNonEmptySource = true;
         }
         continue;

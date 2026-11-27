@@ -166,9 +166,9 @@ describe('template importers (subconverter .ini and mihomo YAML)', () => {
     }
 
     // Region groups recognized from regex-only proxy groups
-    expect(result.body.regionGroups.map((rg) => rg.region)).toEqual(['HK', 'US']);
-    expect(result.body.regionGroups[0].type).toBe('url-test');
-    expect(result.body.regionGroups[1].type).toBe('fallback');
+    expect((result.body.regionGroups ?? []).map((rg) => rg.region)).toEqual(['HK', 'US']);
+    expect(result.body.regionGroups?.[0].type).toBe('url-test');
+    expect(result.body.regionGroups?.[1].type).toBe('fallback');
 
     // Compatibility report captures unrecognized keys, sections, unsupported group types, and rules (never dropped)
     expect(result.report.items.some((i) => i.code === 'INI_UNRECOGNIZED_KEY')).toBe(true);
@@ -197,7 +197,7 @@ describe('template importers (subconverter .ini and mihomo YAML)', () => {
     expect(result.body.output).toBe('full');
     expect(result.body.dns.respectRules).toBe(true);
     expect(result.body.dns.custom).toEqual({ 'nameserver-policy': { 'geosite:cn': '223.5.5.5' } });
-    expect(result.body.regionGroups.map((rg) => rg.region)).toEqual(['HK', 'JP']);
+    expect((result.body.regionGroups ?? []).map((rg) => rg.region)).toEqual(['HK', 'JP']);
 
     // Unrecognized sections (tun) and rules (SUB-RULE) go into compatibility report + clientPatches.mihomo
     expect(result.report.items.some((i) => i.code === 'YAML_UNRECOGNIZED_SECTION' && i.source === 'tun')).toBe(true);

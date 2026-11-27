@@ -33,8 +33,11 @@ function findPreDirectInsertIndex(template: ResolvedTemplate): number {
 export const tunnelDirectModule: EnhancementModule = {
   id: 'tunnel-direct',
   name: '局域网与内网穿透直连',
+  icon: '🔗',
+  group: 'direct',
   description: '在前置直连层加入 Tailscale、Cloudflare Tunnel、ZeroTier 等内网穿透与组网的域名、IP 与端口直连规则。',
   defaultEnabled: false,
+  tierDefaults: { simple: false, advanced: true, pro: true },
   order: 30,
   affects: ['rules', 'groups', 'providers'],
   supportedClients: [...TEMPLATE_CLIENT_IDS],

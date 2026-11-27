@@ -22,6 +22,20 @@ export const LOG_LEVEL_VALUES = ['silent', 'error', 'warning', 'info', 'debug'] 
 export const logLevelSchema = z.enum(LOG_LEVEL_VALUES);
 export type LogLevel = z.infer<typeof logLevelSchema>;
 
+/** Three template complexity tiers (design §2, D12): simple / advanced / pro. */
+export const COMPLEXITY_TIERS = ['simple', 'advanced', 'pro'] as const;
+export const complexityTierSchema = z.enum(COMPLEXITY_TIERS);
+export type ComplexityTier = z.infer<typeof complexityTierSchema>;
+
+/** Node pool classification kinds (design §3.2). */
+export const NODE_POOL_KINDS = ['region', 'provider', 'trait', 'all', 'stability'] as const;
+export const nodePoolKindSchema = z.enum(NODE_POOL_KINDS);
+export type NodePoolKind = z.infer<typeof nodePoolKindSchema>;
+
+/** Slot source scope for a node pool (`'all'` slots or explicit `slotId` list). */
+export const nodePoolSourcesSchema = z.union([z.literal('all'), z.array(z.string().trim().min(1)).min(1)]);
+export type NodePoolSources = z.output<typeof nodePoolSourcesSchema>;
+
 const optionalText = z
   .string()
   .nullish()
@@ -38,7 +52,47 @@ export const nodeSlotSchema = z.object({
 });
 export type NodeSlot = z.output<typeof nodeSlotSchema>;
 
-/** Region-based node group backed by the built-in region dictionary (design §10.11). */
+/** Generic node pool declaration inside a template body (design §3). */
+export const nodePoolSchema = z
+  .object({
+    id: z.string().trim().min(1),
+    name: z.string().trim().min(1),
+    icon: optionalText,
+    sources: nodePoolSourcesSchema,
+    include: z.string().min(1).optional(),
+    exclude: z.string().min(1).optional(),
+    region: z
+      .string()
+      .trim()
+      .min(2)
+      .max(8)
+      .transform((code) => code.toUpperCase())
+      .optional(),
+    kind: nodePoolKindSchema,
+    type: groupTypeSchema,
+    members: z.array(z.string().trim().min(1)).min(1).optional(),
+    test: groupHealthCheckSchema.optional(),
+    hidden: z.boolean().default(true),
+  })
+  .superRefine((pool, ctx) => {
+    if (pool.kind === 'region' && !pool.region) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['region'],
+        message: 'region 类型节点池必须指定地区代码 region。',
+      });
+    }
+    if (pool.kind === 'stability' && (!pool.members || pool.members.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['members'],
+        message: 'stability 类型节点池必须提供至少一个成员节点池 id（members）。',
+      });
+    }
+  });
+export type NodePool = z.output<typeof nodePoolSchema>;
+
+/** Legacy region-based node group backed by the built-in region dictionary (design §10.11). */
 export const regionGroupSchema = z.object({
   id: z.string().trim().min(1),
   name: z.string().trim().min(1),
@@ -107,12 +161,17 @@ export type TemplateModuleBinding = z.output<typeof templateModuleBindingSchema>
 export const clientPatchesSchema = z.partialRecord(templateClientIdSchema, z.string());
 export type ClientPatches = z.output<typeof clientPatchesSchema>;
 
-/** Complete intermediate structure of a template body (design §10.2). */
+/** Complete intermediate structure of a template body (design §10.2, beta.3 §2/§3). */
 export const templateBodySchema = z.object({
   slots: z.array(nodeSlotSchema),
-  regionGroups: z.array(regionGroupSchema),
+  /** Generic node pool definitions (design §3). Preferred over legacy `regionGroups`. */
+  pools: z.array(nodePoolSchema).optional(),
+  /** Legacy region-based node groups retained for backward read compatibility. */
+  regionGroups: z.array(regionGroupSchema).optional(),
   cards: z.array(templateCardRefSchema),
   groupMode: templateGroupModeSchema,
+  /** Template complexity tier (`simple` | `advanced` | `pro`, design §2). */
+  complexity: complexityTierSchema.optional(),
   /** Multi-airport node combination mode (`merge` default, or `perProvider` for visible per-airport groups). */
   combineMode: nodeCombineModeSchema.optional(),
   final: policyRefSchema,
@@ -126,6 +185,28 @@ export const templateBodySchema = z.object({
   legacyGeodata: z.boolean().optional(),
 });
 export type TemplateBody = z.output<typeof templateBodySchema>;
+
+const nodePoolPatchSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  icon: z.string().trim().min(1).nullable().optional(),
+  sources: nodePoolSourcesSchema.optional(),
+  include: z.string().min(1).nullable().optional(),
+  exclude: z.string().min(1).nullable().optional(),
+  region: z
+    .string()
+    .trim()
+    .min(2)
+    .max(8)
+    .transform((code) => code.toUpperCase())
+    .nullable()
+    .optional(),
+  kind: nodePoolKindSchema.optional(),
+  type: groupTypeSchema.optional(),
+  members: z.array(z.string().trim().min(1)).min(1).nullable().optional(),
+  test: groupHealthCheckSchema.nullable().optional(),
+  hidden: z.boolean().optional(),
+});
+export type NodePoolPatch = z.output<typeof nodePoolPatchSchema>;
 
 const regionGroupPatchSchema = z.object({
   name: z.string().trim().min(1).optional(),
@@ -194,6 +275,23 @@ export const templateOverlayOpSchema = z.discriminatedUnion('op', [
     op: z.literal('updateRegionGroup'),
     regionGroupId: z.string().trim().min(1),
     patch: regionGroupPatchSchema,
+  }),
+  z.object({
+    op: z.literal('addPool'),
+    pool: nodePoolSchema,
+  }),
+  z.object({
+    op: z.literal('removePool'),
+    poolId: z.string().trim().min(1),
+  }),
+  z.object({
+    op: z.literal('updatePool'),
+    poolId: z.string().trim().min(1),
+    patch: nodePoolPatchSchema,
+  }),
+  z.object({
+    op: z.literal('setComplexity'),
+    complexity: complexityTierSchema,
   }),
   z.object({
     op: z.literal('addSlot'),
@@ -276,9 +374,11 @@ export type TemplateRecord = z.output<typeof templateSchema>;
 export const backupTemplateBodySchema = z
   .object({
     slots: z.array(nodeSlotSchema).optional(),
+    pools: z.array(nodePoolSchema).optional(),
     regionGroups: z.array(regionGroupSchema).optional(),
     cards: z.array(templateCardRefSchema).optional(),
     groupMode: templateGroupModeSchema.optional(),
+    complexity: complexityTierSchema.optional(),
     combineMode: nodeCombineModeSchema.optional(),
     final: policyRefSchema.optional(),
     output: outputProfileSchema.optional(),

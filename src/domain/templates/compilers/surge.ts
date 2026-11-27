@@ -1,6 +1,6 @@
 import type { OutputProfile } from '../../../shared/clients';
 import type { Condition, NodeFilter, PolicyRef, RemoteRuleBehavior } from '../../../shared/schemas/card';
-import type { DnsProfile, NodeSlot, RegionGroup, TemplateBody } from '../../../shared/schemas/template';
+import type { DnsProfile, NodePool, NodeSlot, TemplateBody } from '../../../shared/schemas/template';
 import { buildExcludeInfoRegex, buildRegionRegex, detectRegexDialectIssues, matchNodeFilter } from '../../nodes';
 import {
   CLIENT_CAPABILITIES,
@@ -12,6 +12,13 @@ import { recognizeGroupIcon } from '../icons';
 import { DEFAULT_HEALTH_CHECK, resolveTemplateCards, type ResolvedTemplateCard } from '../model';
 import { applyEnhancementModules } from '../modules';
 import { planRulesetReferences, type PlannedMatcherBinding, type PlannedProvider } from '../planner';
+import { getNormalizedBodyPools } from '../pools';
+import {
+  evaluatePoolEmptyProtection,
+  poolCompatibilityLocation,
+  poolToNodeFilter,
+  resolveStabilityPoolMembers,
+} from './pool-helpers';
 import type {
   CompatibilityItem,
   CompiledConfigResult,
@@ -594,7 +601,7 @@ function buildSurgeSlot(
 }
 
 function formatSurgeGroupParams(params: {
-  groupType: RegionGroup['type'];
+  groupType: NodePool['type'];
   testIntervalSec: number;
   testToleranceMs: number;
   policyPath?: string;
@@ -1006,10 +1013,13 @@ export function compileSurge(input: CompileTemplateInput): CompiledConfigResult 
     }
   }
 
-  // 3. Allocate unique sanitized group names for enabled cards and region groups
+  const hasExplicitPools = body.pools !== undefined;
+  const bodyPools = getNormalizedBodyPools(body);
+
+  // 3. Allocate unique sanitized group names for enabled cards and pools
   const usedGroupNames = new Set<string>(usedInlineProxyNames);
   const cardGroupNameById = new Map<string, string>();
-  const regionGroupNameById = new Map<string, string>();
+  const poolGroupNameById = new Map<string, string>();
 
   for (const card of enabledCards) {
     const sanitized = sanitizeSurgeGroupName(card.effective.name, card.cardId);
@@ -1032,8 +1042,8 @@ export function compileSurge(input: CompileTemplateInput): CompiledConfigResult 
     cardGroupNameById.set(card.cardId, finalName);
   }
 
-  for (const regionGroup of body.regionGroups) {
-    const sanitized = sanitizeSurgeGroupName(regionGroup.name, regionGroup.id);
+  for (const pool of bodyPools) {
+    const sanitized = sanitizeSurgeGroupName(pool.name, pool.id);
     const finalName = allocateUniqueName(
       sanitized,
       usedGroupNames,
@@ -1043,14 +1053,14 @@ export function compileSurge(input: CompileTemplateInput): CompiledConfigResult 
           items.push({
             code: 'GROUP_NAME_SANITIZED',
             severity: 'info',
-            message: `地区组名称已安全转义为「${resolvedName}」。`,
-            location: { regionGroupId: regionGroup.id },
+            message: `${pool.kind === 'region' ? '地区组' : '节点池'}名称已安全转义为「${resolvedName}」。`,
+            location: poolCompatibilityLocation(pool, hasExplicitPools),
           });
         }
       },
-      regionGroup.name,
+      pool.name,
     );
-    regionGroupNameById.set(regionGroup.id, finalName);
+    poolGroupNameById.set(pool.id, finalName);
   }
 
   // Hidden helper groups for multi-slot composition & multi-filtered slot candidates
@@ -1164,18 +1174,25 @@ export function compileSurge(input: CompileTemplateInput): CompiledConfigResult 
         continue;
       }
 
-      if (candidate.kind === 'region') {
-        const regionName = regionGroupNameById.get(candidate.regionGroupId);
-        if (!regionName) {
+      if (candidate.kind === 'region' || candidate.kind === 'pool') {
+        const targetId = candidate.kind === 'pool' ? candidate.poolId : candidate.regionGroupId;
+        const poolName = poolGroupNameById.get(targetId);
+        if (!poolName) {
           items.push({
-            code: 'MISSING_REGION_REFERENCE',
+            code: candidate.kind === 'pool' ? 'MISSING_POOL_REFERENCE' : 'MISSING_REGION_REFERENCE',
             severity: 'warning',
-            message: `策略组「${groupName}」引用的地区组 ${candidate.regionGroupId} 不存在，已忽略。`,
-            location: { cardId: card.cardId, regionGroupId: candidate.regionGroupId },
+            message:
+              candidate.kind === 'pool'
+                ? `策略组「${groupName}」引用的节点池 ${targetId} 不存在，已忽略。`
+                : `策略组「${groupName}」引用的地区组 ${targetId} 不存在，已忽略。`,
+            location:
+              candidate.kind === 'pool'
+                ? { cardId: card.cardId, poolId: targetId }
+                : { cardId: card.cardId, regionGroupId: targetId },
           });
           continue;
         }
-        if (!explicitMembers.includes(regionName)) explicitMembers.push(regionName);
+        if (!explicitMembers.includes(poolName)) explicitMembers.push(poolName);
         continue;
       }
 
@@ -1268,101 +1285,173 @@ export function compileSurge(input: CompileTemplateInput): CompiledConfigResult 
     declaredGroupNames.push(groupName);
   }
 
-  // 5. Build [Proxy Group] lines for regionGroups
-  for (const regionGroup of body.regionGroups) {
-    const groupName = regionGroupNameById.get(regionGroup.id)!;
-    let effectiveType = regionGroup.type;
+  // 5. Build [Proxy Group] lines for node pools
+  for (const pool of bodyPools) {
+    const groupName = poolGroupNameById.get(pool.id)!;
+    const location = poolCompatibilityLocation(pool, hasExplicitPools);
+    let effectiveType = pool.type;
     if (!isGroupTypeSupported('surge', effectiveType)) {
       items.push({
         code: 'UNSUPPORTED_GROUP_TYPE',
         severity: 'warning',
-        message: `Surge 不支持地区组类型 ${effectiveType}（地区组「${groupName}」），已降级为 select。`,
-        location: { regionGroupId: regionGroup.id },
+        message: `Surge 不支持${pool.kind === 'region' ? '地区组' : '节点池'}类型 ${effectiveType}（${pool.kind === 'region' ? '地区组' : '节点池'}「${groupName}」），已降级为 select。`,
+        location,
       });
       effectiveType = 'select';
     }
 
-    const compiledRegex = buildRegionRegex(regionGroup.region, 'surge', {
-      extraInclude: regionGroup.extraInclude,
-      extraExclude: regionGroup.extraExclude,
-    });
-    for (const warning of compiledRegex.warnings) {
-      items.push({
-        code: 'REGEX_DIALECT_WARNING',
-        severity: 'warning',
-        message: warning.message,
-        location: { regionGroupId: regionGroup.id },
-      });
-    }
-
-    const targetSlotIds = regionGroup.slotId ? [regionGroup.slotId] : [...compiledSlotById.keys()];
-    const externalSlots: Array<Extract<CompiledSurgeSlot, { kind: 'external' }>> = [];
-    const inlineMatchedMembers: string[] = [];
-
-    for (const slotId of targetSlotIds) {
-      const compiledSlot = compiledSlotById.get(slotId);
-      if (!compiledSlot) {
-        items.push({
-          code: 'MISSING_SLOT_REFERENCE',
-          severity: 'warning',
-          message: `地区组「${groupName}」引用的节点槽位 ${slotId} 不存在。`,
-          location: { regionGroupId: regionGroup.id, slotId },
-        });
-        continue;
-      }
-      if (compiledSlot.kind === 'external') {
-        externalSlots.push(compiledSlot);
-      } else {
-        const slot = slotById.get(slotId);
-        const excludeInfo = slot?.excludeInfo !== false;
-        const matched = compiledSlot.proxyNames.filter((name) =>
-          matchNodeFilter(
-            name,
-            {
-              regions: [regionGroup.region],
-              include: regionGroup.extraInclude,
-              exclude: regionGroup.extraExclude,
-            },
-            { excludeInfo },
-          ),
-        );
-        for (const nodeName of matched) {
-          if (!inlineMatchedMembers.includes(nodeName)) inlineMatchedMembers.push(nodeName);
-        }
-      }
-    }
-
+    const explicitMembers: string[] = [];
     let directExternalSlot: Extract<CompiledSurgeSlot, { kind: 'external' }> | undefined;
     const includeOtherGroups: string[] = [];
     let regexFilter: string | undefined;
 
-    if (externalSlots.length === 1) {
-      directExternalSlot = externalSlots[0];
-      regexFilter = sanitizeSurgeScalar(compiledRegex.combined);
-    } else if (externalSlots.length > 1) {
-      for (const extSlot of externalSlots) {
-        const poolName = ensureHiddenSlotPoolGroup(extSlot.slotId);
-        if (poolName && !includeOtherGroups.includes(poolName)) {
-          includeOtherGroups.push(poolName);
+    if (pool.kind === 'stability') {
+      const members = resolveStabilityPoolMembers(pool, poolGroupNameById, items, hasExplicitPools);
+      if (members.length > 0) {
+        explicitMembers.push(...members);
+      } else {
+        for (const slotId of compiledSlotById.keys()) {
+          const compiledSlot = compiledSlotById.get(slotId)!;
+          if (compiledSlot.kind === 'external') {
+            const poolGroupName = ensureHiddenSlotPoolGroup(slotId);
+            if (poolGroupName && !includeOtherGroups.includes(poolGroupName)) {
+              includeOtherGroups.push(poolGroupName);
+            }
+          } else {
+            for (const name of compiledSlot.proxyNames) {
+              if (!explicitMembers.includes(name)) explicitMembers.push(name);
+            }
+          }
+        }
+        if (explicitMembers.length > 0 || includeOtherGroups.length > 0) {
+          items.push({
+            code: 'EMPTY_POOL_FALLBACK_ALL',
+            severity: 'warning',
+            message: `稳定性节点池「${groupName}」无可用成员池，已退化为引用全部节点。`,
+            location,
+          });
+        } else {
+          explicitMembers.push('DIRECT');
+          items.push({
+            code: 'GROUP_FALLBACK_DIRECT',
+            severity: 'warning',
+            message: `稳定性节点池「${groupName}」没有可用成员或节点槽位，已兜底填入 DIRECT。`,
+            location,
+          });
         }
       }
-      regexFilter = sanitizeSurgeScalar(compiledRegex.combined);
-    }
-
-    if (inlineMatchedMembers.length === 0 && !directExternalSlot && includeOtherGroups.length === 0) {
-      inlineMatchedMembers.push('DIRECT');
-      items.push({
-        code: 'GROUP_FALLBACK_DIRECT',
-        severity: 'warning',
-        message: `地区组「${groupName}」没有可用节点槽位，已兜底填入 DIRECT。`,
-        location: { regionGroupId: regionGroup.id },
+    } else {
+      const nodeFilter = poolToNodeFilter(pool);
+      const emptyProtection = evaluatePoolEmptyProtection({
+        pool,
+        client: 'surge',
+        slots: body.slots,
+        slotById,
+        slotBindings: slotBindingMap,
       });
+
+      let compiledFilterString: string | undefined;
+      if (!emptyProtection.fallbackToAll && nodeFilter) {
+        if (pool.kind === 'region' && pool.region) {
+          const compiledRegex = buildRegionRegex(pool.region, 'surge', {
+            extraInclude: pool.include,
+            extraExclude: pool.exclude,
+          });
+          for (const warning of compiledRegex.warnings) {
+            items.push({
+              code: 'REGEX_DIALECT_WARNING',
+              severity: 'warning',
+              message: warning.message,
+              location,
+            });
+          }
+          compiledFilterString = sanitizeSurgeScalar(compiledRegex.combined);
+        } else {
+          compiledFilterString = compileSurgeNodeFilter(nodeFilter, items, location);
+        }
+      }
+
+      const targetSlotIds = pool.sources === 'all' ? [...compiledSlotById.keys()] : pool.sources;
+      const externalSlots: Array<Extract<CompiledSurgeSlot, { kind: 'external' }>> = [];
+
+      for (const slotId of targetSlotIds) {
+        const compiledSlot = compiledSlotById.get(slotId);
+        if (!compiledSlot) {
+          items.push({
+            code: 'MISSING_SLOT_REFERENCE',
+            severity: 'warning',
+            message: `${pool.kind === 'region' ? '地区组' : '节点池'}「${groupName}」引用的节点槽位 ${slotId} 不存在。`,
+            location: { ...location, slotId },
+          });
+          continue;
+        }
+        if (compiledSlot.kind === 'external') {
+          externalSlots.push(compiledSlot);
+        } else {
+          const slot = slotById.get(slotId);
+          const excludeInfo = slot?.excludeInfo !== false;
+          const matched =
+            !emptyProtection.fallbackToAll && nodeFilter
+              ? compiledSlot.proxyNames.filter((name) => matchNodeFilter(name, nodeFilter, { excludeInfo }))
+              : compiledSlot.proxyNames;
+          for (const nodeName of matched) {
+            if (!explicitMembers.includes(nodeName)) explicitMembers.push(nodeName);
+          }
+        }
+      }
+
+      if (emptyProtection.fallbackToAll) {
+        items.push({
+          code: 'EMPTY_POOL_FALLBACK_ALL',
+          severity: 'warning',
+          message: emptyProtection.message ?? `节点池「${groupName}」已退化为引用全部节点。`,
+          location,
+        });
+        if (externalSlots.length === 0 && explicitMembers.length === 0) {
+          for (const slotId of compiledSlotById.keys()) {
+            const compiledSlot = compiledSlotById.get(slotId)!;
+            if (compiledSlot.kind === 'external') {
+              externalSlots.push(compiledSlot);
+            } else {
+              for (const name of compiledSlot.proxyNames) {
+                if (!explicitMembers.includes(name)) explicitMembers.push(name);
+              }
+            }
+          }
+        }
+      }
+
+      if (externalSlots.length === 1) {
+        directExternalSlot = externalSlots[0];
+        regexFilter =
+          compiledFilterString ?? (pool.kind === 'region' ? undefined : directExternalSlot.excludeInfoRegex);
+      } else if (externalSlots.length > 1) {
+        for (const extSlot of externalSlots) {
+          const poolName = ensureHiddenSlotPoolGroup(extSlot.slotId);
+          if (poolName && !includeOtherGroups.includes(poolName)) {
+            includeOtherGroups.push(poolName);
+          }
+        }
+        regexFilter = compiledFilterString;
+      }
+
+      if (explicitMembers.length === 0 && !directExternalSlot && includeOtherGroups.length === 0) {
+        explicitMembers.push('DIRECT');
+        items.push({
+          code: 'GROUP_FALLBACK_DIRECT',
+          severity: 'warning',
+          message: `${pool.kind === 'region' ? '地区组' : '节点池'}「${groupName}」没有可用节点槽位，已兜底填入 DIRECT。`,
+          location,
+        });
+      }
     }
 
     const iconUrl = resolveGroupIconUrl(
       {
-        name: regionGroup.name,
-        region: regionGroup.region,
+        ...(pool.kind !== 'region' && pool.icon ? { explicitIcon: pool.icon } : {}),
+        name: pool.name,
+        ...(pool.kind === 'region' && pool.region ? { region: pool.region } : {}),
+        ...(pool.kind === 'all' ? { slug: 'all-nodes' } : pool.kind === 'provider' ? { slug: 'airport' } : {}),
         groupType: effectiveType,
       },
       input.iconPack,
@@ -1370,9 +1459,8 @@ export function compileSurge(input: CompileTemplateInput): CompiledConfigResult 
 
     const paramTokens = formatSurgeGroupParams({
       groupType: effectiveType,
-      testIntervalSec:
-        regionGroup.test?.intervalSec ?? body.general?.testIntervalSec ?? DEFAULT_HEALTH_CHECK.intervalSec,
-      testToleranceMs: regionGroup.test?.toleranceMs ?? DEFAULT_HEALTH_CHECK.toleranceMs ?? 50,
+      testIntervalSec: pool.test?.intervalSec ?? body.general?.testIntervalSec ?? DEFAULT_HEALTH_CHECK.intervalSec,
+      testToleranceMs: pool.test?.toleranceMs ?? DEFAULT_HEALTH_CHECK.toleranceMs ?? 50,
       policyPath: directExternalSlot?.policyPath,
       isRemotePolicyPath: directExternalSlot?.isRemote,
       updateIntervalSec: directExternalSlot?.updateIntervalSec,
@@ -1382,7 +1470,7 @@ export function compileSurge(input: CompileTemplateInput): CompiledConfigResult 
       iconUrl,
     });
 
-    const rhs = [effectiveType, ...inlineMatchedMembers, ...paramTokens];
+    const rhs = [effectiveType, ...explicitMembers, ...paramTokens];
     proxyGroupLines.push(`${groupName} = ${rhs.join(', ')}`);
     declaredGroupNames.push(groupName);
   }
@@ -1579,14 +1667,18 @@ export function compileSurge(input: CompileTemplateInput): CompiledConfigResult 
       });
       return 'DIRECT';
     }
-    if (finalRef.kind === 'region') {
-      const target = regionGroupNameById.get(finalRef.regionGroupId);
+    if (finalRef.kind === 'region' || finalRef.kind === 'pool') {
+      const targetId = finalRef.kind === 'pool' ? finalRef.poolId : finalRef.regionGroupId;
+      const target = poolGroupNameById.get(targetId);
       if (target) return target;
       items.push({
-        code: 'MISSING_REGION_REFERENCE',
+        code: finalRef.kind === 'pool' ? 'MISSING_POOL_REFERENCE' : 'MISSING_REGION_REFERENCE',
         severity: 'warning',
-        message: `兜底出口引用的地区组 ${finalRef.regionGroupId} 不存在，已回退为 DIRECT。`,
-        location: { regionGroupId: finalRef.regionGroupId },
+        message:
+          finalRef.kind === 'pool'
+            ? `兜底出口引用的节点池 ${targetId} 不存在，已回退为 DIRECT。`
+            : `兜底出口引用的地区组 ${targetId} 不存在，已回退为 DIRECT。`,
+        location: finalRef.kind === 'pool' ? { poolId: targetId } : { regionGroupId: targetId },
       });
       return 'DIRECT';
     }

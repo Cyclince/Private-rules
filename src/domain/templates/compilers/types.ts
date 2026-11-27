@@ -29,7 +29,9 @@ export type CompatibilityItemCode =
   | 'CATALOG_ENTRY_MISSING'
   | 'MISSING_CARD_REFERENCE'
   | 'MISSING_REGION_REFERENCE'
+  | 'MISSING_POOL_REFERENCE'
   | 'MISSING_SLOT_REFERENCE'
+  | 'EMPTY_POOL_FALLBACK_ALL'
   | 'GROUP_NAME_SANITIZED'
   | 'GROUP_FALLBACK_DIRECT'
   | 'PROXY_SERVER_NAMESERVER_INFERRED'
@@ -47,6 +49,7 @@ export type CompatibilityItem = {
   location?: {
     cardId?: string;
     regionGroupId?: string;
+    poolId?: string;
     slotId?: string;
     providerId?: string;
     moduleId?: string;

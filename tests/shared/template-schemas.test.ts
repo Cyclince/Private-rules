@@ -4,8 +4,11 @@ import {
   backupSchema,
   catalogEntrySchema,
   conditionSchema,
+  nodePoolSchema,
+  policyRefSchema,
   publicationFormSchema,
   publicationSchema,
+  templateBodySchema,
   templateOverlayOpSchema,
   templateSchema,
 } from '../../src/shared/schemas';
@@ -100,7 +103,7 @@ describe('shared card, template, and publication schemas', () => {
       },
       overlay: [op],
     });
-    expect(tpl.baseBody.regionGroups[0].region).toBe('HK');
+    expect(tpl.baseBody.regionGroups?.[0].region).toBe('HK');
 
     const pub = publicationSchema.parse({
       id: 'pub-1',
@@ -139,5 +142,101 @@ describe('shared card, template, and publication schemas', () => {
       ],
     });
     expect(result.success).toBe(false);
+  });
+
+  it('validates nodePoolSchema across all 5 kinds, pool PolicyRefs, complexity tiers, and pool overlay ops', () => {
+    expect(policyRefSchema.parse({ kind: 'pool', poolId: 'pool-trait-low-rate' })).toEqual({
+      kind: 'pool',
+      poolId: 'pool-trait-low-rate',
+    });
+
+    const parsedAll = nodePoolSchema.parse({
+      id: 'pool-all-auto',
+      name: '全部节点',
+      sources: 'all',
+      kind: 'all',
+      type: 'url-test',
+    });
+    expect(parsedAll.hidden).toBe(true);
+
+    const parsedRegion = nodePoolSchema.parse({
+      id: 'region-hk',
+      name: '香港节点',
+      region: 'hk',
+      sources: ['slot-main'],
+      kind: 'region',
+      type: 'url-test',
+    });
+    expect(parsedRegion.region).toBe('HK');
+    expect(parsedRegion.hidden).toBe(true);
+
+    const parsedStability = nodePoolSchema.parse({
+      id: 'pool-stability-fallback',
+      name: '故障转移',
+      sources: 'all',
+      kind: 'stability',
+      type: 'fallback',
+      members: ['region-hk', 'region-sg'],
+      hidden: false,
+    });
+    expect(parsedStability.hidden).toBe(false);
+    expect(parsedStability.members).toEqual(['region-hk', 'region-sg']);
+
+    // Region kind requires region code; stability kind requires non-empty members; empty sources array rejected
+    expect(
+      nodePoolSchema.safeParse({
+        id: 'bad-region',
+        name: 'Bad Region',
+        sources: 'all',
+        kind: 'region',
+        type: 'url-test',
+      }).success,
+    ).toBe(false);
+    expect(
+      nodePoolSchema.safeParse({
+        id: 'bad-stability',
+        name: 'Bad Stability',
+        sources: 'all',
+        kind: 'stability',
+        type: 'fallback',
+      }).success,
+    ).toBe(false);
+    expect(
+      nodePoolSchema.safeParse({
+        id: 'bad-sources',
+        name: 'Bad Sources',
+        sources: [],
+        kind: 'trait',
+        type: 'url-test',
+      }).success,
+    ).toBe(false);
+
+    const parsedBody = templateBodySchema.parse({
+      slots: [],
+      pools: [parsedRegion, parsedStability],
+      complexity: 'pro',
+      cards: [{ cardId: 'proxy-select', enabled: true }],
+      groupMode: 'select',
+      final: { kind: 'pool', poolId: 'pool-stability-fallback' },
+      output: 'full',
+      dns: { mode: 'fake-ip' },
+      modules: [],
+    });
+    expect(parsedBody.complexity).toBe('pro');
+    expect(parsedBody.pools).toHaveLength(2);
+
+    expect(templateOverlayOpSchema.parse({ op: 'setComplexity', complexity: 'simple' })).toEqual({
+      op: 'setComplexity',
+      complexity: 'simple',
+    });
+    expect(templateOverlayOpSchema.parse({ op: 'addPool', pool: parsedAll }).op).toBe('addPool');
+    expect(
+      templateOverlayOpSchema.parse({
+        op: 'updatePool',
+        poolId: 'pool-all-auto',
+        patch: { hidden: false },
+      }).op,
+    ).toBe('updatePool');
+    expect(templateOverlayOpSchema.parse({ op: 'removePool', poolId: 'pool-all-auto' }).op).toBe('removePool');
   });
 });

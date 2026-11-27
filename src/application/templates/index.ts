@@ -32,6 +32,7 @@ import {
   type ProbeRuleEntry,
   type RebaseDiff,
 } from '../../domain/templates';
+import { migrateTemplateBody, prepareTemplateBodyForStorage } from '../../domain/templates/pools';
 import { safeFetchText } from '../../infrastructure/http/fetch';
 import { rewriteGithubUrl } from '../../lib/github-mirror';
 import {
@@ -125,7 +126,8 @@ export type TemplateRulesetRuntimeContext = {
 
 const DEFAULT_BLANK_BODY: TemplateBody = {
   slots: [{ id: 'slot-main', name: '主力订阅', excludeInfo: true, udp: true }],
-  regionGroups: [],
+  pools: [],
+  complexity: 'advanced',
   cards: [],
   groupMode: 'select',
   final: { kind: 'builtin', id: 'DIRECT' },
@@ -356,13 +358,21 @@ export async function createTemplate(
 
   const description = input.description ?? starter?.description ?? '';
   const baseKind: TemplateBaseKind = input.baseKind ?? (starter ? 'builtin' : 'blank');
-  const baseBody: TemplateBody = structuredClone(input.baseBody ?? starter?.baseBody ?? DEFAULT_BLANK_BODY);
-  if (input.groupMode) baseBody.groupMode = input.groupMode;
-  if (input.output) baseBody.output = input.output;
+  const rawBaseBody: TemplateBody = structuredClone(input.baseBody ?? starter?.baseBody ?? DEFAULT_BLANK_BODY);
+  if (input.groupMode) rawBaseBody.groupMode = input.groupMode;
+  if (input.output) rawBaseBody.output = input.output;
+  const baseBody = prepareTemplateBodyForStorage(rawBaseBody, {
+    starterTier: input.starterTier,
+    slug: input.slug || starter?.slug || name,
+  });
   const overlay: TemplateOverlay = input.overlay ?? [];
 
   const applied = applyOverlay(baseBody, overlay);
   assertValidModuleCombination(applied.resolved);
+  const resolvedBody = prepareTemplateBodyForStorage(applied.resolved, {
+    starterTier: input.starterTier,
+    slug: input.slug || starter?.slug || name,
+  });
 
   const templateId = id('tpl');
   const slug = await resolveUniqueTemplateSlug(env, input.slug || starter?.slug || name, Boolean(input.slug));
@@ -383,7 +393,7 @@ export async function createTemplate(
       createdAt: timestamp,
       updatedAt: timestamp,
     },
-    resolvedBody: applied.resolved,
+    resolvedBody,
     note: input.note?.trim() || '初始版本',
   });
 
@@ -391,11 +401,11 @@ export async function createTemplate(
   if (!template) throw new AppError('INTERNAL', '创建模板失败。');
 
   const [cards, catalogIndex] = await Promise.all([loadCardLookup(env), loadCatalogIndexMap(env)]);
-  const lint = lintTemplate({ body: applied.resolved, cards, catalogIndex });
+  const lint = lintTemplate({ body: resolvedBody, cards, catalogIndex });
 
   return {
     template,
-    resolvedBody: applied.resolved,
+    resolvedBody,
     version: 1,
     overlayConflicts: applied.conflicts,
     lint,
@@ -426,11 +436,14 @@ export async function updateTemplate(
   const nextBaseKind = patch.baseKind ?? existing.baseKind;
   const nextBaseSourceUrl =
     patch.baseSourceUrl === undefined ? (existing.baseSourceUrl ?? null) : patch.baseSourceUrl?.trim() || null;
-  const nextBaseBody = patch.baseBody ?? existing.baseBody;
+  const nextBaseBody = patch.baseBody
+    ? prepareTemplateBodyForStorage(patch.baseBody, { slug: nextSlug })
+    : existing.baseBody;
   const nextOverlay = patch.overlay ?? existing.overlay;
 
   const applied = applyOverlay(nextBaseBody, nextOverlay);
   assertValidModuleCombination(applied.resolved);
+  const nextResolvedBody = prepareTemplateBodyForStorage(applied.resolved, { slug: nextSlug });
 
   const nextVersion = existing.currentVersion + 1;
   const timestamp = now();
@@ -445,7 +458,7 @@ export async function updateTemplate(
     baseBody: JSON.stringify(nextBaseBody),
     overlay: JSON.stringify(nextOverlay),
     version: nextVersion,
-    resolvedBody: applied.resolved,
+    resolvedBody: nextResolvedBody,
     note: patch.note?.trim() ?? '',
     updatedAt: timestamp,
     maxVersions: TEMPLATE_VERSION_RETENTION,
@@ -456,7 +469,7 @@ export async function updateTemplate(
 
   const [cards, catalogIndex] = await Promise.all([loadCardLookup(env), loadCatalogIndexMap(env)]);
   const lint = lintTemplate({
-    body: applied.resolved,
+    body: nextResolvedBody,
     cards,
     previousBody: applyOverlay(existing.baseBody, existing.overlay).resolved,
     catalogIndex,
@@ -464,7 +477,7 @@ export async function updateTemplate(
 
   return {
     template,
-    resolvedBody: applied.resolved,
+    resolvedBody: nextResolvedBody,
     version: nextVersion,
     overlayConflicts: applied.conflicts,
     lint,
@@ -569,6 +582,8 @@ export async function importTemplate(
   const templateName = input.name?.trim() || imported.name;
   const slug = await resolveUniqueTemplateSlug(env, input.slug || templateName, Boolean(input.slug));
 
+  const storedImportedBody = prepareTemplateBodyForStorage(imported.body, { slug });
+
   await repos.templates.createWithVersion({
     template: {
       id: templateId,
@@ -577,13 +592,13 @@ export async function importTemplate(
       description: input.description ?? `导入自 ${input.format}`,
       baseKind: imported.baseKind,
       baseSourceUrl: input.sourceUrl?.trim() || null,
-      baseBody: JSON.stringify(imported.body),
+      baseBody: JSON.stringify(storedImportedBody),
       overlay: '[]',
       currentVersion: 1,
       createdAt: timestamp,
       updatedAt: timestamp,
     },
-    resolvedBody: imported.body,
+    resolvedBody: storedImportedBody,
     note: input.note?.trim() || `导入 ${input.format}`,
   });
 
@@ -593,7 +608,7 @@ export async function importTemplate(
   return {
     saved: true,
     template,
-    resolvedBody: imported.body,
+    resolvedBody: storedImportedBody,
     cards: savedCards,
     report: imported.report,
   };
@@ -638,14 +653,15 @@ export async function rebaseTemplate(
     if (input.sourceUrl?.trim()) newBaseSourceUrl = input.sourceUrl.trim();
   }
 
-  const rebaseResult = rebaseOverlay(existing.baseBody, newBaseBody, existing.overlay);
+  const normalizedBaseBody = migrateTemplateBody(newBaseBody, { slug: existing.slug });
+  const rebaseResult = rebaseOverlay(existing.baseBody, normalizedBaseBody, existing.overlay);
   let nextOverlay = existing.overlay;
   let finalResolved = rebaseResult.resolved;
   let finalConflicts = rebaseResult.conflicts;
 
   if (input.resolutions && input.resolutions.length > 0) {
     nextOverlay = resolveOverlayConflicts(existing.overlay, input.resolutions);
-    const appliedAfterResolve = applyOverlay(newBaseBody, nextOverlay);
+    const appliedAfterResolve = applyOverlay(normalizedBaseBody, nextOverlay);
     finalResolved = appliedAfterResolve.resolved;
     finalConflicts = appliedAfterResolve.conflicts;
   }
@@ -663,6 +679,8 @@ export async function rebaseTemplate(
   assertValidModuleCombination(finalResolved);
   const nextVersion = existing.currentVersion + 1;
   const timestamp = now();
+  const storedBaseBody = prepareTemplateBodyForStorage(normalizedBaseBody, { slug: existing.slug });
+  const storedResolvedBody = prepareTemplateBodyForStorage(finalResolved, { slug: existing.slug });
 
   await repos.templates.saveWithNewVersion({
     id: existing.id,
@@ -671,10 +689,10 @@ export async function rebaseTemplate(
     description: existing.description,
     baseKind: existing.baseKind,
     baseSourceUrl: newBaseSourceUrl,
-    baseBody: JSON.stringify(newBaseBody),
+    baseBody: JSON.stringify(storedBaseBody),
     overlay: JSON.stringify(nextOverlay),
     version: nextVersion,
-    resolvedBody: finalResolved,
+    resolvedBody: storedResolvedBody,
     note: input.note?.trim() || '底稿更新（Rebase）',
     updatedAt: timestamp,
     maxVersions: TEMPLATE_VERSION_RETENTION,
@@ -686,7 +704,7 @@ export async function rebaseTemplate(
   return {
     applied: true,
     template,
-    resolvedBody: finalResolved,
+    resolvedBody: storedResolvedBody,
     version: nextVersion,
     diff: rebaseResult.diff,
     conflicts: finalConflicts,

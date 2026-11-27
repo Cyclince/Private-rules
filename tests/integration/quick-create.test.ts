@@ -253,7 +253,7 @@ describe('M2a quick-create & preview-subscription integration tests', () => {
           }
 
           // Only detected regions (HK, JP, US) generated in region mode
-          expect(payload.resolvedBody.regionGroups.map((g) => g.region)).toEqual(['HK', 'JP', 'US']);
+          expect((payload.resolvedBody.regionGroups ?? []).map((g) => g.region)).toEqual(['HK', 'JP', 'US']);
 
           // Verify encrypted slot-main bindings persisted for every publication without plaintext URL
           const repos = createRepositories(harness.env.DB);
@@ -324,7 +324,14 @@ describe('M2a quick-create & preview-subscription integration tests', () => {
           expect(res.status).toBe(201);
           const payload = (await res.json()) as QuickCreateTemplateResult;
           expect(payload.hasSubscription).toBe(false);
-          expect(payload.resolvedBody.regionGroups.map((g) => g.region)).toEqual(['HK', 'TW', 'JP', 'SG', 'US', 'KR']);
+          expect((payload.resolvedBody.regionGroups ?? []).map((g) => g.region)).toEqual([
+            'HK',
+            'TW',
+            'JP',
+            'SG',
+            'US',
+            'KR',
+          ]);
 
           const repos = createRepositories(harness.env.DB);
           const bindings = await repos.nodeBindings.listByPublication(payload.publications[0].id);

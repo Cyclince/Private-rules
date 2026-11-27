@@ -12,6 +12,14 @@ import { recognizeGroupIcon } from '../icons';
 import { DEFAULT_HEALTH_CHECK, resolveTemplateCards, type ResolvedTemplateCard } from '../model';
 import { applyEnhancementModules } from '../modules';
 import { planRulesetReferences, type PlannedMatcherBinding, type PlannedProvider } from '../planner';
+import { getNormalizedBodyPools } from '../pools';
+import {
+  evaluatePoolEmptyProtection,
+  poolCompatibilityLocation,
+  poolToNodeFilter,
+  resolveStabilityPoolMembers,
+  toSlotBindingMap,
+} from './pool-helpers';
 import type { CompatibilityItem, CompiledConfigResult, CompileTemplateInput } from './types';
 
 /**
@@ -588,10 +596,15 @@ export function compileLoon(input: CompileTemplateInput): CompiledConfigResult {
   const inlinePayloads = toInlinePayloadsMap(input.inlineRulePayloads);
   const ipNoResolveEnabled = appliedModules.includes('ip-no-resolve');
 
+  const hasExplicitPools = body.pools !== undefined;
+  const bodyPools = getNormalizedBodyPools(body);
+  const slotMap = new Map(body.slots.map((slot) => [slot.id, slot]));
+  const slotBindingMap = toSlotBindingMap(input.slotBindings);
+
   // 2. Allocate unique sanitized group names (used both in full config and as policy targets in rules)
   const usedGroupNames = new Set<string>();
   const cardGroupNameById = new Map<string, string>();
-  const regionGroupNameById = new Map<string, string>();
+  const poolGroupNameById = new Map<string, string>();
   const declaredGroupNames: string[] = [];
 
   for (const card of enabledCards) {
@@ -617,9 +630,9 @@ export function compileLoon(input: CompileTemplateInput): CompiledConfigResult {
     declaredGroupNames.push(unique);
   }
 
-  for (const regionGroup of body.regionGroups) {
-    const original = regionGroup.name;
-    const sanitized = sanitizeLoonGroupName(original, regionGroup.id);
+  for (const pool of bodyPools) {
+    const original = pool.name;
+    const sanitized = sanitizeLoonGroupName(original, pool.id);
     const unique = allocateUniqueName(
       sanitized,
       usedGroupNames,
@@ -629,14 +642,14 @@ export function compileLoon(input: CompileTemplateInput): CompiledConfigResult {
           items.push({
             code: 'GROUP_NAME_SANITIZED',
             severity: 'info',
-            message: `地区策略组名称「${sanitizeLoonScalar(original)}」已规范化为「${finalName}」以符合 Loon INI 语法。`,
-            location: { regionGroupId: regionGroup.id },
+            message: `${pool.kind === 'region' ? '地区策略组' : '节点池'}名称「${sanitizeLoonScalar(original)}」已规范化为「${finalName}」以符合 Loon INI 语法。`,
+            location: poolCompatibilityLocation(pool, hasExplicitPools),
           });
         }
       },
       original,
     );
-    regionGroupNameById.set(regionGroup.id, unique);
+    poolGroupNameById.set(pool.id, unique);
     declaredGroupNames.push(unique);
   }
 
@@ -691,7 +704,6 @@ export function compileLoon(input: CompileTemplateInput): CompiledConfigResult {
   const remoteFilterLines: string[] = [];
   const proxyGroupLines: string[] = [];
   const usedFilterNames = new Set<string>(usedGroupNames);
-  const slotMap = new Map(body.slots.map((slot) => [slot.id, slot]));
 
   const registerFilter = (
     preferredName: string,
@@ -792,14 +804,20 @@ export function compileLoon(input: CompileTemplateInput): CompiledConfigResult {
             pushUnique(target);
             break;
           }
-          case 'region': {
-            const target = regionGroupNameById.get(ref.regionGroupId);
+          case 'region':
+          case 'pool': {
+            const targetId = ref.kind === 'pool' ? ref.poolId : ref.regionGroupId;
+            const target = poolGroupNameById.get(targetId);
             if (!target) {
               items.push({
-                code: 'MISSING_REGION_REFERENCE',
+                code: ref.kind === 'pool' ? 'MISSING_POOL_REFERENCE' : 'MISSING_REGION_REFERENCE',
                 severity: 'warning',
-                message: `策略组引用的地区组 ${ref.regionGroupId} 不存在，已忽略。`,
-                location: { ...location, regionGroupId: ref.regionGroupId },
+                message:
+                  ref.kind === 'pool'
+                    ? `策略组引用的节点池 ${targetId} 不存在，已忽略。`
+                    : `策略组引用的地区组 ${targetId} 不存在，已忽略。`,
+                location:
+                  ref.kind === 'pool' ? { ...location, poolId: targetId } : { ...location, regionGroupId: targetId },
               });
               return;
             }
@@ -903,32 +921,58 @@ export function compileLoon(input: CompileTemplateInput): CompiledConfigResult {
       );
     }
 
-    // Region strategy groups
-    for (const regionGroup of body.regionGroups) {
-      const groupName = regionGroupNameById.get(regionGroup.id)!;
-      const filterName = registerFilter(
-        `Filter-${regionGroup.name}`,
-        {
-          regions: [regionGroup.region],
-          include: regionGroup.extraInclude,
-          exclude: regionGroup.extraExclude,
-        },
-        defaultExcludeInfo,
-        { regionGroupId: regionGroup.id },
-      );
+    // Pool strategy groups (regions, providers, traits, all, stability)
+    for (const pool of bodyPools) {
+      const groupName = poolGroupNameById.get(pool.id)!;
+      const location = poolCompatibilityLocation(pool, hasExplicitPools);
+      let members: string[];
+
+      if (pool.kind === 'stability') {
+        const stabilityMembers = resolveStabilityPoolMembers(pool, poolGroupNameById, items, hasExplicitPools);
+        if (stabilityMembers.length > 0) {
+          members = stabilityMembers;
+        } else {
+          items.push({
+            code: 'EMPTY_POOL_FALLBACK_ALL',
+            severity: 'warning',
+            message: `稳定性节点池「${groupName}」无可用成员池，已退化为引用全部节点。`,
+            location,
+          });
+          members = [registerFilter(`Filter-${pool.name}`, undefined, defaultExcludeInfo, location)];
+        }
+      } else {
+        const emptyProtection = hasExplicitPools
+          ? evaluatePoolEmptyProtection({
+              pool,
+              client: 'loon',
+              slots: body.slots,
+              slotById: slotMap,
+              slotBindings: slotBindingMap,
+            })
+          : { fallbackToAll: false };
+        if (emptyProtection.fallbackToAll) {
+          items.push({
+            code: 'EMPTY_POOL_FALLBACK_ALL',
+            severity: 'warning',
+            message: emptyProtection.message ?? `节点池「${groupName}」已退化为引用全部节点。`,
+            location,
+          });
+        }
+        const nodeFilter = emptyProtection.fallbackToAll ? undefined : poolToNodeFilter(pool);
+        members = [registerFilter(`Filter-${pool.name}`, nodeFilter, defaultExcludeInfo, location)];
+      }
+
       const iconUrl = resolveGroupIconUrl(
         {
-          name: regionGroup.name,
-          region: regionGroup.region,
-          groupType: regionGroup.type,
+          ...(pool.kind !== 'region' && pool.icon ? { explicitIcon: pool.icon } : {}),
+          name: pool.name,
+          ...(pool.kind === 'region' && pool.region ? { region: pool.region } : {}),
+          ...(pool.kind === 'all' ? { slug: 'all-nodes' } : pool.kind === 'provider' ? { slug: 'airport' } : {}),
+          groupType: pool.type,
         },
         input.iconPack,
       );
-      proxyGroupLines.push(
-        formatGroupLine(groupName, regionGroup.type, [filterName], regionGroup.test, iconUrl, {
-          regionGroupId: regionGroup.id,
-        }),
-      );
+      proxyGroupLines.push(formatGroupLine(groupName, pool.type, members, pool.test, iconUrl, location));
     }
   }
 
@@ -1065,14 +1109,18 @@ export function compileLoon(input: CompileTemplateInput): CompiledConfigResult {
       });
       return 'DIRECT';
     }
-    if (finalRef.kind === 'region') {
-      const target = regionGroupNameById.get(finalRef.regionGroupId);
+    if (finalRef.kind === 'region' || finalRef.kind === 'pool') {
+      const targetId = finalRef.kind === 'pool' ? finalRef.poolId : finalRef.regionGroupId;
+      const target = poolGroupNameById.get(targetId);
       if (target) return target;
       items.push({
-        code: 'MISSING_REGION_REFERENCE',
+        code: finalRef.kind === 'pool' ? 'MISSING_POOL_REFERENCE' : 'MISSING_REGION_REFERENCE',
         severity: 'warning',
-        message: `兜底出口引用的地区组 ${finalRef.regionGroupId} 不存在，已回退为 DIRECT。`,
-        location: { regionGroupId: finalRef.regionGroupId },
+        message:
+          finalRef.kind === 'pool'
+            ? `兜底出口引用的节点池 ${targetId} 不存在，已回退为 DIRECT。`
+            : `兜底出口引用的地区组 ${targetId} 不存在，已回退为 DIRECT。`,
+        location: finalRef.kind === 'pool' ? { poolId: targetId } : { regionGroupId: targetId },
       });
       return 'DIRECT';
     }

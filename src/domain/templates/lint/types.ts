@@ -27,6 +27,7 @@ export type LintLocation = {
   cardId?: string;
   cardIndex?: number;
   regionGroupId?: string;
+  poolId?: string;
   slotId?: string;
   matcherIndex?: number;
   ruleIndex?: number;

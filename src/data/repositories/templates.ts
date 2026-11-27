@@ -1,6 +1,11 @@
 import { and, desc, eq } from 'drizzle-orm';
 import type { DatabasePort } from '../../application/ports/database';
 import {
+  migrateTemplateBody,
+  serializeTemplateBodyForStorage,
+  type InferComplexityHints,
+} from '../../domain/templates/pools';
+import {
   templateBodySchema,
   templateOverlaySchema,
   type TemplateBaseKind,
@@ -30,7 +35,8 @@ export type TemplateVersionRecord = TemplateVersionSummary & {
 
 const EMPTY_FALLBACK_BODY: TemplateBody = {
   slots: [],
-  regionGroups: [],
+  pools: [],
+  complexity: 'advanced',
   cards: [],
   groupMode: 'select',
   final: { kind: 'builtin', id: 'DIRECT' },
@@ -39,18 +45,24 @@ const EMPTY_FALLBACK_BODY: TemplateBody = {
   modules: [],
 };
 
-function parseTemplateBody(raw: string): TemplateBody {
+function parseTemplateBody(raw: string, hints?: InferComplexityHints): TemplateBody {
   try {
     const parsed = JSON.parse(raw) as unknown;
     const validated = templateBodySchema.safeParse(parsed);
-    if (validated.success) return validated.data;
+    if (validated.success) {
+      return migrateTemplateBody(validated.data, hints);
+    }
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return { ...EMPTY_FALLBACK_BODY, ...(parsed as Partial<TemplateBody>) };
+      return migrateTemplateBody({ ...EMPTY_FALLBACK_BODY, ...(parsed as Partial<TemplateBody>) }, hints);
     }
     return structuredClone(EMPTY_FALLBACK_BODY);
   } catch {
     return structuredClone(EMPTY_FALLBACK_BODY);
   }
+}
+
+function normalizeBodyJsonForStorage(raw: string, hints?: InferComplexityHints): string {
+  return serializeTemplateBodyForStorage(parseTemplateBody(raw, hints), hints);
 }
 
 function parseTemplateOverlay(raw: string): TemplateOverlay {
@@ -71,7 +83,7 @@ export function mapTemplateRow(row: TemplateRow): TemplateRecord {
     description: row.description,
     baseKind: row.baseKind as TemplateBaseKind,
     baseSourceUrl: row.baseSourceUrl ?? undefined,
-    baseBody: parseTemplateBody(row.baseBody),
+    baseBody: parseTemplateBody(row.baseBody, { slug: row.slug }),
     overlay: parseTemplateOverlay(row.overlay),
     currentVersion: row.currentVersion,
     createdAt: row.createdAt,
@@ -120,6 +132,9 @@ export class TemplatesRepository {
     note?: string;
   }): Promise<void> {
     const version = input.template.currentVersion ?? 1;
+    const hints: InferComplexityHints = { slug: input.template.slug };
+    const normalizedBaseBody = normalizeBodyJsonForStorage(input.template.baseBody, hints);
+    const normalizedResolvedBody = serializeTemplateBodyForStorage(input.resolvedBody, hints);
     await this.rawDb.batch([
       this.rawDb
         .prepare(
@@ -134,7 +149,7 @@ export class TemplatesRepository {
           input.template.description ?? '',
           input.template.baseKind,
           input.template.baseSourceUrl ?? null,
-          input.template.baseBody,
+          normalizedBaseBody,
           input.template.overlay ?? '[]',
           version,
           input.template.createdAt,
@@ -145,13 +160,7 @@ export class TemplatesRepository {
           `INSERT INTO template_versions (template_id, version, resolved_body, note, created_at)
            VALUES (?, ?, ?, ?, ?)`,
         )
-        .bind(
-          input.template.id,
-          version,
-          JSON.stringify(input.resolvedBody),
-          input.note ?? '',
-          input.template.createdAt,
-        ),
+        .bind(input.template.id, version, normalizedResolvedBody, input.note ?? '', input.template.createdAt),
     ]);
   }
 
@@ -175,6 +184,9 @@ export class TemplatesRepository {
     maxVersions?: number;
   }): Promise<void> {
     const retention = Math.max(1, input.maxVersions ?? TEMPLATE_VERSION_RETENTION);
+    const hints: InferComplexityHints = { slug: input.slug };
+    const normalizedBaseBody = normalizeBodyJsonForStorage(input.baseBody, hints);
+    const normalizedResolvedBody = serializeTemplateBodyForStorage(input.resolvedBody, hints);
     await this.rawDb.batch([
       this.rawDb
         .prepare(
@@ -188,7 +200,7 @@ export class TemplatesRepository {
           input.description,
           input.baseKind,
           input.baseSourceUrl,
-          input.baseBody,
+          normalizedBaseBody,
           input.overlay,
           input.version,
           input.updatedAt,
@@ -199,7 +211,7 @@ export class TemplatesRepository {
           `INSERT INTO template_versions (template_id, version, resolved_body, note, created_at)
            VALUES (?, ?, ?, ?, ?)`,
         )
-        .bind(input.id, input.version, JSON.stringify(input.resolvedBody), input.note, input.updatedAt),
+        .bind(input.id, input.version, normalizedResolvedBody, input.note, input.updatedAt),
       this.rawDb
         .prepare(
           `DELETE FROM template_versions

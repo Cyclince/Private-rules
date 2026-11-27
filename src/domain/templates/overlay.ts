@@ -1,5 +1,6 @@
 import type { AppCardOverride, PolicyRef } from '../../shared/schemas/card';
 import type { TemplateBody, TemplateOverlayOp } from '../../shared/schemas/template';
+import { normalizeNodePool, regionGroupToNodePool } from './pools';
 
 export type OverlayConflictReason =
   'TARGET_MISSING' | 'ANCHOR_MISSING' | 'DUPLICATE_ADD' | 'UPSTREAM_MODIFIED' | 'INVALID_REFERENCE';
@@ -28,11 +29,14 @@ export type RebaseDiff = {
   modifiedCards: string[];
   addedRegionGroups: string[];
   removedRegionGroups: string[];
+  addedPools: string[];
+  removedPools: string[];
   addedSlots: string[];
   removedSlots: string[];
   finalChanged: boolean;
   dnsChanged: boolean;
   groupModeChanged: boolean;
+  complexityChanged: boolean;
   outputChanged: boolean;
   modulesChanged: boolean;
 };
@@ -86,7 +90,16 @@ function validatePolicyRefExists(body: TemplateBody, ref: PolicyRef): string | n
     return body.cards.some((card) => card.cardId === ref.cardId) ? null : ref.cardId;
   }
   if (ref.kind === 'region') {
-    return body.regionGroups.some((group) => group.id === ref.regionGroupId) ? null : ref.regionGroupId;
+    return (body.regionGroups ?? []).some((group) => group.id === ref.regionGroupId) ||
+      (body.pools ?? []).some((pool) => pool.id === ref.regionGroupId)
+      ? null
+      : ref.regionGroupId;
+  }
+  if (ref.kind === 'pool') {
+    return (body.pools ?? []).some((pool) => pool.id === ref.poolId) ||
+      (body.regionGroups ?? []).some((group) => group.id === ref.poolId)
+      ? null
+      : ref.poolId;
   }
   return body.slots.some((slot) => slot.id === ref.slotId) ? null : ref.slotId;
 }
@@ -285,25 +298,46 @@ export function applyOverlay(baseBody: TemplateBody, overlay: readonly TemplateO
       }
 
       case 'addRegionGroup': {
-        if (resolved.regionGroups.some((group) => group.id === op.regionGroup.id)) {
-          conflicts.push({
-            opIndex,
-            op,
-            reason: 'DUPLICATE_ADD',
-            targetId: op.regionGroup.id,
-            message: `地区组 ${op.regionGroup.id} 已存在于底稿中。`,
-            suggestedActions: ['drop', 'retarget'],
-          });
-          return;
+        if (resolved.regionGroups !== undefined) {
+          if (resolved.regionGroups.some((group) => group.id === op.regionGroup.id)) {
+            conflicts.push({
+              opIndex,
+              op,
+              reason: 'DUPLICATE_ADD',
+              targetId: op.regionGroup.id,
+              message: `地区组 ${op.regionGroup.id} 已存在于底稿中。`,
+              suggestedActions: ['drop', 'retarget'],
+            });
+            return;
+          }
+          resolved.regionGroups.push(structuredClone(op.regionGroup));
+          if (resolved.pools && !resolved.pools.some((pool) => pool.id === op.regionGroup.id)) {
+            resolved.pools.push(regionGroupToNodePool(op.regionGroup));
+          }
+        } else {
+          const pools = (resolved.pools ??= []);
+          if (pools.some((pool) => pool.id === op.regionGroup.id)) {
+            conflicts.push({
+              opIndex,
+              op,
+              reason: 'DUPLICATE_ADD',
+              targetId: op.regionGroup.id,
+              message: `地区组 ${op.regionGroup.id} 已存在于底稿中。`,
+              suggestedActions: ['drop', 'retarget'],
+            });
+            return;
+          }
+          pools.push(regionGroupToNodePool(op.regionGroup));
         }
-        resolved.regionGroups.push(structuredClone(op.regionGroup));
         appliedCount += 1;
         return;
       }
 
       case 'removeRegionGroup': {
-        const idx = resolved.regionGroups.findIndex((group) => group.id === op.regionGroupId);
-        if (idx === -1) {
+        const groups = resolved.regionGroups ?? [];
+        const idx = groups.findIndex((group) => group.id === op.regionGroupId);
+        const poolIdx = (resolved.pools ?? []).findIndex((pool) => pool.id === op.regionGroupId);
+        if (idx === -1 && poolIdx === -1) {
           conflicts.push({
             opIndex,
             op,
@@ -314,14 +348,16 @@ export function applyOverlay(baseBody: TemplateBody, overlay: readonly TemplateO
           });
           return;
         }
-        resolved.regionGroups.splice(idx, 1);
+        if (idx !== -1) groups.splice(idx, 1);
+        if (poolIdx !== -1 && resolved.pools) resolved.pools.splice(poolIdx, 1);
         appliedCount += 1;
         return;
       }
 
       case 'updateRegionGroup': {
-        const group = resolved.regionGroups.find((entry) => entry.id === op.regionGroupId);
-        if (!group) {
+        const group = (resolved.regionGroups ?? []).find((entry) => entry.id === op.regionGroupId);
+        const pool = (resolved.pools ?? []).find((entry) => entry.id === op.regionGroupId);
+        if (!group && !pool) {
           conflicts.push({
             opIndex,
             op,
@@ -332,19 +368,115 @@ export function applyOverlay(baseBody: TemplateBody, overlay: readonly TemplateO
           });
           return;
         }
-        if (op.patch.name !== undefined) group.name = op.patch.name;
-        if (op.patch.region !== undefined) group.region = op.patch.region;
-        if (op.patch.type !== undefined) group.type = op.patch.type;
-        if (op.patch.extraInclude === null) delete group.extraInclude;
-        else if (op.patch.extraInclude !== undefined) group.extraInclude = op.patch.extraInclude;
-        if (op.patch.extraExclude === null) delete group.extraExclude;
-        else if (op.patch.extraExclude !== undefined) group.extraExclude = op.patch.extraExclude;
-        if (op.patch.test === null) delete group.test;
-        else if (op.patch.test !== undefined) group.test = structuredClone(op.patch.test);
-        if (op.patch.slotId === null) delete group.slotId;
-        else if (op.patch.slotId !== undefined) group.slotId = op.patch.slotId;
-        if (op.patch.hidden === null) delete group.hidden;
-        else if (op.patch.hidden !== undefined) group.hidden = op.patch.hidden;
+        if (group) {
+          if (op.patch.name !== undefined) group.name = op.patch.name;
+          if (op.patch.region !== undefined) group.region = op.patch.region;
+          if (op.patch.type !== undefined) group.type = op.patch.type;
+          if (op.patch.extraInclude === null) delete group.extraInclude;
+          else if (op.patch.extraInclude !== undefined) group.extraInclude = op.patch.extraInclude;
+          if (op.patch.extraExclude === null) delete group.extraExclude;
+          else if (op.patch.extraExclude !== undefined) group.extraExclude = op.patch.extraExclude;
+          if (op.patch.test === null) delete group.test;
+          else if (op.patch.test !== undefined) group.test = structuredClone(op.patch.test);
+          if (op.patch.slotId === null) delete group.slotId;
+          else if (op.patch.slotId !== undefined) group.slotId = op.patch.slotId;
+          if (op.patch.hidden === null) delete group.hidden;
+          else if (op.patch.hidden !== undefined) group.hidden = op.patch.hidden;
+        }
+        if (pool) {
+          if (op.patch.name !== undefined) pool.name = op.patch.name;
+          if (op.patch.region !== undefined) pool.region = op.patch.region;
+          if (op.patch.type !== undefined) pool.type = op.patch.type;
+          if (op.patch.extraInclude === null) delete pool.include;
+          else if (op.patch.extraInclude !== undefined) pool.include = op.patch.extraInclude;
+          if (op.patch.extraExclude === null) delete pool.exclude;
+          else if (op.patch.extraExclude !== undefined) pool.exclude = op.patch.extraExclude;
+          if (op.patch.test === null) delete pool.test;
+          else if (op.patch.test !== undefined) pool.test = structuredClone(op.patch.test);
+          if (op.patch.slotId === null) pool.sources = 'all';
+          else if (op.patch.slotId !== undefined) pool.sources = [op.patch.slotId];
+          if (op.patch.hidden === null) pool.hidden = true;
+          else if (op.patch.hidden !== undefined) pool.hidden = op.patch.hidden;
+        }
+        appliedCount += 1;
+        return;
+      }
+
+      case 'addPool': {
+        const pools = (resolved.pools ??= []);
+        if (pools.some((pool) => pool.id === op.pool.id)) {
+          conflicts.push({
+            opIndex,
+            op,
+            reason: 'DUPLICATE_ADD',
+            targetId: op.pool.id,
+            message: `节点池 ${op.pool.id} 已存在于底稿中。`,
+            suggestedActions: ['drop', 'retarget'],
+          });
+          return;
+        }
+        pools.push(normalizeNodePool(op.pool));
+        appliedCount += 1;
+        return;
+      }
+
+      case 'removePool': {
+        const pools = resolved.pools ?? [];
+        const idx = pools.findIndex((pool) => pool.id === op.poolId);
+        if (idx === -1) {
+          conflicts.push({
+            opIndex,
+            op,
+            reason: 'TARGET_MISSING',
+            targetId: op.poolId,
+            message: `要删除的节点池 ${op.poolId} 在底稿中已不存在。`,
+            suggestedActions: ['drop'],
+          });
+          return;
+        }
+        pools.splice(idx, 1);
+        appliedCount += 1;
+        return;
+      }
+
+      case 'updatePool': {
+        const pool = (resolved.pools ?? []).find((entry) => entry.id === op.poolId);
+        if (!pool) {
+          conflicts.push({
+            opIndex,
+            op,
+            reason: 'TARGET_MISSING',
+            targetId: op.poolId,
+            message: `要更新的节点池 ${op.poolId} 在底稿中已不存在。`,
+            suggestedActions: ['drop', 'retarget'],
+          });
+          return;
+        }
+        if (op.patch.name !== undefined) pool.name = op.patch.name;
+        if (op.patch.icon === null) delete pool.icon;
+        else if (op.patch.icon !== undefined) pool.icon = op.patch.icon;
+        if (op.patch.sources !== undefined) {
+          pool.sources = Array.isArray(op.patch.sources) ? [...op.patch.sources] : op.patch.sources;
+        }
+        if (op.patch.include === null) delete pool.include;
+        else if (op.patch.include !== undefined) pool.include = op.patch.include;
+        if (op.patch.exclude === null) delete pool.exclude;
+        else if (op.patch.exclude !== undefined) pool.exclude = op.patch.exclude;
+        if (op.patch.region === null) delete pool.region;
+        else if (op.patch.region !== undefined) pool.region = op.patch.region;
+        if (op.patch.kind !== undefined) pool.kind = op.patch.kind;
+        if (op.patch.type !== undefined) pool.type = op.patch.type;
+        if (op.patch.members === null) delete pool.members;
+        else if (op.patch.members !== undefined) pool.members = [...op.patch.members];
+        if (op.patch.test === null) delete pool.test;
+        else if (op.patch.test !== undefined) pool.test = structuredClone(op.patch.test);
+        if (op.patch.hidden !== undefined) pool.hidden = op.patch.hidden;
+        appliedCount += 1;
+        return;
+      }
+
+      case 'setComplexity': {
+        resolved.complexity = op.complexity;
         appliedCount += 1;
         return;
       }
@@ -526,10 +658,19 @@ function computeRebaseDiff(before: TemplateBody, after: TemplateBody): RebaseDif
     (cardId) => !deepEqual(beforeCardMap.get(cardId), afterCardMap.get(cardId)),
   );
 
-  const beforeRegionIds = new Set(before.regionGroups.map((g) => g.id));
-  const afterRegionIds = new Set(after.regionGroups.map((g) => g.id));
-  const addedRegionGroups = after.regionGroups.filter((g) => !beforeRegionIds.has(g.id)).map((g) => g.id);
-  const removedRegionGroups = before.regionGroups.filter((g) => !afterRegionIds.has(g.id)).map((g) => g.id);
+  const beforeRegionGroups = before.regionGroups ?? [];
+  const afterRegionGroups = after.regionGroups ?? [];
+  const beforeRegionIds = new Set(beforeRegionGroups.map((g) => g.id));
+  const afterRegionIds = new Set(afterRegionGroups.map((g) => g.id));
+  const addedRegionGroups = afterRegionGroups.filter((g) => !beforeRegionIds.has(g.id)).map((g) => g.id);
+  const removedRegionGroups = beforeRegionGroups.filter((g) => !afterRegionIds.has(g.id)).map((g) => g.id);
+
+  const beforePools = before.pools ?? [];
+  const afterPools = after.pools ?? [];
+  const beforePoolIds = new Set(beforePools.map((p) => p.id));
+  const afterPoolIds = new Set(afterPools.map((p) => p.id));
+  const addedPools = afterPools.filter((p) => !beforePoolIds.has(p.id)).map((p) => p.id);
+  const removedPools = beforePools.filter((p) => !afterPoolIds.has(p.id)).map((p) => p.id);
 
   const beforeSlotIds = new Set(before.slots.map((s) => s.id));
   const afterSlotIds = new Set(after.slots.map((s) => s.id));
@@ -543,11 +684,14 @@ function computeRebaseDiff(before: TemplateBody, after: TemplateBody): RebaseDif
     modifiedCards,
     addedRegionGroups,
     removedRegionGroups,
+    addedPools,
+    removedPools,
     addedSlots,
     removedSlots,
     finalChanged: !deepEqual(before.final, after.final),
     dnsChanged: !deepEqual(before.dns, after.dns),
     groupModeChanged: before.groupMode !== after.groupMode,
+    complexityChanged: before.complexity !== after.complexity,
     outputChanged: before.output !== after.output,
     modulesChanged: !deepEqual(before.modules, after.modules),
   };
@@ -571,8 +715,10 @@ export function rebaseOverlay(
 
   const prevCardMap = new Map(previousBase.cards.map((c) => [c.cardId, c]));
   const nextCardMap = new Map(nextBase.cards.map((c) => [c.cardId, c]));
-  const prevRegionMap = new Map(previousBase.regionGroups.map((g) => [g.id, g]));
-  const nextRegionMap = new Map(nextBase.regionGroups.map((g) => [g.id, g]));
+  const prevRegionMap = new Map((previousBase.regionGroups ?? []).map((g) => [g.id, g]));
+  const nextRegionMap = new Map((nextBase.regionGroups ?? []).map((g) => [g.id, g]));
+  const prevPoolMap = new Map((previousBase.pools ?? []).map((p) => [p.id, p]));
+  const nextPoolMap = new Map((nextBase.pools ?? []).map((p) => [p.id, p]));
   const prevSlotMap = new Map(previousBase.slots.map((s) => [s.id, s]));
   const nextSlotMap = new Map(nextBase.slots.map((s) => [s.id, s]));
 
@@ -603,6 +749,19 @@ export function rebaseOverlay(
           reason: 'UPSTREAM_MODIFIED',
           targetId: op.regionGroupId,
           message: `上游已更新地区组 ${op.regionGroupId}，与本地修改存在重叠。`,
+          suggestedActions: ['keep', 'drop', 'retarget'],
+        });
+      }
+    } else if (op.op === 'updatePool') {
+      const prevPool = prevPoolMap.get(op.poolId);
+      const nextPool = nextPoolMap.get(op.poolId);
+      if (prevPool && nextPool && !deepEqual(prevPool, nextPool)) {
+        conflicts.push({
+          opIndex,
+          op,
+          reason: 'UPSTREAM_MODIFIED',
+          targetId: op.poolId,
+          message: `上游已更新节点池 ${op.poolId}，与本地修改存在重叠。`,
           suggestedActions: ['keep', 'drop', 'retarget'],
         });
       }

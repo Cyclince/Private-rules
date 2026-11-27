@@ -10,6 +10,7 @@ import type {
 import type { TemplateBody } from '../../shared/schemas/template';
 import { parseCidrRange } from '../rules/conflicts';
 import { resolveTemplateCards, type CardLookup, type ResolvedTemplateCard } from './model';
+import { getNormalizedBodyPools } from './pools';
 
 export type ProbeTargetKind = 'domain' | 'url' | 'ipv4' | 'ipv6';
 
@@ -529,10 +530,11 @@ function resolvePolicyChain(
   body: TemplateBody,
   resolvedCardById: ReadonlyMap<string, ResolvedTemplateCard>,
 ): { policyChain: ProbePolicyHop[]; finalPolicy: PolicyRef } {
-  const regionById = new Map(body.regionGroups.map((rg) => [rg.id, rg]));
+  const poolById = new Map(getNormalizedBodyPools(body).map((pool) => [pool.id, pool]));
   const slotById = new Map(body.slots.map((slot) => [slot.id, slot]));
   const chain: ProbePolicyHop[] = [];
   const visitedCards = new Set<string>();
+  const visitedPools = new Set<string>();
   let current: PolicyRef = startPolicy;
 
   for (let depth = 0; depth < 32; depth += 1) {
@@ -540,13 +542,19 @@ function resolvePolicyChain(
       chain.push({ ref: current, label: current.id });
       return { policyChain: chain, finalPolicy: current };
     }
-    if (current.kind === 'region') {
-      const region = regionById.get(current.regionGroupId);
+    if (current.kind === 'region' || current.kind === 'pool') {
+      const targetPoolId = current.kind === 'pool' ? current.poolId : current.regionGroupId;
+      const pool = poolById.get(targetPoolId);
       chain.push({
         ref: current,
-        label: region?.name ?? current.regionGroupId,
-        groupType: region?.type,
+        label: pool?.name ?? targetPoolId,
+        groupType: pool?.type,
       });
+      if (pool?.kind === 'stability' && pool.members && pool.members.length > 0 && !visitedPools.has(pool.id)) {
+        visitedPools.add(pool.id);
+        current = { kind: 'pool', poolId: pool.members[0] };
+        continue;
+      }
       return { policyChain: chain, finalPolicy: current };
     }
     if (current.kind === 'slot') {

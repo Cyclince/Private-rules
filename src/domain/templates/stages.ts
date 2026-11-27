@@ -179,11 +179,31 @@ export type InferredStageResult = {
   reason: string;
 };
 
+/** App-layer catalog categories defined by the 15-category taxonomy (N3). */
+const APP_STAGE_CATEGORIES: ReadonlySet<string> = new Set([
+  'ai',
+  'streaming',
+  'regional-streaming',
+  'music',
+  'social',
+  'gaming',
+  'developer',
+  'cloud-office',
+  'apple',
+  'finance',
+  'shopping',
+]);
+
+export type InferCardStageInput = Pick<AppCard, 'slug' | 'name' | 'matchers'> & {
+  category: AppCard['category'] | (string & {});
+};
+
 /**
  * Infers the most appropriate 7-layer stage for an imported card whose stage
  * was not explicitly declared (design §10.10).
  */
-export function inferCardStage(card: Pick<AppCard, 'slug' | 'name' | 'category' | 'matchers'>): InferredStageResult {
+export function inferCardStage(card: InferCardStageInput): InferredStageResult {
+  const category: string = card.category;
   const text = `${card.slug} ${card.name}`.toLowerCase();
 
   if (/\b(final|match)\b|漏网之鱼|兜底/.test(text) && card.matchers.length === 0) {
@@ -191,7 +211,9 @@ export function inferCardStage(card: Pick<AppCard, 'slug' | 'name' | 'category' 
   }
 
   if (
-    card.category === 'advertising' ||
+    // N3 uses 'privacy' (normalized from legacy 'advertising'); keep 'advertising' until N3 merges importers
+    category === 'privacy' ||
+    category === 'advertising' ||
     /private|lan|local|局域网|私有|直连|custom[-_]?direct|cdn|tracker/i.test(text)
   ) {
     if (!/domestic|国内|\bcn\b|china/i.test(text)) {
@@ -212,7 +234,7 @@ export function inferCardStage(card: Pick<AppCard, 'slug' | 'name' | 'category' 
         ((m.kind === 'geosite' || m.kind === 'geoip') && /^(cn|china|geolocation-cn)$/i.test(m.name)) ||
         (m.kind === 'catalog' && /domestic|china|cn/i.test(m.entryId)),
     );
-    if (allDomestic || card.category === 'domestic') {
+    if (allDomestic || category === 'domestic') {
       return { stage: 'domestic', confident: true, reason: '国内域名/IP 规则' };
     }
 
@@ -249,12 +271,7 @@ export function inferCardStage(card: Pick<AppCard, 'slug' | 'name' | 'category' 
     }
   }
 
-  if (
-    card.category === 'ai' ||
-    card.category === 'streaming' ||
-    card.category === 'social' ||
-    card.category === 'gaming'
-  ) {
+  if (APP_STAGE_CATEGORIES.has(category)) {
     return { stage: 'app', confident: true, reason: '具体应用分类' };
   }
 

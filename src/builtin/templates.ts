@@ -1,6 +1,7 @@
 import type { OutputProfile } from '../shared/clients';
 import type { PolicyRef } from '../shared/schemas/card';
 import type {
+  ComplexityTier,
   DnsProfile,
   NodeSlot,
   RegionGroup,
@@ -11,6 +12,7 @@ import type {
   TemplateRecord,
 } from '../shared/schemas/template';
 import { DEFAULT_HEALTH_CHECK } from '../domain/templates/model';
+import { starterTierToComplexity as mapStarterTierToComplexity } from '../domain/templates/pools';
 
 /** Canonical 3 beginner-friendly starter tiers (D4, §5.2): 少一点 / 推荐组合 / 全都要. */
 export const CANONICAL_STARTER_TIERS = ['less', 'recommended', 'all'] as const;
@@ -51,6 +53,22 @@ export const LEGACY_STARTER_SLUG_MAP: Readonly<Record<string, CanonicalStarterTe
   'starter-recommended': 'recommended',
   'starter-all': 'all',
 };
+
+/** Canonical and legacy starter tiers mapped to 3 complexity tiers (design §2, D12). */
+export const STARTER_TIER_COMPLEXITY_MAP: Readonly<Record<StarterTemplateTier, ComplexityTier>> = {
+  less: 'simple',
+  minimal: 'simple',
+  light: 'simple',
+  recommended: 'advanced',
+  standard: 'advanced',
+  all: 'pro',
+  heavy: 'pro',
+};
+
+/** Maps any canonical or legacy starter tier into one of the 3 complexity tiers. */
+export function starterTierToComplexity(tier: StarterTemplateTier | string): ComplexityTier {
+  return mapStarterTierToComplexity(tier);
+}
 
 /** Maps any canonical or legacy starter tier into one of the 3 canonical tiers. */
 export function normalizeStarterTier(tier: StarterTemplateTier): CanonicalStarterTemplateTier {
@@ -260,6 +278,7 @@ const STARTER_PRESETS: Record<CanonicalStarterTemplateTier, StarterTemplatePrese
         cardRef('final-fallback', { group: { candidates: structuredClone(NO_REGION_PROXY_CANDIDATES) } }),
       ],
       groupMode,
+      complexity: 'simple',
       final: { kind: 'card', cardId: 'final-fallback' },
       output,
       dns: structuredClone(DEFAULT_DNS_PROFILE),
@@ -319,6 +338,7 @@ const STARTER_PRESETS: Record<CanonicalStarterTemplateTier, StarterTemplatePrese
         cardRef('final-fallback', { group: { candidates: structuredClone(NO_REGION_PROXY_CANDIDATES) } }),
       ],
       groupMode,
+      complexity: 'advanced',
       final: { kind: 'card', cardId: 'final-fallback' },
       output,
       dns: structuredClone(DEFAULT_DNS_PROFILE),
@@ -389,6 +409,7 @@ const STARTER_PRESETS: Record<CanonicalStarterTemplateTier, StarterTemplatePrese
         cardRef('final-fallback'),
       ],
       groupMode,
+      complexity: 'pro',
       final: { kind: 'card', cardId: 'final-fallback' },
       output,
       dns: structuredClone(DEFAULT_DNS_PROFILE),

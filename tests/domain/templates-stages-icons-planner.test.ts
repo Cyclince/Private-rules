@@ -86,6 +86,87 @@ describe('7-layer stage rule stratification', () => {
       }),
     ).toMatchObject({ stage: 'app', confident: false });
   });
+
+  it('infers stage for stage-less custom cards across all 15 N3 categories', () => {
+    expect(
+      inferCardStage({
+        slug: 'custom-privacy',
+        name: 'Custom Privacy',
+        category: 'privacy',
+        matchers: [],
+      }),
+    ).toMatchObject({ stage: 'pre-direct', confident: true });
+
+    const appCategories = [
+      'ai',
+      'streaming',
+      'regional-streaming',
+      'music',
+      'social',
+      'gaming',
+      'developer',
+      'cloud-office',
+      'apple',
+      'finance',
+      'shopping',
+    ] as const;
+
+    for (const category of appCategories) {
+      expect(
+        inferCardStage({
+          slug: `custom-${category}`,
+          name: `Custom ${category}`,
+          category,
+          matchers: [],
+        }),
+      ).toMatchObject({ stage: 'app', confident: true });
+    }
+
+    // base / other fall back conservatively when no matcher or keyword hints exist
+    expect(
+      inferCardStage({
+        slug: 'custom-base',
+        name: 'Custom Base',
+        category: 'base',
+        matchers: [],
+      }),
+    ).toMatchObject({ stage: 'app', confident: false });
+
+    expect(
+      inferCardStage({
+        slug: 'custom-other',
+        name: 'Custom Other',
+        category: 'other',
+        matchers: [],
+      }),
+    ).toMatchObject({ stage: 'app', confident: false });
+
+    // domestic keeps existing handling: falls back when empty, infers 'domestic' when matchers exist
+    expect(
+      inferCardStage({
+        slug: 'custom-domestic-empty',
+        name: 'Custom Site',
+        category: 'domestic',
+        matchers: [],
+      }),
+    ).toMatchObject({ stage: 'app', confident: false });
+
+    expect(
+      inferCardStage({
+        slug: 'custom-domestic',
+        name: 'Custom Domestic',
+        category: 'domestic',
+        matchers: [
+          {
+            kind: 'remote',
+            url: 'https://rules.example/custom-domestic.txt',
+            behavior: 'domain',
+            format: 'text',
+          },
+        ],
+      }),
+    ).toMatchObject({ stage: 'domestic', confident: true });
+  });
 });
 
 describe('strategy group icon recognition (§10.9 priority)', () => {

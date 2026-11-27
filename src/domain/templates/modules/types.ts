@@ -1,8 +1,23 @@
 import type { z } from 'zod';
 import type { TemplateClientId } from '../../../shared/clients';
+import type { ComplexityTier } from '../../../shared/schemas/template';
 import type { ResolvedTemplate } from '../model';
 
 export type EnhancementModuleAffect = 'dns' | 'rules' | 'groups' | 'final' | 'providers';
+
+/** Logical UI / classification buckets for enhancement modules (design §5.2). */
+export const MODULE_GROUPS = ['dns-privacy', 'accuracy', 'direct', 'runtime'] as const;
+export type ModuleGroup = (typeof MODULE_GROUPS)[number];
+
+export type ModuleTierDefaults = Readonly<Record<ComplexityTier, boolean>>;
+
+export type ModuleGroupDefinition = {
+  id: ModuleGroup;
+  name: string;
+  icon: string;
+  description: string;
+  order: number;
+};
 
 export type ModuleCompileContext = {
   /** Target client being compiled for; omit when applying client-agnostically (e.g. probe/preview). */
@@ -14,8 +29,11 @@ export type ModuleCompileContext = {
 export type EnhancementModule = {
   id: string;
   name: string;
+  icon: string;
+  group: ModuleGroup;
   description: string;
   defaultEnabled: boolean;
+  tierDefaults: ModuleTierDefaults;
   /** Deterministic execution order (lower runs first). */
   order: number;
   affects: readonly EnhancementModuleAffect[];
@@ -24,6 +42,10 @@ export type EnhancementModule = {
   supportedClients: readonly TemplateClientId[];
   paramsSchema?: z.ZodType<Record<string, unknown>>;
   apply(template: ResolvedTemplate, ctx: ModuleCompileContext): ResolvedTemplate;
+};
+
+export type ModuleGroupBucket = ModuleGroupDefinition & {
+  modules: readonly EnhancementModule[];
 };
 
 export type ModuleConflict = {

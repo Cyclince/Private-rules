@@ -87,6 +87,10 @@ export const policyRefSchema = z.discriminatedUnion('kind', [
     regionGroupId: z.string().trim().min(1),
   }),
   z.object({
+    kind: z.literal('pool'),
+    poolId: z.string().trim().min(1),
+  }),
+  z.object({
     kind: z.literal('slot'),
     slotId: z.string().trim().min(1),
     filter: nodeFilterSchema.optional(),

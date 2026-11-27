@@ -11,6 +11,14 @@ import {
 import { DEFAULT_HEALTH_CHECK, resolveTemplateCards, type ResolvedTemplateCard } from '../model';
 import { applyEnhancementModules } from '../modules';
 import { planRulesetReferences, type PlannedMatcherBinding, type PlannedProvider } from '../planner';
+import { getNormalizedBodyPools } from '../pools';
+import {
+  evaluatePoolEmptyProtection,
+  poolCompatibilityLocation,
+  poolToNodeFilter,
+  resolveStabilityPoolMembers,
+  toSlotBindingMap,
+} from './pool-helpers';
 import type { CompatibilityItem, CompiledConfigResult, CompileTemplateInput } from './types';
 
 /**
@@ -424,10 +432,14 @@ export function compileShadowrocket(input: CompileTemplateInput): CompiledConfig
   const body = resolved.body;
   const enabledCards = resolved.cards.filter((card) => card.enabled);
 
+  const hasExplicitPools = body.pools !== undefined;
+  const bodyPools = getNormalizedBodyPools(body);
+  const slotBindingMap = toSlotBindingMap(input.slotBindings);
+
   // 2. Allocate unique sanitized group names
   const usedGroupNames = new Set<string>();
   const cardGroupNameById = new Map<string, string>();
-  const regionGroupNameById = new Map<string, string>();
+  const poolGroupNameById = new Map<string, string>();
   const declaredGroupNames: string[] = [];
 
   for (const card of enabledCards) {
@@ -453,9 +465,9 @@ export function compileShadowrocket(input: CompileTemplateInput): CompiledConfig
     declaredGroupNames.push(unique);
   }
 
-  for (const regionGroup of body.regionGroups) {
-    const original = regionGroup.name;
-    const sanitized = sanitizeShadowrocketGroupName(original, regionGroup.id);
+  for (const pool of bodyPools) {
+    const original = pool.name;
+    const sanitized = sanitizeShadowrocketGroupName(original, pool.id);
     const unique = allocateUniqueName(
       sanitized,
       usedGroupNames,
@@ -465,14 +477,14 @@ export function compileShadowrocket(input: CompileTemplateInput): CompiledConfig
           items.push({
             code: 'GROUP_NAME_SANITIZED',
             severity: 'info',
-            message: `地区策略组名称「${sanitizeShadowrocketScalar(original)}」已规范化为「${finalName}」以符合 Shadowrocket INI 语法。`,
-            location: { regionGroupId: regionGroup.id },
+            message: `${pool.kind === 'region' ? '地区策略组' : '节点池'}名称「${sanitizeShadowrocketScalar(original)}」已规范化为「${finalName}」以符合 Shadowrocket INI 语法。`,
+            location: poolCompatibilityLocation(pool, hasExplicitPools),
           });
         }
       },
       original,
     );
-    regionGroupNameById.set(regionGroup.id, unique);
+    poolGroupNameById.set(pool.id, unique);
     declaredGroupNames.push(unique);
   }
 
@@ -583,14 +595,19 @@ export function compileShadowrocket(input: CompileTemplateInput): CompiledConfig
           pushUnique(target);
           break;
         }
-        case 'region': {
-          const target = regionGroupNameById.get(ref.regionGroupId);
+        case 'region':
+        case 'pool': {
+          const targetId = ref.kind === 'pool' ? ref.poolId : ref.regionGroupId;
+          const target = poolGroupNameById.get(targetId);
           if (!target) {
             items.push({
-              code: 'MISSING_REGION_REFERENCE',
+              code: ref.kind === 'pool' ? 'MISSING_POOL_REFERENCE' : 'MISSING_REGION_REFERENCE',
               severity: 'warning',
-              message: `策略组引用的地区组 ${ref.regionGroupId} 不存在，已忽略。`,
-              location: { regionGroupId: ref.regionGroupId },
+              message:
+                ref.kind === 'pool'
+                  ? `策略组引用的节点池 ${targetId} 不存在，已忽略。`
+                  : `策略组引用的地区组 ${targetId} 不存在，已忽略。`,
+              location: ref.kind === 'pool' ? { poolId: targetId } : { regionGroupId: targetId },
             });
             break;
           }
@@ -634,22 +651,45 @@ export function compileShadowrocket(input: CompileTemplateInput): CompiledConfig
     });
   }
 
-  // Region strategy groups
-  for (const regionGroup of body.regionGroups) {
-    const groupName = regionGroupNameById.get(regionGroup.id)!;
-    const filterInfo = compileSrNodeFilter(
-      groupName,
-      {
-        regions: [regionGroup.region],
-        include: regionGroup.extraInclude,
-        exclude: regionGroup.extraExclude,
-      },
-      defaultExcludeInfo,
-      { regionGroupId: regionGroup.id },
-    );
-    emitGroupLine(groupName, regionGroup.type, [], filterInfo, regionGroup.test, {
-      regionGroupId: regionGroup.id,
-    });
+  // Pool strategy groups (regions, providers, traits, all, stability)
+  for (const pool of bodyPools) {
+    const groupName = poolGroupNameById.get(pool.id)!;
+    const location = poolCompatibilityLocation(pool, hasExplicitPools);
+    let members: string[] = [];
+    let filterInfo: { regexParam?: string; twoStageComment?: string } = {};
+
+    if (pool.kind === 'stability') {
+      members = resolveStabilityPoolMembers(pool, poolGroupNameById, items, hasExplicitPools);
+      if (members.length === 0) {
+        items.push({
+          code: 'EMPTY_POOL_FALLBACK_ALL',
+          severity: 'warning',
+          message: `稳定性节点池「${groupName}」无可用成员池，已退化为引用全部节点。`,
+          location,
+        });
+        filterInfo = compileSrNodeFilter(groupName, undefined, defaultExcludeInfo, location);
+      }
+    } else {
+      const emptyProtection = evaluatePoolEmptyProtection({
+        pool,
+        client: 'shadowrocket',
+        slots: body.slots,
+        slotById: slotMap,
+        slotBindings: slotBindingMap,
+      });
+      if (emptyProtection.fallbackToAll) {
+        items.push({
+          code: 'EMPTY_POOL_FALLBACK_ALL',
+          severity: 'warning',
+          message: emptyProtection.message ?? `节点池「${groupName}」已退化为引用全部节点。`,
+          location,
+        });
+      }
+      const nodeFilter = emptyProtection.fallbackToAll ? undefined : poolToNodeFilter(pool);
+      filterInfo = compileSrNodeFilter(groupName, nodeFilter, defaultExcludeInfo, location);
+    }
+
+    emitGroupLine(groupName, pool.type, members, filterInfo, pool.test, location);
   }
 
   // 4. Plan and compile [Rule] in strict top-to-bottom order
@@ -780,14 +820,18 @@ export function compileShadowrocket(input: CompileTemplateInput): CompiledConfig
       });
       return 'DIRECT';
     }
-    if (finalRef.kind === 'region') {
-      const target = regionGroupNameById.get(finalRef.regionGroupId);
+    if (finalRef.kind === 'region' || finalRef.kind === 'pool') {
+      const targetId = finalRef.kind === 'pool' ? finalRef.poolId : finalRef.regionGroupId;
+      const target = poolGroupNameById.get(targetId);
       if (target) return target;
       items.push({
-        code: 'MISSING_REGION_REFERENCE',
+        code: finalRef.kind === 'pool' ? 'MISSING_POOL_REFERENCE' : 'MISSING_REGION_REFERENCE',
         severity: 'warning',
-        message: `兜底出口引用的地区组 ${finalRef.regionGroupId} 不存在，已回退为 DIRECT。`,
-        location: { regionGroupId: finalRef.regionGroupId },
+        message:
+          finalRef.kind === 'pool'
+            ? `兜底出口引用的节点池 ${targetId} 不存在，已回退为 DIRECT。`
+            : `兜底出口引用的地区组 ${targetId} 不存在，已回退为 DIRECT。`,
+        location: finalRef.kind === 'pool' ? { poolId: targetId } : { regionGroupId: targetId },
       });
       return 'DIRECT';
     }

@@ -208,7 +208,7 @@ describe('M2a quick-create pure domain logic', () => {
       // Enabled github card must be present with region:JP override & region-jp generated
       const githubRef = body.cards.find((c) => c.cardId === 'github');
       expect(githubRef?.overrides?.group?.candidates?.[0]).toEqual({ kind: 'region', regionGroupId: 'region-jp' });
-      expect(body.regionGroups.map((g) => g.id)).toContain('region-jp');
+      expect((body.regionGroups ?? []).map((g) => g.id)).toContain('region-jp');
 
       // Generated ruleset cards appear FIRST right after hidden auto-select & proxy-select in exact input order
       expect(cardIds.slice(0, 4)).toEqual(['auto-select', 'proxy-select', 'c-1', 'c-2']);
@@ -257,7 +257,7 @@ describe('M2a quick-create pure domain logic', () => {
       expect(body.wizardMeta?.combineMode).toBe('perProvider');
       expect(body.slots.map((s) => s.id)).toEqual(['slot-main', 'slot-2', 'slot-3']);
       // Multi-slot region groups omit slotId so they span all airports
-      expect(body.regionGroups.every((rg) => rg.slotId === undefined)).toBe(true);
+      expect((body.regionGroups ?? []).every((rg) => rg.slotId === undefined)).toBe(true);
       const autoCard = body.cards.find((c) => c.cardId === 'auto-select');
       expect(autoCard?.overrides?.group?.candidates).toEqual([
         { kind: 'slot', slotId: 'slot-main' },

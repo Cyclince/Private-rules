@@ -1,12 +1,14 @@
 import type { PolicyRef } from '../../../shared/schemas/card';
 import type { TemplateBody } from '../../../shared/schemas/template';
 import { validateTemplateGraph } from '../model';
+import { getNormalizedBodyPools } from '../pools';
 import type { LintIssue, LintTemplateInput } from './types';
 
 function isFinalMissing(final: TemplateBody['final'] | null | undefined): boolean {
   if (!final) return true;
   if (final.kind === 'card') return !final.cardId.trim();
   if (final.kind === 'region') return !final.regionGroupId.trim();
+  if (final.kind === 'pool') return !final.poolId.trim();
   if (final.kind === 'slot') return !final.slotId.trim();
   if (final.kind === 'builtin') return !final.id;
   return true;
@@ -38,20 +40,29 @@ function buildGraphInput(body: LintTemplateInput['body']): TemplateBody {
   };
 }
 
-/** Checks for missing group/card/region/slot references across cards, region groups, and final. */
+/** Checks for missing group/card/region/pool/slot references across cards, pools, region groups, and final. */
 export function checkMissingGroupRefs(input: Pick<LintTemplateInput, 'body' | 'cards'>): LintIssue[] {
-  const graph = validateTemplateGraph(buildGraphInput(input.body), input.cards);
+  const graphInput = buildGraphInput(input.body);
+  const graph = validateTemplateGraph(graphInput, input.cards);
   const cardIndexById = new Map(input.body.cards.map((ref, idx) => [ref.cardId, idx]));
+  const legacyRegionGroupIds = new Set((input.body.regionGroups ?? []).map((rg) => rg.id));
+  const poolIds = new Set(getNormalizedBodyPools(graphInput).map((pool) => pool.id));
 
   return graph.missingRefs.map((ref): LintIssue => {
     const isFinal = ref.sourceId === 'final';
-    const isRegion = ref.kind === 'MISSING_SLOT_REF' && input.body.regionGroups.some((rg) => rg.id === ref.sourceId);
+    const isLegacyRegionSource = ref.kind === 'MISSING_SLOT_REF' && legacyRegionGroupIds.has(ref.sourceId);
+    const isPoolSource =
+      (ref.kind === 'MISSING_SLOT_REF' || ref.kind === 'MISSING_POOL_REF') &&
+      !isLegacyRegionSource &&
+      poolIds.has(ref.sourceId);
     const suggestion =
       ref.kind === 'MISSING_SLOT_REF'
         ? `在模板中新增节点槽位 ${ref.targetId}，或修改引用指向已有槽位。`
         : ref.kind === 'MISSING_REGION_GROUP_REF'
           ? `在模板中新增地区组 ${ref.targetId}，或将其从候选出口中移除。`
-          : `确保组件 ${ref.targetId} 已加入模板并存在定义，或从候选出口中移除该引用。`;
+          : ref.kind === 'MISSING_POOL_REF'
+            ? `在模板中新增节点池 ${ref.targetId}，或将其从引用列表中移除。`
+            : `确保组件 ${ref.targetId} 已加入模板并存在定义，或从候选出口中移除该引用。`;
 
     return {
       code: 'missing-group-ref',
@@ -60,11 +71,13 @@ export function checkMissingGroupRefs(input: Pick<LintTemplateInput, 'body' | 'c
       location: {
         ...(isFinal
           ? { field: 'final', stage: 'final' as const }
-          : isRegion
+          : isLegacyRegionSource
             ? { regionGroupId: ref.sourceId }
-            : ref.sourceId !== 'template'
-              ? { cardId: ref.sourceId, cardIndex: cardIndexById.get(ref.sourceId) }
-              : { cardId: ref.targetId, cardIndex: cardIndexById.get(ref.targetId) }),
+            : isPoolSource
+              ? { poolId: ref.sourceId }
+              : ref.sourceId !== 'template'
+                ? { cardId: ref.sourceId, cardIndex: cardIndexById.get(ref.sourceId) }
+                : { cardId: ref.targetId, cardIndex: cardIndexById.get(ref.targetId) }),
       },
       suggestion,
       details: {

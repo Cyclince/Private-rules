@@ -12,6 +12,7 @@ import {
   buildNormalizedQuickCreateSlots,
   buildQuickCreateTemplateBody,
   normalizeSubscriptionName,
+  serializeTemplateBodyForStorage,
   type QuickCreateResolvedRuleset,
 } from '../../domain/templates';
 import { encryptNodeSecret, maskSubscriptionUrl } from '../../infrastructure/crypto/node-secrets';
@@ -485,8 +486,8 @@ export async function quickCreateTemplate(
     );
   }
 
-  const baseBodyJson = JSON.stringify(body);
-  const resolvedBodyJson = JSON.stringify(resolvedBody);
+  const baseBodyJson = serializeTemplateBodyForStorage(body);
+  const resolvedBodyJson = serializeTemplateBodyForStorage(resolvedBody);
 
   statements.push(
     env.DB.prepare(
