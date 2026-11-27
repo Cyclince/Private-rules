@@ -8,6 +8,9 @@ export const settingsSchema = z.object({
   tokenLinksEnabled: z.boolean(),
   customIconPackUrls: z.array(z.string()),
   customIconPackNames: z.record(z.string(), z.string()),
+  iconPackPriority: z.array(z.string().max(500)).max(50),
+  iconPackDisabled: z.array(z.string().max(500)).max(50),
+  iconPackIndexMatching: z.boolean(),
   iconPackAutoUpdate: z.boolean(),
   iconPackUpdateIntervalHours: z.number().int().min(1).max(720),
   iconPackLastUpdatedAt: z.string().optional(),
@@ -26,6 +29,7 @@ export const settingsFormSchema = z.object({
   publicLinksEnabled: z.boolean(),
   tokenLinksEnabled: z.boolean(),
   customIconPackUrlsText: z.string().max(5000),
+  iconPackIndexMatching: z.boolean(),
   iconPackAutoUpdate: z.boolean(),
   iconPackUpdateIntervalHours: z.number().int().min(1).max(720),
 });

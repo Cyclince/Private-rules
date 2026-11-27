@@ -13,9 +13,9 @@ import { iconPackContentQuerySchema, settingsUpdateBodySchema } from './schemas'
 /**
  * Only non-infrastructure display/icon-sync preferences may be modified from a
  * Telegram Mini App session. High-risk settings (`baseUrl`, `githubMirrorUrl`,
- * `publicLinksEnabled`, `tokenLinksEnabled`, `customIconPackUrls`,
- * `customIconPackNames`, `iconPackLastUpdatedAt`, or unknown keys) require an
- * admin session or API key.
+ * `publicLinksEnabled`, `tokenLinksEnabled`, `customIconPackUrls`, `customIconPackNames`,
+ * `iconPackPriority`, `iconPackDisabled`, `iconPackIndexMatching`, `iconPackLastUpdatedAt`,
+ * or unknown keys) require an admin session or API key.
  */
 const TELEGRAM_ALLOWED_SETTINGS_KEYS = new Set(['policyName', 'iconPackAutoUpdate', 'iconPackUpdateIntervalHours']);
 

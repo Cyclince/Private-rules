@@ -107,6 +107,12 @@ export type RuleSettings = {
   tokenLinksEnabled: boolean;
   customIconPackUrls: string[];
   customIconPackNames: Record<string, string>;
+  /** Pack keys (`qure`, `lige`, custom URLs) in priority order; unknown keys are ignored. */
+  iconPackPriority: string[];
+  /** Pack keys the user turned off; disabled packs never contribute icons. */
+  iconPackDisabled: string[];
+  /** Keyword matching across all enabled packs (beta.3 N3b); on by default, only an explicit `false` disables it. */
+  iconPackIndexMatching: boolean;
   iconPackAutoUpdate: boolean;
   iconPackUpdateIntervalHours: number;
   iconPackLastUpdatedAt?: string;

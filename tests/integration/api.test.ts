@@ -8,6 +8,8 @@ import { addRule, createCategory, insertRule } from '../../src/lib/db';
 import { createApp } from '../../src/server/app';
 import type { Env } from '../../src/types';
 import { PRESET_ICON_PACK_URLS } from '../../src/lib/icon-packs';
+import { loadCachedIconPackEntries } from '../../src/application/templates';
+import { createRepositories } from '../../src/data/repositories';
 
 describe('HTTP API behavior', () => {
   let directory: string; let database: SqliteDatabaseAdapter; let env: Env; let cookie = '';
@@ -100,19 +102,58 @@ describe('HTTP API behavior', () => {
     cookie = login.headers.get('set-cookie')?.split(';')[0] ?? '';
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (input, init) => {
-      if (String(input) === PRESET_ICON_PACK_URLS[0]) return new Response(JSON.stringify([{ name: 'AI', url: 'https://icons.example/ai.png' }]), { headers: { 'content-type': 'application/json' } });
+      if (PRESET_ICON_PACK_URLS.includes(String(input))) return new Response(JSON.stringify([{ name: 'AI', url: 'https://icons.example/ai.png' }]), { headers: { 'content-type': 'application/json' } });
       return originalFetch(input, init);
     };
     try {
       const settings = await request('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ iconPackAutoUpdate: true, iconPackUpdateIntervalHours: 72 }) });
       expect(await settings.json()).toMatchObject({ data: { settings: { iconPackAutoUpdate: true, iconPackUpdateIntervalHours: 72 } } });
       const refreshed = await request('/api/icon-packs/refresh', { method: 'POST' });
-      expect(await refreshed.json()).toMatchObject({ results: [{ ok: true, count: 1 }] });
+      expect(await refreshed.json()).toMatchObject({ results: [{ ok: true, count: 1 }, { ok: true, count: 1 }] });
       const cached = await request(`/api/icon-packs/content?url=${encodeURIComponent(PRESET_ICON_PACK_URLS[0])}`);
       expect(await cached.json()).toMatchObject({ count: 1, icons: [{ name: 'AI', url: 'https://icons.example/ai.png' }] });
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it('hands tagged icon packs to the compiler in priority order by default', async () => {
+    const repos = createRepositories(env.DB);
+    const customUrl = 'https://icons.example/extra.json';
+    await repos.iconPacks.upsertSuccess(customUrl, JSON.stringify([{ name: 'Argentina(1)', url: 'https://icons.example/ar.svg' }]), 1, new Date().toISOString());
+
+    // A 1.0.x database has no `iconPackIndexMatching` row: index matching counts as on.
+    await env.DB.prepare("DELETE FROM settings WHERE key = 'iconPackIndexMatching'").run();
+    expect((await repos.settings.getAll()).iconPackIndexMatching).toBe(true);
+
+    await repos.settings.save({ customIconPackUrls: [customUrl], iconPackPriority: [customUrl, 'qure', 'lige'], iconPackDisabled: ['lige'] });
+    const tagged = await loadCachedIconPackEntries(env);
+    expect(tagged[0]).toMatchObject({ name: 'Argentina(1)', pack: customUrl });
+    expect([...new Set(tagged.map((entry) => entry.pack))]).toEqual([customUrl, 'qure']);
+    expect(tagged.some((entry) => entry.url.includes('Qure/master'))).toBe(true);
+
+    // Turning the switch off restores the 1.0.x precedence (extension packs first, untagged).
+    await repos.settings.save({ iconPackIndexMatching: false });
+    const legacy = await loadCachedIconPackEntries(env);
+    expect(legacy[0]).toEqual({ name: 'Argentina(1)', url: 'https://icons.example/ar.svg' });
+    expect(legacy.every((entry) => entry.pack === undefined)).toBe(true);
+
+    await repos.settings.save({ customIconPackUrls: [], iconPackPriority: [], iconPackDisabled: [], iconPackIndexMatching: true });
+  });
+
+  it('persists built-in icon pack priority, disabled packs, and index matching (1.0.x settings stay compatible)', async () => {
+    const login = await request('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password: 'correct-password' }) });
+    cookie = login.headers.get('set-cookie')?.split(';')[0] ?? '';
+    const patch = { iconPackPriority: ['lige', 'qure'], iconPackDisabled: ['lige'], iconPackIndexMatching: false };
+    const patched = await request('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) });
+    expect(await patched.json()).toMatchObject({ data: { settings: patch } });
+    const reread = await request('/api/settings');
+    expect((await reread.json()) as unknown).toMatchObject({ settings: patch });
+
+    // Unknown packs are ignored, and the legacy custom icon pack keys keep working.
+    const legacy = await request('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ iconPackPriority: ['qure'], iconPackDisabled: [], iconPackIndexMatching: false, customIconPackUrls: ['https://icons.example/pack.json'] }) });
+    expect(await legacy.json()).toMatchObject({ data: { settings: { iconPackPriority: ['qure'], iconPackDisabled: [], iconPackIndexMatching: false, customIconPackUrls: ['https://icons.example/pack.json'] } } });
+    await request('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ iconPackPriority: [], customIconPackUrls: [] }) });
   });
 
   it('returns a 1000-rule preview while counts, expansion, search, and subscriptions use the full set', async () => {

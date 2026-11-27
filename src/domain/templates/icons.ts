@@ -2,10 +2,15 @@ import { rewriteGithubUrl } from '../../lib/github-mirror';
 import { CATEGORY_EMOJI } from '../../shared/app-categories';
 import type { CatalogCategory, GroupType, Matcher } from '../../shared/schemas/card';
 import { detectNodeRegions, getRegionDefinition } from '../nodes';
+import { hasIconPackTags, matchIconPackEntry } from './icon-packs';
 
 export type IconPackEntry = {
   name: string;
   url: string;
+  /** Icon pack key this entry came from; present only when multi-pack index matching is enabled. */
+  pack?: string;
+  /** Human readable pack label, used for diagnostics. */
+  packLabel?: string;
 };
 
 const QURE_COLOR_BASE_URL = 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color';
@@ -458,8 +463,92 @@ function normalizeIconName(name: string): string {
     .replace(/[^a-z0-9]+/g, '');
 }
 
-function matchPackIcon(aliases: readonly string[], packIcons?: readonly IconPackEntry[]): IconPackEntry | undefined {
+/**
+ * Keywords used for multi icon pack matching (beta.3 N3b): the legacy alias list first (so
+ * resolved results stay stable), then region terms (code / English / Chinese), then the
+ * group name and slug tokens, then the category key.
+ */
+export function iconSearchKeywords(input: IconRecognitionInput, aliases: readonly string[] = []): string[] {
+  const keywords: string[] = [];
+  const push = (value?: string | null) => {
+    const trimmed = value?.trim();
+    if (trimmed) keywords.push(trimmed);
+  };
+
+  for (const alias of aliases) push(alias);
+
+  const regionCodes = [input.region, ...detectNodeRegions(input.name)].filter(
+    (code): code is string => typeof code === 'string' && code.length > 0,
+  );
+  for (const code of regionCodes) {
+    const definition = getRegionDefinition(code);
+    if (!definition) continue;
+    push(definition.code);
+    push(definition.nameEn);
+    push(definition.nameZh);
+  }
+
+  for (const token of nameTokens(input.name)) push(token);
+  for (const token of nameTokens(input.slug)) push(token);
+  if (input.category) push(input.category);
+
+  const seen = new Set<string>();
+  return keywords.filter((keyword) => {
+    const key = keyword.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Generic words that never identify an icon (group/pool scaffolding around a brand name). */
+const KEYWORD_STOPWORDS: ReadonlySet<string> = new Set([
+  'group',
+  'groups',
+  'policy',
+  'policies',
+  'node',
+  'nodes',
+  'rule',
+  'rules',
+  'list',
+  'pool',
+  'pools',
+  'proxy',
+  'proxies',
+  'select',
+  '节点',
+  '節點',
+  '策略',
+  '分组',
+  '分組',
+  '规则',
+  '規則',
+  '节点池',
+  '節點池',
+  '地区',
+  '地區',
+]);
+
+function nameTokens(value?: string | null): string[] {
+  if (!value) return [];
+  return value
+    .split(/[^\p{L}\p{N}]+/u)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2 && !/^\d+$/.test(token))
+    .filter((token) => !KEYWORD_STOPWORDS.has(token.toLowerCase()));
+}
+
+function matchPackIcon(
+  aliases: readonly string[],
+  packIcons?: readonly IconPackEntry[],
+  keywords?: readonly string[],
+): IconPackEntry | undefined {
   if (!packIcons || packIcons.length === 0) return undefined;
+  if (keywords && keywords.length > 0 && hasIconPackTags(packIcons)) {
+    const matched = matchIconPackEntry(keywords, packIcons);
+    if (matched) return matched.entry;
+  }
   const normalizedPack = new Map<string, IconPackEntry>();
   for (const icon of packIcons) {
     const normalized = normalizeIconName(icon.name);
@@ -511,6 +600,10 @@ export function recognizeGroupIcon(
 ): IconRecognitionResult {
   const combinedName = `${input.name} ${input.slug ?? ''}`.trim();
 
+  // Multi icon pack keyword matching reuses the legacy alias chain and only adds extra terms.
+  const packIconFor = (aliases: readonly string[]): IconPackEntry | undefined =>
+    matchPackIcon(aliases, packIcons, iconSearchKeywords(input, aliases));
+
   // Helper to resolve secondary aliases for icon packs even when emoji wins step 1.
   const resolveSemanticAliases = (): { key: string; packAliases: readonly string[] } | undefined => {
     const service = SERVICE_ICON_RULES.find((rule) => rule.pattern.test(combinedName));
@@ -543,7 +636,7 @@ export function recognizeGroupIcon(
       emoji,
       source: 'emoji',
       packAliases,
-      packIcon: matchPackIcon(packAliases, packIcons),
+      packIcon: packIconFor(packAliases),
     };
   }
 
@@ -556,7 +649,7 @@ export function recognizeGroupIcon(
       emoji: serviceMatch.emoji,
       source: 'service',
       packAliases,
-      packIcon: matchPackIcon(packAliases, packIcons),
+      packIcon: packIconFor(packAliases),
     };
   }
 
@@ -570,7 +663,7 @@ export function recognizeGroupIcon(
         emoji: regionDef.flag,
         source: 'region',
         packAliases,
-        packIcon: matchPackIcon(packAliases, packIcons),
+        packIcon: packIconFor(packAliases),
       };
     }
   }
@@ -583,7 +676,7 @@ export function recognizeGroupIcon(
       emoji: cat.emoji,
       source: 'category',
       packAliases: cat.packAliases,
-      packIcon: matchPackIcon(cat.packAliases, packIcons),
+      packIcon: packIconFor(cat.packAliases),
     };
   }
 
@@ -598,7 +691,7 @@ export function recognizeGroupIcon(
         emoji: regionDef.flag,
         source: 'region',
         packAliases,
-        packIcon: matchPackIcon(packAliases, packIcons),
+        packIcon: packIconFor(packAliases),
       };
     }
   }
@@ -611,7 +704,7 @@ export function recognizeGroupIcon(
       emoji: roleMatch.emoji,
       source: 'role',
       packAliases: roleMatch.packAliases,
-      packIcon: matchPackIcon(roleMatch.packAliases, packIcons),
+      packIcon: packIconFor(roleMatch.packAliases),
     };
   }
   if (input.groupType === 'url-test') {
@@ -620,7 +713,7 @@ export function recognizeGroupIcon(
       emoji: '⚡',
       source: 'role',
       packAliases: ['Auto', 'Speedtest'],
-      packIcon: matchPackIcon(['Auto', 'Speedtest'], packIcons),
+      packIcon: packIconFor(['Auto', 'Speedtest']),
     };
   }
   if (input.groupType === 'fallback') {
@@ -629,7 +722,7 @@ export function recognizeGroupIcon(
       emoji: '🔁',
       source: 'role',
       packAliases: ['Available', 'Fallback'],
-      packIcon: matchPackIcon(['Available', 'Fallback'], packIcons),
+      packIcon: packIconFor(['Available', 'Fallback']),
     };
   }
   if (input.groupType === 'load-balance') {
@@ -638,7 +731,7 @@ export function recognizeGroupIcon(
       emoji: '⚖️',
       source: 'role',
       packAliases: ['RoundRobin', 'LoadBalance'],
-      packIcon: matchPackIcon(['RoundRobin', 'LoadBalance'], packIcons),
+      packIcon: packIconFor(['RoundRobin', 'LoadBalance']),
     };
   }
 
@@ -653,7 +746,7 @@ export function recognizeGroupIcon(
         emoji: matcherService.emoji,
         source: 'matcher',
         packAliases,
-        packIcon: matchPackIcon(packAliases, packIcons),
+        packIcon: packIconFor(packAliases),
       };
     }
     const matcherRole = ROLE_ICON_RULES.find((rule) => rule.pattern.test(matcherText));
@@ -663,7 +756,7 @@ export function recognizeGroupIcon(
         emoji: matcherRole.emoji,
         source: 'matcher',
         packAliases: matcherRole.packAliases,
-        packIcon: matchPackIcon(matcherRole.packAliases, packIcons),
+        packIcon: packIconFor(matcherRole.packAliases),
       };
     }
   }
@@ -676,7 +769,7 @@ export function recognizeGroupIcon(
       emoji: cat.emoji,
       source: 'category',
       packAliases: cat.packAliases,
-      packIcon: matchPackIcon(cat.packAliases, packIcons),
+      packIcon: packIconFor(cat.packAliases),
     };
   }
 
@@ -685,6 +778,6 @@ export function recognizeGroupIcon(
     emoji: '🌐',
     source: 'fallback',
     packAliases: ['Global', 'Proxy'],
-    packIcon: matchPackIcon(['Global', 'Proxy'], packIcons),
+    packIcon: packIconFor(['Global', 'Proxy']),
   };
 }

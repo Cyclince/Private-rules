@@ -1,11 +1,23 @@
 import { createRepositories } from '../../data/repositories';
+import {
+  BUILTIN_ICON_PACK_PRESETS,
+  LIGE_ICON_PACK_SOURCE_URL,
+  QURE_ICON_PACK_SOURCE_URL,
+  listIconPackSourceUrls,
+  parseIconPackPayload,
+  resolveIconPackOrder,
+} from '../../domain/templates';
 import { safeFetchText } from '../../infrastructure/http/fetch';
 import { redactString } from '../../infrastructure/logging/logger';
 import { AppError } from '../../shared/errors';
 import type { Env } from '../../types';
 import type { RuleSettings } from '../../types/domain-rules';
 
-export const PRESET_ICON_PACK_URLS = ['https://raw.githubusercontent.com/Koolson/Qure/master/Other/QureColor-All.json'];
+/**
+ * Preset icon packs refreshed into `icon_pack_cache`. Qure is the 1.0.x default; lige is the
+ * classified community pack. Extension packs stay user-configured URLs.
+ */
+export const PRESET_ICON_PACK_URLS = [QURE_ICON_PACK_SOURCE_URL, LIGE_ICON_PACK_SOURCE_URL];
 
 export type CachedPackIcon = { name: string; url: string };
 export type IconPackRefreshResult = { url: string; ok: boolean; count: number; error?: string; updatedAt: string };
@@ -19,21 +31,7 @@ export async function saveSettings(env: Env, input: Partial<RuleSettings>): Prom
 }
 
 function readPackIcons(payload: unknown): CachedPackIcon[] {
-  let values: unknown[] = [];
-  if (Array.isArray(payload)) values = payload;
-  else if (payload && typeof payload === 'object') {
-    const record = payload as Record<string, unknown>;
-    if (Array.isArray(record.icons)) values = record.icons;
-    else values = Object.entries(record).map(([name, url]) => ({ name, url }));
-  }
-  return values
-    .flatMap((value) => {
-      if (!value || typeof value !== 'object') return [];
-      const icon = value as Record<string, unknown>;
-      if (typeof icon.name !== 'string' || typeof icon.url !== 'string' || !/^https?:\/\//i.test(icon.url)) return [];
-      return [{ name: icon.name.slice(0, 160), url: icon.url.slice(0, 2048) }];
-    })
-    .slice(0, 5000);
+  return parseIconPackPayload(payload);
 }
 
 function safeError(cause: unknown): string {
@@ -72,7 +70,8 @@ export async function refreshIconPacks(env: Env, force = false, currentTime = Da
       updatedAt: settings.iconPackLastUpdatedAt,
     };
   }
-  const urls = [...new Set([...PRESET_ICON_PACK_URLS, ...settings.customIconPackUrls])];
+  // Disabled packs are not refreshed; custom URLs that duplicate a preset fold into it.
+  const urls = listIconPackSourceUrls(settings);
   const results: IconPackRefreshResult[] = [];
   for (const url of urls) results.push(await refreshOne(env, url));
   const updatedAt = new Date(currentTime).toISOString();
@@ -82,7 +81,11 @@ export async function refreshIconPacks(env: Env, force = false, currentTime = Da
 
 export async function getCachedIconPack(env: Env, rawUrl: string) {
   const settings = await getSettings(env);
-  const allowed = new Set([...PRESET_ICON_PACK_URLS, ...settings.customIconPackUrls]);
+  const allowed = new Set([
+    ...BUILTIN_ICON_PACK_PRESETS.map((preset) => preset.sourceUrl),
+    ...settings.customIconPackUrls,
+    ...resolveIconPackOrder(settings).map((pack) => pack.sourceUrl),
+  ]);
   if (!allowed.has(rawUrl)) throw new AppError('VALIDATION_FAILED', '图标包未配置。');
   const { iconPacks } = createRepositories(env.DB);
   let row = await iconPacks.findByUrl(rawUrl);

@@ -12,10 +12,38 @@ export const DEFAULT_SETTINGS: RuleSettings = {
   tokenLinksEnabled: true,
   customIconPackUrls: [],
   customIconPackNames: {},
+  iconPackPriority: [],
+  iconPackDisabled: [],
+  iconPackIndexMatching: true,
   iconPackAutoUpdate: true,
   iconPackUpdateIntervalHours: 24,
   iconPackLastUpdatedAt: '',
 };
+
+/** Trims, de-duplicates and caps a string list coming from settings / API input. */
+function sanitizeStringList(values: unknown, max = 50, maxLength = 500): string[] {
+  if (!Array.isArray(values)) return [];
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim().slice(0, maxLength);
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    result.push(trimmed);
+    if (result.length >= max) break;
+  }
+  return result;
+}
+
+function parseStringList(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    return sanitizeStringList(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
 
 export function resolveSettingsPatch(current: RuleSettings, input: Partial<RuleSettings> = {}): RuleSettings {
   return {
@@ -27,6 +55,11 @@ export function resolveSettingsPatch(current: RuleSettings, input: Partial<RuleS
     tokenLinksEnabled: input.tokenLinksEnabled ?? current.tokenLinksEnabled,
     customIconPackUrls: input.customIconPackUrls ?? current.customIconPackUrls,
     customIconPackNames: input.customIconPackNames ?? current.customIconPackNames,
+    iconPackPriority:
+      input.iconPackPriority === undefined ? current.iconPackPriority : sanitizeStringList(input.iconPackPriority),
+    iconPackDisabled:
+      input.iconPackDisabled === undefined ? current.iconPackDisabled : sanitizeStringList(input.iconPackDisabled),
+    iconPackIndexMatching: input.iconPackIndexMatching ?? current.iconPackIndexMatching,
     iconPackAutoUpdate: input.iconPackAutoUpdate ?? current.iconPackAutoUpdate,
     iconPackUpdateIntervalHours: Math.max(
       1,
@@ -52,6 +85,8 @@ export class SettingsRepository {
       ...DEFAULT_SETTINGS,
       customIconPackUrls: [...DEFAULT_SETTINGS.customIconPackUrls],
       customIconPackNames: { ...DEFAULT_SETTINGS.customIconPackNames },
+      iconPackPriority: [...DEFAULT_SETTINGS.iconPackPriority],
+      iconPackDisabled: [...DEFAULT_SETTINGS.iconPackDisabled],
     };
     for (const row of rows) {
       if (row.key === 'baseUrl') result.baseUrl = row.value ?? '';
@@ -74,6 +109,10 @@ export class SettingsRepository {
         }
       }
       if (row.key === 'iconPackAutoUpdate') result.iconPackAutoUpdate = row.value !== 'false';
+      if (row.key === 'iconPackPriority') result.iconPackPriority = parseStringList(row.value);
+      if (row.key === 'iconPackDisabled') result.iconPackDisabled = parseStringList(row.value);
+      // Enabled by default (Qure first keeps existing icons); only an explicit `false` turns it off.
+      if (row.key === 'iconPackIndexMatching') result.iconPackIndexMatching = row.value !== 'false';
       if (row.key === 'iconPackUpdateIntervalHours') {
         result.iconPackUpdateIntervalHours = Math.max(1, Number(row.value) || 24);
       }

@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Globe, Monitor, Moon, RefreshCw, ShieldAlert, Sparkles, Sun } from 'lucide-react';
+import { ArrowDown, ArrowUp, Globe, Monitor, Moon, RefreshCw, ShieldAlert, Sparkles, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
@@ -10,6 +10,7 @@ import {
   type TelegramNotificationFormValues,
 } from '../../../shared/schemas/settings';
 import type { ManualRuleOptimizationPreview } from '../../../types/domain-rules';
+import { BUILTIN_ICON_PACK_PRESETS } from '../../../domain/templates/icon-packs';
 import { SUPPORTED_LOCALES, useI18n } from '../../i18n';
 import { api, formatApiError, readApiJson } from '../../lib/api';
 import {
@@ -55,6 +56,8 @@ export function GeneralSettingsTab({ inTelegram }: GeneralSettingsTabProps) {
 
   const [optPreview, setOptPreview] = useState<ManualRuleOptimizationPreview | null>(null);
   const [optLoading, setOptLoading] = useState(false);
+  const [packPriority, setPackPriority] = useState<string[]>([]);
+  const [disabledPacks, setDisabledPacks] = useState<string[]>([]);
 
   const settingsForm = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsFormSchema),
@@ -65,6 +68,7 @@ export function GeneralSettingsTab({ inTelegram }: GeneralSettingsTabProps) {
       publicLinksEnabled: true,
       tokenLinksEnabled: true,
       customIconPackUrlsText: '',
+      iconPackIndexMatching: true,
       iconPackAutoUpdate: true,
       iconPackUpdateIntervalHours: 24,
     },
@@ -92,9 +96,15 @@ export function GeneralSettingsTab({ inTelegram }: GeneralSettingsTabProps) {
       publicLinksEnabled: s.publicLinksEnabled,
       tokenLinksEnabled: s.tokenLinksEnabled,
       customIconPackUrlsText: (s.customIconPackUrls ?? []).join('\n'),
+      iconPackIndexMatching: s.iconPackIndexMatching ?? true,
       iconPackAutoUpdate: s.iconPackAutoUpdate,
       iconPackUpdateIntervalHours: s.iconPackUpdateIntervalHours || 24,
     });
+    const builtinKeys = BUILTIN_ICON_PACK_PRESETS.map((preset) => preset.key);
+    setPackPriority(
+      s.iconPackPriority?.length ? s.iconPackPriority : [...builtinKeys, ...(s.customIconPackUrls ?? [])],
+    );
+    setDisabledPacks(s.iconPackDisabled ?? []);
   }, [settingsQuery.data, settingsForm]);
 
   useEffect(() => {
@@ -128,6 +138,9 @@ export function GeneralSettingsTab({ inTelegram }: GeneralSettingsTabProps) {
               .split(/\r?\n/)
               .map((line) => line.trim())
               .filter(Boolean),
+            iconPackPriority: packPriority,
+            iconPackDisabled: disabledPacks,
+            iconPackIndexMatching: values.iconPackIndexMatching,
             iconPackAutoUpdate: values.iconPackAutoUpdate,
             iconPackUpdateIntervalHours: values.iconPackUpdateIntervalHours,
           };
@@ -158,6 +171,36 @@ export function GeneralSettingsTab({ inTelegram }: GeneralSettingsTabProps) {
       notify({ title: formatApiError(error, locale), variant: 'danger' });
     },
   });
+
+  // Built-in packs in the configured priority order (packs missing from the saved list keep the default order).
+  const builtinKeys = BUILTIN_ICON_PACK_PRESETS.map((preset) => preset.key);
+  const orderedBuiltinPacks = [...builtinKeys]
+    .sort((a, b) => {
+      const ai = packPriority.indexOf(a);
+      const bi = packPriority.indexOf(b);
+      return (ai < 0 ? Number.MAX_SAFE_INTEGER : ai) - (bi < 0 ? Number.MAX_SAFE_INTEGER : bi);
+    })
+    .flatMap((key) => BUILTIN_ICON_PACK_PRESETS.filter((preset) => preset.key === key));
+
+  const movePack = (key: string, direction: -1 | 1) => {
+    setPackPriority((current) => {
+      const ordered = orderedBuiltinPacks.map((preset) => preset.key);
+      const index = ordered.indexOf(key);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= ordered.length) return current;
+      const swapped = [...ordered];
+      [swapped[index], swapped[target]] = [swapped[target], swapped[index]];
+      // Extension URLs keep their configured order after the built-in packs.
+      const rest = current.filter((entry) => !builtinKeys.includes(entry));
+      return [...swapped, ...rest];
+    });
+  };
+
+  const togglePack = (key: string, enabled: boolean) => {
+    setDisabledPacks((current) =>
+      enabled ? current.filter((entry) => entry !== key) : [...new Set([...current, key])],
+    );
+  };
 
   const handlePreviewOptimization = async () => {
     setOptLoading(true);
@@ -377,10 +420,68 @@ export function GeneralSettingsTab({ inTelegram }: GeneralSettingsTabProps) {
             </div>
 
             {!inTelegram ? (
+              <div className="flex flex-col gap-2.5" data-testid="settings-icon-packs">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-medium">{t('settings.builtinIconPacks')}</span>
+                  <span className="text-[11px] text-text-muted">{t('settings.builtinIconPacksHint')}</span>
+                </div>
+                <ul className="flex flex-col gap-1.5">
+                  {orderedBuiltinPacks.map((pack, index) => {
+                    const enabled = !disabledPacks.includes(pack.key);
+                    return (
+                      <li
+                        key={pack.key}
+                        data-testid={`settings-icon-pack-${pack.key}`}
+                        className="flex items-center justify-between gap-2 rounded-[var(--radius-sm)] border border-border bg-surface-muted/40 px-2.5 py-1.5"
+                      >
+                        <div className="flex min-w-0 flex-col">
+                          <span className="text-xs font-medium">{pack.label}</span>
+                          <span className="truncate font-mono text-[10px] text-text-muted">{pack.sourceUrl}</span>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            aria-label={`${t('settings.iconPackMoveUp')} ${pack.label}`}
+                            data-testid={`settings-icon-pack-up-${pack.key}`}
+                            disabled={index === 0}
+                            onClick={() => movePack(pack.key, -1)}
+                          >
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            aria-label={`${t('settings.iconPackMoveDown')} ${pack.label}`}
+                            data-testid={`settings-icon-pack-down-${pack.key}`}
+                            disabled={index === orderedBuiltinPacks.length - 1}
+                            onClick={() => movePack(pack.key, 1)}
+                          >
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          </Button>
+                          <Switch
+                            data-testid={`settings-icon-pack-enabled-${pack.key}`}
+                            checked={enabled}
+                            onCheckedChange={(checked) => togglePack(pack.key, checked)}
+                          />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+
+            {!inTelegram ? (
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="settings-icon-urls" className="text-xs font-medium">
                   {t('settings.customIconPackUrls')}
                 </label>
+                <span className="text-[11px] text-text-muted">{t('settings.customIconPackUrlsHint')}</span>
                 <textarea
                   id="settings-icon-urls"
                   rows={3}
@@ -432,6 +533,23 @@ export function GeneralSettingsTab({ inTelegram }: GeneralSettingsTabProps) {
                   name="iconPackAutoUpdate"
                   render={({ field }) => (
                     <Switch data-testid="settings-icon-auto" checked={field.value} onCheckedChange={field.onChange} />
+                  )}
+                />
+              </div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-xs font-medium">{t('settings.iconPackIndexMatching')}</span>
+                  <span className="text-[11px] text-text-muted">{t('settings.iconPackIndexMatchingHint')}</span>
+                </div>
+                <Controller
+                  control={settingsForm.control}
+                  name="iconPackIndexMatching"
+                  render={({ field }) => (
+                    <Switch
+                      data-testid="settings-icon-index-matching"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
                   )}
                 />
               </div>

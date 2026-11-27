@@ -10,12 +10,15 @@ import { id, slugify } from '../../domain/rules/slug';
 import {
   applyOverlay,
   buildDefaultIconPack,
+  buildIconPackEntries,
   compileTemplate,
   importMihomoYaml,
   importSubconverterIni,
   lintTemplate,
   probeTemplate,
   rebaseOverlay,
+  parseIconPackPayload,
+  resolveIconPackOrder,
   resolveOverlayConflicts,
   resolveTemplateCards,
   validateModuleCombination,
@@ -54,7 +57,6 @@ import type { Env } from '../../types';
 import { loadCardLookup } from '../cards';
 import { loadCatalogIndexMap } from '../catalog';
 import { now } from '../rulesets';
-import { PRESET_ICON_PACK_URLS } from '../settings';
 
 export const SUPPORTED_COMPILER_CLIENTS = new Set<TemplateClientId>(SUPPORTED_TEMPLATE_CLIENTS);
 
@@ -240,54 +242,39 @@ export async function loadTemplateRulesetContext(
 }
 
 /**
- * Reads cached external icon packs (custom icon packs first, then cached preset pack,
- * then the built-in default QureColor pack fallback) without triggering outbound HTTP
- * fetches during compilation. Applies configured GitHub mirror URL when present.
+ * Reads cached icon pack entries before compilation (never fetches on the request path).
+ *
+ * Packs are resolved in the configured priority order with disabled packs dropped (built-in
+ * Qure / lige first, extension URLs after). Index matching is on by default and tags every
+ * entry with its pack key so `recognizeGroupIcon` matches keywords across packs in priority
+ * order; turning it off restores the 1.0.x precedence (extension packs, cached Qure, then the
+ * built-in Qure fallback). The GitHub mirror URL applies to every icon URL.
  */
 export async function loadCachedIconPackEntries(env: Env): Promise<IconPackEntry[]> {
   const repos = createRepositories(env.DB);
   const settings = await repos.settings.getAll();
-  const mirrorUrl = settings.githubMirrorUrl?.trim() ?? '';
-  const rewriteUrl = (rawUrl: string): string => {
-    if (!mirrorUrl) return rawUrl;
+  const order = resolveIconPackOrder(settings);
+  const cached = new Map<string, IconPackEntry[]>();
+  for (const pack of order) {
+    if (!pack.sourceUrl) continue;
+    const row = await repos.iconPacks.findByUrl(pack.sourceUrl);
+    if (!row?.payload) continue;
     try {
-      return rewriteGithubUrl(rawUrl, mirrorUrl);
+      const entries = parseIconPackPayload(JSON.parse(row.payload));
+      if (entries.length > 0) cached.set(pack.key, entries);
     } catch {
-      return rawUrl;
-    }
-  };
-
-  // Custom icon packs take precedence over the default preset pack
-  const urls = [...new Set([...settings.customIconPackUrls, ...PRESET_ICON_PACK_URLS])];
-  const entries: IconPackEntry[] = [];
-  for (const url of urls) {
-    const cached = await repos.iconPacks.findByUrl(url);
-    if (!cached?.payload) continue;
-    try {
-      const parsed = JSON.parse(cached.payload) as unknown;
-      if (Array.isArray(parsed)) {
-        for (const item of parsed) {
-          if (
-            item &&
-            typeof item === 'object' &&
-            typeof (item as Record<string, unknown>).name === 'string' &&
-            typeof (item as Record<string, unknown>).url === 'string'
-          ) {
-            entries.push({
-              name: (item as { name: string }).name,
-              url: rewriteUrl((item as { url: string }).url),
-            });
-          }
-        }
-      }
-    } catch {
-      // Ignore malformed cache rows
+      // Ignore malformed cache rows; the built-in fallback below still applies.
     }
   }
 
-  // Always append built-in default QureColor pack as fallback so icons work immediately out-of-the-box
-  entries.push(...buildDefaultIconPack(mirrorUrl));
-  return entries;
+  return buildIconPackEntries({
+    order,
+    cached,
+    // Built-in QureColor fallback keeps icons working before the first cache refresh.
+    defaultQureEntries: buildDefaultIconPack(),
+    githubMirrorUrl: settings.githubMirrorUrl,
+    indexMatching: settings.iconPackIndexMatching,
+  });
 }
 
 export async function listTemplates(env: Env, options: ListTemplatesOptions = {}): Promise<ListTemplatesResult> {
