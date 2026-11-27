@@ -28,12 +28,18 @@ function toCardLookup(resolved: ReturnType<typeof buildResolvedStandard>): AppCa
 }
 
 describe('5 template enhancement modules (individual, combined, and conflicting)', () => {
-  it('registers all 5 enhancement modules', () => {
+  it('registers the 5 original enhancement modules plus the 6 §5.2 additions', () => {
     expect(ENHANCEMENT_MODULES.map((m) => m.id).sort()).toEqual([
+      'apple-push-direct',
       'block-encrypted-dns',
+      'bt-direct',
       'dns-leak-guard',
+      'domestic-apps-direct',
       'game-download-direct',
       'ip-no-resolve',
+      'privacy-tracker-block',
+      'sniffer',
+      'tun-mode',
       'tunnel-direct',
     ]);
   });
@@ -311,29 +317,70 @@ describe('5 template enhancement modules (individual, combined, and conflicting)
       icon: '🎮',
       tierDefaults: { simple: false, advanced: false, pro: true },
     });
+    // §5.2 additions: group / tier defaults / supported clients
+    expect(byId.get('privacy-tracker-block')).toMatchObject({
+      group: 'dns-privacy',
+      tierDefaults: { simple: false, advanced: false, pro: true },
+    });
+    expect(byId.get('sniffer')).toMatchObject({
+      group: 'accuracy',
+      tierDefaults: { simple: false, advanced: true, pro: true },
+      supportedClients: ['mihomo'],
+    });
+    expect(byId.get('apple-push-direct')).toMatchObject({
+      group: 'direct',
+      tierDefaults: { simple: false, advanced: true, pro: true },
+    });
+    expect(byId.get('domestic-apps-direct')).toMatchObject({
+      group: 'direct',
+      tierDefaults: { simple: true, advanced: true, pro: true },
+    });
+    expect(byId.get('bt-direct')).toMatchObject({
+      group: 'direct',
+      tierDefaults: { simple: false, advanced: false, pro: true },
+    });
+    expect(byId.get('tun-mode')).toMatchObject({
+      group: 'runtime',
+      tierDefaults: { simple: false, advanced: false, pro: true },
+      supportedClients: ['mihomo'],
+      affects: ['runtime'],
+    });
 
     const grouped = listEnhancementModulesByGroup();
     expect(grouped.map((b) => b.id)).toEqual(['dns-privacy', 'accuracy', 'direct', 'runtime']);
-    expect(grouped[0].modules.map((m) => m.id)).toEqual(['block-encrypted-dns', 'dns-leak-guard']);
-    expect(grouped[1].modules.map((m) => m.id)).toEqual(['ip-no-resolve']);
-    expect(grouped[2].modules.map((m) => m.id)).toEqual(['game-download-direct', 'tunnel-direct']);
-    expect(grouped[3].modules).toEqual([]);
+    expect(grouped[0].modules.map((m) => m.id)).toEqual([
+      'privacy-tracker-block',
+      'block-encrypted-dns',
+      'dns-leak-guard',
+    ]);
+    expect(grouped[1].modules.map((m) => m.id)).toEqual(['sniffer', 'ip-no-resolve']);
+    expect(grouped[2].modules.map((m) => m.id)).toEqual([
+      'game-download-direct',
+      'apple-push-direct',
+      'domestic-apps-direct',
+      'tunnel-direct',
+      'bt-direct',
+    ]);
+    expect(grouped[3].modules.map((m) => m.id)).toEqual(['tun-mode']);
 
     // Custom future runtime module fits cleanly without structural changes
     const syntheticRuntimeModule: EnhancementModule = {
-      id: 'tun-mode',
-      name: 'TUN 模式',
+      id: 'runtime-diagnostics',
+      name: '运行时诊断',
       icon: '⚙️',
       group: 'runtime',
       description: 'Mock runtime module for extensibility check.',
       defaultEnabled: false,
       tierDefaults: { simple: false, advanced: false, pro: true },
-      order: 60,
-      affects: ['dns'],
+      order: 70,
+      affects: ['runtime'],
       supportedClients: ['mihomo'],
       apply: (tpl) => tpl,
     };
     const extendedGroups = listEnhancementModulesByGroup([...ENHANCEMENT_MODULES, syntheticRuntimeModule]);
-    expect(extendedGroups.find((b) => b.id === 'runtime')?.modules.map((m) => m.id)).toEqual(['tun-mode']);
+    expect(extendedGroups.find((b) => b.id === 'runtime')?.modules.map((m) => m.id)).toEqual([
+      'tun-mode',
+      'runtime-diagnostics',
+    ]);
   });
 });

@@ -758,6 +758,37 @@ export const en: Messages = {
   'templates.editorModuleConflictTitle': 'Module conflict prevented activation',
   'templates.editorModuleConflictFallback': 'This module conflicts with another currently enabled enhancement module.',
   'templates.editorConflictsWith': 'Conflicts with',
+  'module.dns-leak-guard.name': 'DNS Leak Protection',
+  'module.dns-leak-guard.description':
+    'Domestic domains use domestic DNS and everything else follows your routing, so DNS queries never reveal your real location.',
+  'module.block-encrypted-dns.name': 'Block Encrypted DNS',
+  'module.block-encrypted-dns.description':
+    "Blocks the app's own DoH / DoT so DNS always follows the configured rules.",
+  'module.privacy-tracker-block.name': 'Tracker & Telemetry Block',
+  'module.privacy-tracker-block.description':
+    'Blocks common analytics, attribution and crash-report domains (system and vendor push channels stay untouched).',
+  'module.sniffer.name': 'Traffic Sniffing',
+  'module.sniffer.description':
+    'Recovers domain names from TLS / QUIC handshakes so shared ports and in-app traffic still match domain rules.',
+  'module.ip-no-resolve.name': 'no-resolve on IP Rules',
+  'module.ip-no-resolve.description': 'IP rules skip DNS resolution: faster and less likely to leak.',
+  'module.tunnel-direct.name': 'LAN & Overlay Network Direct',
+  'module.tunnel-direct.description': 'Sends LAN, Tailscale / ZeroTier and tunnel traffic straight out.',
+  'module.apple-push-direct.name': 'Apple Push Direct',
+  'module.apple-push-direct.description':
+    'APNs domains go direct, so iPhone push notifications no longer wait for a proxy round-trip.',
+  'module.domestic-apps-direct.name': 'Domestic Apps Never Proxied',
+  'module.domestic-apps-direct.description':
+    'WeChat, Alipay and major bank domains always go direct, so a mis-grouped node cannot break payments or logins.',
+  'module.game-download-direct.name': 'Game Downloads Direct',
+  'module.game-download-direct.description':
+    'Steam and other game platform downloads go direct: less traffic, faster downloads.',
+  'module.bt-direct.name': 'BT / PT Direct',
+  'module.bt-direct.description':
+    'Download client processes and default ports go direct, so airports never flag BitTorrent traffic.',
+  'module.tun-mode.name': 'TUN Mode (Router / Transparent Proxy)',
+  'module.tun-mode.description':
+    'Writes a tun block for virtual gateways such as OpenClash; GUI clients use their own switch, so nothing is written by default.',
   'templates.editorPatchesHint': 'Inject custom YAML/text patches per client; merged into the compiled configuration.',
   'templates.editorPanelLint': 'Inspector',
   'templates.editorPanelProbe': 'Hit Probe',

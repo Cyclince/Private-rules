@@ -2,9 +2,21 @@ import type { TemplateClientId } from '../../../shared/clients';
 import type { ComplexityTier, TemplateModuleBinding } from '../../../shared/schemas/template';
 import type { ResolvedTemplate } from '../model';
 import { BLOCK_ENCRYPTED_DNS_CARD_ID, blockEncryptedDnsModule } from './block-encrypted-dns';
+import { APPLE_PUSH_DIRECT_CARD_ID, applePushDirectModule } from './apple-push-direct';
+import { BT_DIRECT_CARD_ID, btDirectModule } from './bt-direct';
 import { DNS_LEAK_FINAL_CARD_ID, dnsLeakGuardModule } from './dns-leak';
+import { DOMESTIC_APPS_DIRECT_CARD_ID, domesticAppsDirectModule } from './domestic-apps-direct';
 import { GAME_DOWNLOAD_DIRECT_CARD_ID, gameDownloadDirectModule } from './game-download';
 import { ipNoResolveModule } from './no-resolve';
+import { PRIVACY_TRACKER_BLOCK_CARD_ID, privacyTrackerBlockModule } from './privacy-tracker-block';
+import {
+  MIHOMO_DEFAULT_SNIFFER_PATCH,
+  MIHOMO_SNIFFER_DISABLED_PATCH,
+  SNIFFER_MODULE_ID,
+  shouldEmitSniffer,
+  snifferModule,
+} from './sniffer';
+import { TUN_PATCH_KEY, TUN_MODE_MODULE_ID, tunModeModule } from './tun-mode';
 import { TUNNEL_DIRECT_CARD_ID, tunnelDirectModule } from './tunnel-direct';
 import {
   MODULE_GROUPS,
@@ -21,16 +33,32 @@ import {
 } from './types';
 
 export {
+  APPLE_PUSH_DIRECT_CARD_ID,
   BLOCK_ENCRYPTED_DNS_CARD_ID,
+  BT_DIRECT_CARD_ID,
   DNS_LEAK_FINAL_CARD_ID,
+  DOMESTIC_APPS_DIRECT_CARD_ID,
   GAME_DOWNLOAD_DIRECT_CARD_ID,
+  MIHOMO_DEFAULT_SNIFFER_PATCH,
+  MIHOMO_SNIFFER_DISABLED_PATCH,
+  PRIVACY_TRACKER_BLOCK_CARD_ID,
+  SNIFFER_MODULE_ID,
   TUNNEL_DIRECT_CARD_ID,
+  TUN_MODE_MODULE_ID,
+  TUN_PATCH_KEY,
   MODULE_GROUPS,
   ModuleConflictError,
+  applePushDirectModule,
   blockEncryptedDnsModule,
+  btDirectModule,
   dnsLeakGuardModule,
+  domesticAppsDirectModule,
   gameDownloadDirectModule,
   ipNoResolveModule,
+  privacyTrackerBlockModule,
+  shouldEmitSniffer,
+  snifferModule,
+  tunModeModule,
   tunnelDirectModule,
 };
 export type {
@@ -54,39 +82,59 @@ export const MODULE_GROUP_DEFINITIONS: readonly ModuleGroupDefinition[] = [
     id: 'dns-privacy',
     name: 'DNS 与隐私',
     icon: '🛡️',
-    description: '控制上游 DNS 行为、防止请求泄漏并阻断应用绕过加密 DNS。',
+    description: '控制上游 DNS 行为、防止请求泄漏、阻断应用绕过加密 DNS，并拦截常见跟踪与遥测域名。',
     order: 10,
   },
   {
     id: 'accuracy',
     name: '识别准确度',
     icon: '🔍',
-    description: '减少不必要的 DNS 触发，提升域名与 IP 规则分流准确度。',
+    description: '从加密流量还原域名、减少不必要的 DNS 触发，提升域名与 IP 规则分流准确度。',
     order: 20,
   },
   {
     id: 'direct',
     name: '直连优化',
     icon: '🏠',
-    description: '将内网穿透、国内常见直连与大流量游戏更新直连分流。',
+    description: '将内网穿透、系统推送、国内常用应用与大流量下载直连分流。',
     order: 30,
   },
   {
     id: 'runtime',
     name: '运行',
     icon: '⚙️',
-    description: '客户端透明代理与运行时模式扩展（N4 起扩充）。',
+    description: '客户端运行时参数，例如路由器 / 透明代理下的 TUN 模式。',
     order: 40,
   },
 ];
 
-/** All 5 built-in enhancement modules in deterministic execution order (design §10.12). */
+/** All built-in enhancement modules in deterministic execution order (design §5.2). */
 export const ENHANCEMENT_MODULES: readonly EnhancementModule[] = [
+  privacyTrackerBlockModule,
   blockEncryptedDnsModule,
+  snifferModule,
   gameDownloadDirectModule,
+  applePushDirectModule,
+  domesticAppsDirectModule,
   tunnelDirectModule,
+  btDirectModule,
   dnsLeakGuardModule,
   ipNoResolveModule,
+  tunModeModule,
+];
+
+/**
+ * Cards contributed by enhancement modules. Compilers can mark these `hidden` so the module
+ * cards do not inflate the visible group count (T1 targets 8–12 visible groups).
+ */
+export const MODULE_AUXILIARY_CARD_IDS: readonly string[] = [
+  PRIVACY_TRACKER_BLOCK_CARD_ID,
+  BLOCK_ENCRYPTED_DNS_CARD_ID,
+  GAME_DOWNLOAD_DIRECT_CARD_ID,
+  APPLE_PUSH_DIRECT_CARD_ID,
+  DOMESTIC_APPS_DIRECT_CARD_ID,
+  TUNNEL_DIRECT_CARD_ID,
+  BT_DIRECT_CARD_ID,
 ];
 
 const MODULE_MAP = new Map<string, EnhancementModule>(ENHANCEMENT_MODULES.map((mod) => [mod.id, mod]));
@@ -275,8 +323,21 @@ export function applyEnhancementModules(
 
   let current = structuredClone(template);
   const applied: string[] = [];
+  const disabled: string[] = [];
   const skipped: ModuleSkipRecord[] = [];
   const notes: string[] = [];
+
+  // Explicitly disabled modules may still need to neutralise a compiler default (see `onDisabled`).
+  // `minimal` output omits runtime sections altogether, so there is nothing to neutralise.
+  for (const binding of bindings) {
+    if (binding.enabled) continue;
+    if (current.body.output === 'minimal') break;
+    const mod = regMap.get(binding.id);
+    if (!mod?.onDisabled) continue;
+    if (!options?.client || !mod.supportedClients.includes(options.client)) continue;
+    current = mod.onDisabled(current, { client: options.client, params: binding.params });
+    disabled.push(mod.id);
+  }
 
   for (const mod of orderedModules) {
     const binding = enabledMap.get(mod.id)!;
@@ -300,11 +361,15 @@ export function applyEnhancementModules(
     if (current.body.output === 'minimal' && mod.affects.includes('dns')) {
       notes.push(`模板当前输出档位为 minimal，增强模块「${mod.name}」对 DNS 的修改仅在 full 档位生效。`);
     }
+    if (current.body.output === 'minimal' && mod.affects.includes('runtime')) {
+      notes.push(`模板当前输出档位为 minimal，增强模块「${mod.name}」写入的运行参数可能不完整，建议使用 full 档位。`);
+    }
   }
 
   return {
     template: current,
     applied,
+    disabled,
     skipped,
     notes,
   };

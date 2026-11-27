@@ -3,7 +3,7 @@ import type { TemplateClientId } from '../../../shared/clients';
 import type { ComplexityTier } from '../../../shared/schemas/template';
 import type { ResolvedTemplate } from '../model';
 
-export type EnhancementModuleAffect = 'dns' | 'rules' | 'groups' | 'final' | 'providers';
+export type EnhancementModuleAffect = 'dns' | 'rules' | 'groups' | 'final' | 'providers' | 'runtime';
 
 /** Logical UI / classification buckets for enhancement modules (design §5.2). */
 export const MODULE_GROUPS = ['dns-privacy', 'accuracy', 'direct', 'runtime'] as const;
@@ -42,6 +42,12 @@ export type EnhancementModule = {
   supportedClients: readonly TemplateClientId[];
   paramsSchema?: z.ZodType<Record<string, unknown>>;
   apply(template: ResolvedTemplate, ctx: ModuleCompileContext): ResolvedTemplate;
+  /**
+   * Optional hook for an explicitly disabled binding. Needed when the compiler writes a
+   * capability unconditionally (e.g. mihomo's `sniffer`): the module layer cannot delete a
+   * compiler-emitted key, so the hook neutralises it through a client patch instead.
+   */
+  onDisabled?(template: ResolvedTemplate, ctx: ModuleCompileContext): ResolvedTemplate;
 };
 
 export type ModuleGroupBucket = ModuleGroupDefinition & {
@@ -91,6 +97,8 @@ export type ModuleSkipRecord = {
 export type ApplyModulesResult = {
   template: ResolvedTemplate;
   applied: string[];
+  /** Modules whose explicit `enabled: false` binding ran an `onDisabled` hook. */
+  disabled: string[];
   skipped: ModuleSkipRecord[];
   notes: string[];
 };
