@@ -22,15 +22,21 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Switch } from '../ui/switch';
+import {
+  buildSimpleTierCards,
+  groupRoutingCards,
+  routesForTier,
+  type RoutingCard,
+} from './detail/template-detail-data';
 
 const PRESET_TIERS: readonly SimplePresetTier[] = ['less', 'recommended', 'all'];
 
-function scenarioTitleKey(id: WizardScenarioId): MessageKey {
-  return `wizard.scenario.${id}` as MessageKey;
-}
-
 function scenarioDescKey(id: WizardScenarioId): MessageKey {
   return `wizard.scenarioDesc.${id}` as MessageKey;
+}
+
+function categoryLabelKey(category: string): MessageKey {
+  return `taxonomy.category.${category}` as MessageKey;
 }
 
 type LocalScenarioState = {
@@ -52,11 +58,19 @@ type TemplateSimpleRoutingTabProps = {
   readOnly: boolean;
 };
 
+/**
+ * Routing tab (design §8): policy-group cards grouped by the 15-category
+ * vocabulary, each with its destination and switch, plus "My rules" ordering.
+ * The simple tier shows only the three fixed destinations.
+ */
 export function TemplateSimpleRoutingTab({ view, readOnly }: TemplateSimpleRoutingTabProps) {
   const { t, locale } = useI18n();
   const { notify } = useToast();
   const queryClient = useQueryClient();
   const rulesetsQuery = useQuery(rulesetsListQueryOptions());
+
+  const complexity = view.template.complexity;
+  const isSimple = complexity === 'simple';
 
   const [scenarios, setScenarios] = useState<LocalScenarioState[]>([]);
   const [selectedRulesets, setSelectedRulesets] = useState<LocalRulesetState[]>([]);
@@ -97,20 +111,31 @@ export function TemplateSimpleRoutingTab({ view, readOnly }: TemplateSimpleRouti
   const activePreset = useMemo(() => detectSimplePresetTier(scenarios), [scenarios]);
 
   const routeOptions = useMemo(() => {
-    const base: Array<{ value: WizardRouteTarget; label: string }> = [
+    const allowed = new Set<WizardRouteTarget>(routesForTier(complexity) as readonly WizardRouteTarget[]);
+    const allOptions: ReadonlyArray<{ value: WizardRouteTarget; label: string }> = [
       { value: 'proxy', label: t('wizard.route.proxy') },
       { value: 'auto', label: t('wizard.route.auto') },
       { value: 'direct', label: t('wizard.route.direct') },
       { value: 'reject', label: t('wizard.route.reject') },
     ];
-    for (const region of view.routing.availableRegions) {
-      base.push({
-        value: `region:${region.code}`,
-        label: `${region.emoji} ${region.name}`,
-      });
+    const base = allOptions.filter((option) => allowed.has(option.value));
+    if (!isSimple) {
+      for (const region of view.routing.availableRegions) {
+        base.push({ value: `region:${region.code}`, label: `${region.emoji} ${region.name}` });
+      }
     }
     return base;
-  }, [t, view.routing.availableRegions]);
+  }, [complexity, isSimple, t, view.routing.availableRegions]);
+
+  const groupedCards = useMemo(() => {
+    const source = {
+      scenarios: view.routing.scenarios,
+      customItems: view.routing.customItems.filter((item) => item.kind !== 'scenario'),
+    };
+    return groupRoutingCards(source).filter((group) => group.cards.length > 0);
+  }, [view.routing.customItems, view.routing.scenarios]);
+
+  const simpleCards = useMemo(() => buildSimpleTierCards(view.routing.scenarios), [view.routing.scenarios]);
 
   const handleApplyPreset = (tier: SimplePresetTier) => {
     if (readOnly) return;
@@ -204,10 +229,135 @@ export function TemplateSimpleRoutingTab({ view, readOnly }: TemplateSimpleRouti
     },
   });
 
-  const extraCustomItems = view.routing.customItems.filter((item) => item.kind !== 'scenario');
+  const selectOptionsFor = (route: WizardRouteTarget) =>
+    routeOptions.some((opt) => opt.value === route) ? routeOptions : [...routeOptions, { value: route, label: route }];
+
+  const renderPolicyCard = (card: RoutingCard) => {
+    const scenario = scenarios.find((item) => item.id === card.id);
+    const enabled = scenario ? scenario.enabled : card.enabled;
+    const route = scenario ? scenario.route : card.route;
+    const isScenario = card.kind === 'scenario';
+    const selectOptions = selectOptionsFor(route);
+
+    return (
+      <div
+        key={`${card.kind}:${card.id}`}
+        data-testid={card.testId}
+        data-category={card.category}
+        className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-bg px-3 py-2.5"
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <span
+            aria-hidden="true"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-surface-muted text-base"
+          >
+            {card.icon}
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="truncate text-sm font-medium text-text">
+                {card.titleKey ? t(card.titleKey as MessageKey) : card.title}
+              </span>
+              {card.custom ? (
+                <Badge variant="outline" data-testid={`${card.testId}-custom`}>
+                  {t('templateDetail.customizedInAdvanced')}
+                </Badge>
+              ) : null}
+            </div>
+            {isScenario ? (
+              <p className="line-clamp-1 text-xs text-text-muted">{t(scenarioDescKey(card.id as WizardScenarioId))}</p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {isScenario && card.configurableRoute && enabled && !card.custom ? (
+            <select
+              aria-label={`${card.titleKey ? t(card.titleKey as MessageKey) : card.title} ${t('templateDetail.routeLabel')}`}
+              data-testid={`simple-scenario-route-${card.id}`}
+              disabled={readOnly}
+              value={route}
+              onChange={(e) => handleScenarioRoute(card.id as WizardScenarioId, e.target.value as WizardRouteTarget)}
+              className="h-8 rounded-[var(--radius-sm)] border border-border bg-surface px-2.5 text-xs text-text focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
+            >
+              {selectOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {t('templateDetail.routePrefix')} {opt.label}
+                </option>
+              ))}
+            </select>
+          ) : !isScenario ? null : (
+            <span className="text-xs text-text-muted">
+              {t('templateDetail.routePrefix')}{' '}
+              {route === 'direct' ? t('wizard.route.direct') : t('wizard.route.reject')}
+            </span>
+          )}
+
+          <Switch
+            checked={enabled}
+            disabled={readOnly || !isScenario || card.custom}
+            data-testid={`simple-scenario-toggle-${card.id}`}
+            aria-label={card.titleKey ? t(card.titleKey as MessageKey) : card.title}
+            onCheckedChange={(checked) => handleToggleScenario(card.id as WizardScenarioId, checked)}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  const renderHubCard = (card: RoutingCard) => {
+    const isDirect = card.kind === 'direct';
+    const scenario = scenarios.find((item) => item.id === (isDirect ? 'domestic-direct' : 'ad-block'));
+    const enabled = scenario ? scenario.enabled : card.enabled;
+    const proxyModeLabel =
+      view.nodes.groupMode === 'auto' || view.nodes.groupMode === 'region'
+        ? t('templateDetail.proxyAutoHint')
+        : t('templateDetail.proxyManualHint');
+
+    return (
+      <div
+        key={card.id}
+        data-testid={card.testId}
+        className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-bg px-3 py-2.5"
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <span
+            aria-hidden="true"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-surface-muted text-base"
+          >
+            {card.icon}
+          </span>
+          <div className="min-w-0">
+            <span className="block truncate text-sm font-medium text-text">
+              {card.titleKey ? t(card.titleKey as MessageKey) : card.title}
+            </span>
+            <p className="truncate text-xs text-text-muted">
+              {card.kind === 'proxy'
+                ? proxyModeLabel
+                : isDirect
+                  ? t('templateDetail.hubDirectDesc')
+                  : t('templateDetail.hubRejectDesc')}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {card.kind === 'proxy' ? (
+            <span className="text-xs text-text-muted">{t('templateDetail.alwaysOn')}</span>
+          ) : null}
+          <Switch
+            checked={enabled}
+            disabled={readOnly || card.kind === 'proxy' || Boolean(scenario?.custom)}
+            data-testid={`simple-hub-toggle-${card.id}`}
+            aria-label={card.titleKey ? t(card.titleKey as MessageKey) : card.title}
+            onCheckedChange={(checked) => handleToggleScenario(isDirect ? 'domestic-direct' : 'ad-block', checked)}
+          />
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="flex flex-col gap-4" data-testid="simple-routing-tab">
+    <div className="flex flex-col gap-4" data-testid="simple-routing-tab" data-complexity={complexity}>
       {view.routing.hasCustomizations ? (
         <div
           data-testid="simple-routing-custom-notice"
@@ -218,101 +368,60 @@ export function TemplateSimpleRoutingTab({ view, readOnly }: TemplateSimpleRouti
         </div>
       ) : null}
 
-      {/* Quick Presets */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Sparkles className="h-4 w-4 text-primary" />
-            <span>{t('wizard.presetsLabel')}</span>
+            <span>{t('templateDetail.routingGroupsTitle')}</span>
           </CardTitle>
-          <CardDescription>{t('templateDetail.routingSubtitle')}</CardDescription>
+          <CardDescription>
+            {isSimple ? t('templateDetail.routingSimpleHint') : t('templateDetail.routingSubtitle')}
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {PRESET_TIERS.map((tier) => {
-              const isActive = activePreset === tier;
-              return (
-                <button
-                  key={tier}
-                  type="button"
-                  disabled={readOnly}
-                  data-testid={`simple-preset-${tier}`}
-                  onClick={() => handleApplyPreset(tier)}
-                  className={`flex cursor-pointer items-center justify-center rounded-[var(--radius-md)] border px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                    isActive
-                      ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30'
-                      : 'border-border bg-bg text-text hover:border-primary/40 hover:bg-surface-muted/50'
-                  }`}
-                >
-                  {tier === 'recommended'
-                    ? t('wizard.preset.recommendedDefault')
-                    : t(`wizard.preset.${tier}` as MessageKey)}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Common Scenarios */}
-          <div className="flex flex-col gap-2">
-            <h3 className="text-sm font-semibold text-text">{t('wizard.commonScenariosTitle')}</h3>
-            <div className="divide-y divide-border rounded-[var(--radius-md)] border border-border bg-bg/40">
-              {scenarios.map((sc) => {
-                const routeSelectOptions = routeOptions.some((opt) => opt.value === sc.route)
-                  ? routeOptions
-                  : [...routeOptions, { value: sc.route, label: sc.route }];
-
+          {!isSimple ? (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" data-testid="simple-presets">
+              {PRESET_TIERS.map((tier) => {
+                const isActive = activePreset === tier;
                 return (
-                  <div
-                    key={sc.id}
-                    data-testid={`simple-scenario-row-${sc.id}`}
-                    className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5"
+                  <button
+                    key={tier}
+                    type="button"
+                    disabled={readOnly}
+                    data-testid={`simple-preset-${tier}`}
+                    onClick={() => handleApplyPreset(tier)}
+                    className={`flex cursor-pointer items-center justify-center rounded-[var(--radius-md)] border px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                      isActive
+                        ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30'
+                        : 'border-border bg-bg text-text hover:border-primary/40 hover:bg-surface-muted/50'
+                    }`}
                   >
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <Switch
-                        checked={sc.enabled}
-                        disabled={readOnly || sc.custom}
-                        data-testid={`simple-scenario-toggle-${sc.id}`}
-                        aria-label={t(scenarioTitleKey(sc.id))}
-                        onCheckedChange={(checked) => handleToggleScenario(sc.id, checked)}
-                      />
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-sm font-medium text-text">{t(scenarioTitleKey(sc.id))}</span>
-                          {sc.custom ? (
-                            <Badge variant="outline" data-testid={`simple-scenario-custom-${sc.id}`}>
-                              {t('templateDetail.customizedInAdvanced')}
-                            </Badge>
-                          ) : null}
-                        </div>
-                        <p className="text-xs text-text-muted">{t(scenarioDescKey(sc.id))}</p>
-                      </div>
-                    </div>
-
-                    {!sc.custom && sc.configurableRoute && sc.enabled ? (
-                      <select
-                        aria-label={`${t(scenarioTitleKey(sc.id))} ${t('templateDetail.routeLabel')}`}
-                        data-testid={`simple-scenario-route-${sc.id}`}
-                        disabled={readOnly}
-                        value={sc.route}
-                        onChange={(e) => handleScenarioRoute(sc.id, e.target.value as WizardRouteTarget)}
-                        className="h-8 rounded-[var(--radius-sm)] border border-border bg-surface px-2.5 text-xs text-text focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
-                      >
-                        {routeSelectOptions.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : !sc.custom && sc.enabled ? (
-                      <span className="text-xs text-text-muted">
-                        {sc.route === 'direct' ? t('wizard.route.direct') : t('wizard.route.reject')}
-                      </span>
-                    ) : null}
-                  </div>
+                    {tier === 'recommended'
+                      ? t('wizard.preset.recommendedDefault')
+                      : t(`wizard.preset.${tier}` as MessageKey)}
+                  </button>
                 );
               })}
             </div>
-          </div>
+          ) : null}
+
+          {isSimple ? (
+            <div className="flex flex-col gap-2" data-testid="simple-hub-cards">
+              {simpleCards.map(renderHubCard)}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4" data-testid="simple-routing-groups">
+              {groupedCards.map((group) => (
+                <section key={group.category} data-testid={`routing-group-${group.category}`}>
+                  <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">
+                    <span aria-hidden="true">{group.emoji}</span>
+                    <span>{t(categoryLabelKey(group.category))}</span>
+                  </h3>
+                  <div className="flex flex-col gap-2">{group.cards.map(renderPolicyCard)}</div>
+                </section>
+              ))}
+            </div>
+          )}
 
           {/* My Rules (from Rules module, drag-and-drop + up/down order) */}
           <div className="flex flex-col gap-2.5">
@@ -332,9 +441,7 @@ export function TemplateSimpleRoutingTab({ view, readOnly }: TemplateSimpleRouti
                 className="divide-y divide-border rounded-[var(--radius-md)] border border-border bg-bg/40"
               >
                 {selectedRulesets.map((rs, index) => {
-                  const rsRouteOptions = routeOptions.some((opt) => opt.value === rs.route)
-                    ? routeOptions
-                    : [...routeOptions, { value: rs.route, label: rs.route }];
+                  const rsRouteOptions = selectOptionsFor(rs.route);
                   return (
                     <div
                       key={rs.rulesetId}
@@ -373,7 +480,7 @@ export function TemplateSimpleRoutingTab({ view, readOnly }: TemplateSimpleRouti
                         >
                           {rsRouteOptions.map((opt) => (
                             <option key={opt.value} value={opt.value}>
-                              {opt.label}
+                              {t('templateDetail.routePrefix')} {opt.label}
                             </option>
                           ))}
                         </select>
@@ -444,24 +551,29 @@ export function TemplateSimpleRoutingTab({ view, readOnly }: TemplateSimpleRouti
             ) : null}
           </div>
 
-          {/* Read-only custom items from advanced editor */}
-          {extraCustomItems.length > 0 ? (
-            <div className="flex flex-col gap-2" data-testid="simple-custom-items-list">
-              <h3 className="text-sm font-semibold text-text">{t('templateDetail.customItemsTitle')}</h3>
-              <div className="divide-y divide-border rounded-[var(--radius-md)] border border-border bg-surface-muted/40">
-                {extraCustomItems.map((item) => (
-                  <div
-                    key={`${item.kind}:${item.id}`}
-                    data-testid={`simple-custom-item-${item.id}`}
-                    className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 text-sm"
-                  >
-                    <span className="font-medium text-text">{item.name}</span>
-                    <Badge variant="outline">{t('templateDetail.customizedInAdvanced')}</Badge>
+          {isSimple
+            ? null
+            : (() => {
+                const extraCustomItems = view.routing.customItems.filter((item) => item.kind !== 'scenario');
+                if (extraCustomItems.length === 0) return null;
+                return (
+                  <div className="flex flex-col gap-2" data-testid="simple-custom-items-list">
+                    <h3 className="text-sm font-semibold text-text">{t('templateDetail.customItemsTitle')}</h3>
+                    <div className="divide-y divide-border rounded-[var(--radius-md)] border border-border bg-surface-muted/40">
+                      {extraCustomItems.map((item) => (
+                        <div
+                          key={`${item.kind}:${item.id}`}
+                          data-testid={`simple-custom-item-${item.id}`}
+                          className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 text-sm"
+                        >
+                          <span className="font-medium text-text">{item.name}</span>
+                          <Badge variant="outline">{t('templateDetail.customizedInAdvanced')}</Badge>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
+                );
+              })()}
 
           {!readOnly ? (
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">

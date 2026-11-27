@@ -28,6 +28,7 @@ import { resolveSessionSecret } from '../../lib/runtime-secrets';
 import { isTemplateClientSupported, TEMPLATE_CLIENTS, type TemplateClientId } from '../../shared/clients';
 import { AppError } from '../../shared/errors';
 import {
+  MAX_PREVIEW_SAMPLE_NAMES,
   MAX_TEMPLATE_SUBSCRIPTIONS,
   type NodeCombineMode,
   type PreviewSubscriptionBatchInput,
@@ -108,6 +109,8 @@ export type PreviewSubscriptionResult = {
   format: string;
   regions: PreviewSubscriptionRegionStat[];
   regionCounts: Record<string, number>;
+  /** Cached non-info node names (bounded) so pool previews work offline. */
+  sampleNames: string[];
   checkedAt: string;
 };
 
@@ -713,6 +716,11 @@ async function previewSingleSubscription(
 
   regions.sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
 
+  const sampleNames = previewNodes
+    .filter((item) => !item.isInfo)
+    .map((item) => item.name)
+    .slice(0, MAX_PREVIEW_SAMPLE_NAMES);
+
   return {
     nodeCount: nonInfoCount > 0 ? nonInfoCount : previewNodes.length,
     totalParsedCount: previewNodes.length,
@@ -720,6 +728,7 @@ async function previewSingleSubscription(
     format: parsed.report.format,
     regions,
     regionCounts,
+    sampleNames,
     checkedAt: now(),
   };
 }

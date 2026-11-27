@@ -111,7 +111,8 @@ test.describe('M2b Template Detail 3-Tab Simple Flows, Redirects & Mobile Layout
 
       await page.getByTestId('output-add-client-btn').click();
       await expect(page.getByTestId('add-client-dialog')).toBeVisible();
-      await page.getByTestId('add-client-option-shadowrocket').click();
+      await page.getByTestId('app-picker-platform-iphone').click();
+      await page.getByTestId('app-option-shadowrocket').click();
       const addPubResPromise = page.waitForResponse(
         (res) => res.url().endsWith('/api/publications') && res.request().method() === 'POST',
       );
@@ -196,14 +197,14 @@ test.describe('M2b Template Detail 3-Tab Simple Flows, Redirects & Mobile Layout
       // 390px mobile layout: zero horizontal overflow across all 3 tabs (normal & advanced) + policy group library
       // ------------------------------------------------------------
       await page.setViewportSize({ width: 390, height: 844 });
-      for (const tab of ['routing', 'nodes', 'output'] as const) {
+      for (const tab of ['routing', 'nodes', 'modules', 'output'] as const) {
         await page.getByTestId(`template-tab-${tab}`).click();
         await expectNoHorizontalOverflow(page);
       }
 
-      // Turn on advanced mode and check 390px overflow across all 3 tabs
+      // Turn on advanced mode and check 390px overflow across all 4 tabs
       await advToggle.click();
-      for (const tab of ['routing', 'nodes', 'output'] as const) {
+      for (const tab of ['routing', 'nodes', 'modules', 'output'] as const) {
         await page.getByTestId(`template-tab-${tab}`).click();
         await expectNoHorizontalOverflow(page);
       }

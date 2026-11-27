@@ -7,14 +7,13 @@
  * `shared-element.ts` so lazy route chunks carry them, not the entry shell.
  */
 
+import { prefersReducedMotion } from './reduced-motion';
+
 export function supportsViewTransitions(): boolean {
   return typeof document !== 'undefined' && typeof document.startViewTransition === 'function';
 }
 
-export function prefersReducedMotion(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
+export { prefersReducedMotion } from './reduced-motion';
 
 /** View Transitions are skipped entirely for users who ask for reduced motion. */
 export function startThemeViewTransition(update: () => void): boolean {

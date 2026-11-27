@@ -59,6 +59,8 @@ export type SimpleTemplateSubscriptionItem = {
   maskedUrl?: string;
   nodeCount: number | null;
   regions: SimpleTemplateNodeRegionStat[];
+  /** Cached non-info node names for this subscription (preview only, never triggers a fetch). */
+  nodeNames: string[];
   lastFetchedAt?: string;
   lastStatus?: string;
 };
@@ -78,6 +80,11 @@ export type SimpleTemplateNodesView = {
   combineMode: NodeCombineMode;
   hasExtraSlots: boolean;
   subscriptions: SimpleTemplateSubscriptionItem[];
+  /**
+   * Cached node names from the latest encrypted snapshots (no outbound fetch).
+   * Used by the node-pool editor's live preview (design §3.3).
+   */
+  nodeNames: string[];
 };
 
 export type SimpleTemplateOutputLink = {
@@ -127,6 +134,9 @@ export type SimpleTemplateViewOptions = {
   ruleToken?: string;
 };
 
+/** Upper bound for the cached node names shipped to the detail page preview. */
+const MAX_PREVIEW_NODE_NAMES = 300;
+
 type StoredSnapshotLike = {
   v?: number;
   kind?: 'full' | 'preview';
@@ -153,6 +163,7 @@ function buildRegionStatsFromCounts(counts: Readonly<Record<string, number>>): S
 function summarizeDecryptedSnapshot(rawJson: string): {
   nodeCount: number;
   regions: SimpleTemplateNodeRegionStat[];
+  names: string[];
 } | null {
   try {
     const parsed = JSON.parse(rawJson) as StoredSnapshotLike;
@@ -176,6 +187,7 @@ function summarizeDecryptedSnapshot(rawJson: string): {
     return {
       nodeCount: nonInfoCount > 0 ? nonInfoCount : previewNodes.length,
       regions: buildRegionStatsFromCounts(counts),
+      names: previewNodes.filter((item) => !item.isInfo).map((item) => item.name),
     };
   } catch {
     return null;
@@ -287,7 +299,7 @@ async function assembleSimpleTemplateView(
     let slotNeedsRebind = false;
     let slotMaskedUrl: string | undefined;
     let bestSnapshotFetchedAt: string | undefined;
-    let snapshotSummary: { nodeCount: number; regions: SimpleTemplateNodeRegionStat[] } | null = null;
+    let snapshotSummary: { nodeCount: number; regions: SimpleTemplateNodeRegionStat[]; names: string[] } | null = null;
     let fallbackNodeCount: number | null = null;
     let slotLastFetchedAt: string | undefined;
     let slotLastStatus: string | undefined;
@@ -369,6 +381,7 @@ async function assembleSimpleTemplateView(
       ...(slotMaskedUrl ? { maskedUrl: slotMaskedUrl } : {}),
       nodeCount: slotNodeCount,
       regions: slotRegions,
+      nodeNames: (snapshotSummary?.names ?? []).slice(0, MAX_PREVIEW_NODE_NAMES),
       ...(slotLastFetchedAt ? { lastFetchedAt: slotLastFetchedAt } : {}),
       ...(slotLastStatus ? { lastStatus: slotLastStatus } : {}),
     });
@@ -387,6 +400,8 @@ async function assembleSimpleTemplateView(
 
   let totalNodeCount: number | null = null;
   const mergedRegionCounts: Record<string, number> = {};
+  const mergedNodeNames: string[] = [];
+  const seenNodeNames = new Set<string>();
   let lastFetchedAt: string | undefined;
   let lastStatus: string | undefined;
 
@@ -397,6 +412,11 @@ async function assembleSimpleTemplateView(
     for (const stat of sub.regions) {
       mergedRegionCounts[stat.code] = (mergedRegionCounts[stat.code] ?? 0) + stat.count;
     }
+    for (const name of sub.nodeNames ?? []) {
+      if (seenNodeNames.has(name)) continue;
+      seenNodeNames.add(name);
+      if (mergedNodeNames.length < MAX_PREVIEW_NODE_NAMES) mergedNodeNames.push(name);
+    }
     if (sub.lastFetchedAt && (!lastFetchedAt || sub.lastFetchedAt > lastFetchedAt)) {
       lastFetchedAt = sub.lastFetchedAt;
       lastStatus = sub.lastStatus;
@@ -406,6 +426,22 @@ async function assembleSimpleTemplateView(
   }
 
   const regions = buildRegionStatsFromCounts(mergedRegionCounts);
+
+  // No encrypted snapshot yet: fall back to the node names cached by the last
+  // interactive airport check so the node-pool editor can still preview matches.
+  if (mergedNodeNames.length === 0) {
+    const previews = [
+      ...Object.values(resolvedBody.wizardMeta?.subscriptionPreviews ?? {}),
+      ...(resolvedBody.wizardMeta?.previewSummary ? [resolvedBody.wizardMeta.previewSummary] : []),
+    ];
+    for (const summary of previews) {
+      for (const name of summary.sampleNames ?? []) {
+        if (seenNodeNames.has(name)) continue;
+        seenNodeNames.add(name);
+        if (mergedNodeNames.length < MAX_PREVIEW_NODE_NAMES) mergedNodeNames.push(name);
+      }
+    }
+  }
 
   // Merge any regions seen in existing snapshots into availableRegions so the route selector includes them.
   if (regions.length > 0) {
@@ -450,6 +486,7 @@ async function assembleSimpleTemplateView(
       combineMode,
       hasExtraSlots,
       subscriptions,
+      nodeNames: mergedNodeNames,
     },
     outputs,
     ruleTokenConfigured: Boolean(env.RULE_TOKEN),

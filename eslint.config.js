@@ -36,6 +36,7 @@ export const LINTED = [
   'tests/unit/node-secrets.test.ts',
   'tests/unit/qr-code.test.ts',
   'tests/unit/sync-scheduler.test.ts',
+  'tests/unit/template-detail-tabs.test.ts',
   'tests/unit/web-i18n-and-assets.test.ts',
   'tests/unit/web-query-and-api.test.ts',
   'tests/integration/migration.test.ts',
@@ -47,6 +48,7 @@ export const LINTED = [
   'tests/e2e/preview-rulesets-and-rules.spec.ts',
   'tests/e2e/preview-sources-settings-backup.spec.ts',
   'tests/e2e/qr-code.spec.ts',
+  'tests/e2e/templates-detail-r4b.spec.ts',
 ];
 
 export default tseslint.config(

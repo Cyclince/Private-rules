@@ -4,9 +4,9 @@ import { Globe, Lock, ShieldAlert } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import aboutEmblemUrl from '../assets/miku-about-emblem.webp';
 import loginBgUrl from '../assets/miku-login-bg.webp';
-import { LOGIN_ARRIVAL_STORAGE_KEY } from '../components/layout/AppShell';
 import { loadPageTranslations, SUPPORTED_LOCALES, useI18n, type Locale } from '../i18n';
 import { api, ApiClientError, readApiJson } from '../lib/api';
+import { markLoginArrival } from '../lib/login-arrival';
 import { ensureAuthenticatedSession } from '../lib/auth-guard';
 import { authMeQueryOptions, invalidateAuth } from '../lib/query-core';
 
@@ -128,11 +128,7 @@ function LoginPage() {
         typeof window !== 'undefined' &&
         typeof window.matchMedia === 'function' &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      try {
-        window.sessionStorage.setItem(LOGIN_ARRIVAL_STORAGE_KEY, '1');
-      } catch {
-        // Ignore storage errors.
-      }
+      markLoginArrival();
       if (!reducedMotion) {
         setLeaving(true);
         await new Promise<void>((resolve) => window.setTimeout(resolve, 120));

@@ -28,7 +28,7 @@ import { SkeletonSwap } from '../components/ui/skeleton';
 import { loadPageTranslations, useI18n, type MessageKey } from '../i18n';
 import { api, formatApiError, readApiJson } from '../lib/api';
 import { isTelegramSession, requireAuthBeforeLoad } from '../lib/auth-guard';
-import { staggerStyle } from '../lib/shared-element';
+import { primeSharedElements, SHARED_ELEMENT_NAMES, staggerStyle, templateGlyph } from '../lib/shared-element';
 import {
   authMeQueryOptions,
   invalidatePublications,
@@ -431,17 +431,33 @@ function TemplatesListPage() {
                   <CardContent className="flex flex-1 flex-col justify-between gap-4 p-4 sm:p-5">
                     <div className="flex flex-col gap-3">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <Link
-                            to="/templates/$id"
-                            params={{ id: tpl.id }}
-                            className="block truncate text-base font-semibold text-text hover:text-primary"
+                        <div className="flex min-w-0 items-start gap-2.5">
+                          <span
+                            aria-hidden="true"
+                            data-shared-icon
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-surface-muted text-base"
                           >
-                            {tpl.name}
-                          </Link>
-                          {tpl.description ? (
-                            <p className="mt-0.5 line-clamp-1 text-xs text-text-muted">{tpl.description}</p>
-                          ) : null}
+                            {templateGlyph(tpl.name)}
+                          </span>
+                          <div className="min-w-0">
+                            <Link
+                              to="/templates/$id"
+                              params={{ id: tpl.id }}
+                              data-shared-title
+                              onClick={(event) =>
+                                primeSharedElements(event, {
+                                  icon: SHARED_ELEMENT_NAMES.templatesIcon,
+                                  title: SHARED_ELEMENT_NAMES.templatesTitle,
+                                })
+                              }
+                              className="block truncate text-base font-semibold text-text hover:text-primary"
+                            >
+                              {tpl.name}
+                            </Link>
+                            {tpl.description ? (
+                              <p className="mt-0.5 line-clamp-1 text-xs text-text-muted">{tpl.description}</p>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
 

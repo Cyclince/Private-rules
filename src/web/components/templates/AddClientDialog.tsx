@@ -1,17 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check } from 'lucide-react';
-import { useState } from 'react';
-import {
-  mapWizardClientSelection,
-  WIZARD_CLIENT_OPTIONS,
-  type WizardClientOption,
-  type WizardClientOptionId,
-} from '../../../domain/templates/quick-create';
+import { useMemo, useState } from 'react';
+import { getApp, type AppDefinition } from '../../../shared/apps';
 import type { TemplateClientId } from '../../../shared/clients';
-import { useI18n, type MessageKey } from '../../i18n';
+import { useI18n } from '../../i18n';
 import { api, formatApiError, readApiJson } from '../../lib/api';
 import { invalidatePublications, invalidateTemplates } from '../../lib/query';
 import { useToast } from '../../lib/toast';
+import { AppPicker } from '../apps/AppPicker';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -25,17 +20,6 @@ type AddClientDialogProps = {
   onOpenChange: (open: boolean) => void;
 };
 
-function formatClientDisplayName(option: WizardClientOption, locale: string): string {
-  if (locale === 'en') return option.displayName;
-  if (option.id === 'shadowrocket') return `${option.displayName}（小火箭）`;
-  if (option.id === 'quantumult-x') return `${option.displayName}（圈X）`;
-  return option.displayName;
-}
-
-function clientDescKey(id: WizardClientOptionId): MessageKey {
-  return `wizard.clientDesc.${id}` as MessageKey;
-}
-
 function buildUniqueClientSlug(templateSlug: string, client: TemplateClientId): string {
   const randomSuffix = Math.random().toString(36).slice(2, 6);
   const cleanBase = `${templateSlug}-${client}`
@@ -45,6 +29,20 @@ function buildUniqueClientSlug(templateSlug: string, client: TemplateClientId): 
   return `${cleanBase}-${randomSuffix}`;
 }
 
+function appForClient(client: TemplateClientId): AppDefinition | null {
+  const ids = ['shadowrocket', 'quantumult-x', 'loon', 'surge', 'stash', 'sing-box', 'clash-verge-rev'] as const;
+  for (const id of ids) {
+    const app = getApp(id);
+    if (app && app.templateClientId === client) return app;
+  }
+  return null;
+}
+
+/**
+ * "Add software" dialog (design §6): one AppPicker drives everything, then one
+ * output link is created per distinct compiler family. Software that cannot
+ * produce a full configuration is disabled inside the picker itself.
+ */
 export function AddClientDialog({
   open,
   templateId,
@@ -57,20 +55,27 @@ export function AddClientDialog({
   const { notify } = useToast();
   const queryClient = useQueryClient();
 
-  const [selectedIds, setSelectedIds] = useState<WizardClientOptionId[]>([]);
+  const [selectedApps, setSelectedApps] = useState<string[]>([]);
 
-  const desktopAndroidOptions = WIZARD_CLIENT_OPTIONS.filter((opt) => opt.groups.includes('desktop-android'));
-  const appleOptions = WIZARD_CLIENT_OPTIONS.filter((opt) => opt.groups.includes('apple'));
+  const targetClients = useMemo(() => {
+    const clients: TemplateClientId[] = [];
+    const seen = new Set<string>();
+    for (const appId of selectedApps) {
+      const client = getApp(appId)?.templateClientId ?? null;
+      if (!client || seen.has(client)) continue;
+      seen.add(client);
+      clients.push(client);
+    }
+    return clients;
+  }, [selectedApps]);
 
-  const toggleOption = (id: WizardClientOptionId) => {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
-  };
+  const existingSelection = targetClients.filter((client) => existingClients.has(client));
+  const pendingClients = targetClients.filter((client) => !existingClients.has(client));
 
   const addMutation = useMutation({
-    mutationFn: async (optionIds: WizardClientOptionId[]) => {
-      const mapped = mapWizardClientSelection(optionIds);
+    mutationFn: async (clients: TemplateClientId[]) => {
       const createdIds: string[] = [];
-      for (const client of mapped.clients) {
+      for (const client of clients) {
         const res = await readApiJson<{ publication: { id: string } }>(
           await api.api.publications.$post({
             json: {
@@ -88,7 +93,7 @@ export function AddClientDialog({
       return createdIds;
     },
     onSuccess: async () => {
-      setSelectedIds([]);
+      setSelectedApps([]);
       onOpenChange(false);
       await Promise.all([invalidateTemplates(queryClient, templateId), invalidatePublications(queryClient)]);
       notify({ title: t('templateDetail.clientAddedToast'), variant: 'success' });
@@ -98,76 +103,37 @@ export function AddClientDialog({
     },
   });
 
-  const renderGroup = (
-    groupKey: 'desktop-android' | 'apple',
-    title: string,
-    options: readonly WizardClientOption[],
-  ) => (
-    <div className="flex flex-col gap-2">
-      <h4 className="text-xs font-semibold uppercase tracking-wider text-text-muted">{title}</h4>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {options.map((opt) => {
-          const isSelected = selectedIds.includes(opt.id);
-          const alreadyExists = existingClients.has(opt.client);
-          const isSecondarySingBox = groupKey === 'apple' && opt.groups.includes('desktop-android');
-          return (
-            <button
-              key={`${groupKey}-${opt.id}`}
-              type="button"
-              data-testid={isSecondarySingBox ? `add-client-option-apple-${opt.id}` : `add-client-option-${opt.id}`}
-              aria-pressed={isSelected}
-              onClick={() => toggleOption(opt.id)}
-              className={`flex cursor-pointer items-start justify-between gap-2 rounded-[var(--radius-md)] border p-3 text-left transition-colors ${
-                isSelected
-                  ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
-                  : 'border-border bg-surface hover:border-primary/40 hover:bg-surface-muted/50'
-              }`}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-sm font-semibold text-text">{formatClientDisplayName(opt, locale)}</span>
-                  {alreadyExists ? (
-                    <Badge variant="outline" className="text-[10px]">
-                      {t('templateDetail.clientAlreadyAdded')}
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className="mt-0.5 text-xs text-text-muted">{t(clientDescKey(opt.id))}</p>
-              </div>
-              <span
-                className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                  isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-bg'
-                }`}
-              >
-                {isSelected ? <Check className="h-3 w-3" /> : null}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-
   return (
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen) setSelectedIds([]);
+        if (!nextOpen) setSelectedApps([]);
         onOpenChange(nextOpen);
       }}
     >
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl" data-testid="add-client-dialog">
         <DialogHeader>
-          <DialogTitle>{t('templateDetail.addClientTitle')}</DialogTitle>
+          <DialogTitle>{t('templateDetail.addSoftwareTitle')}</DialogTitle>
           <DialogDescription>
             {hasBoundNodes ? t('templateDetail.addClientDescInherited') : t('templateDetail.addClientDesc')}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4 py-2">
-          {renderGroup('desktop-android', t('wizard.groupDesktopAndroid'), desktopAndroidOptions)}
-          {renderGroup('apple', t('wizard.groupApple'), appleOptions)}
+        <div className="py-2">
+          <AppPicker mode="multiple" value={selectedApps} onChange={setSelectedApps} />
         </div>
+
+        {targetClients.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-surface-muted/60 px-3 py-2 text-xs text-text">
+            <span>{t('templateDetail.addSoftwareSelected')}</span>
+            {targetClients.map((client) => (
+              <Badge key={client} variant={existingClients.has(client) ? 'outline' : 'primary'} className="text-[10px]">
+                {appForClient(client)?.name ?? client}
+                {existingClients.has(client) ? ` · ${t('templateDetail.clientAlreadyAdded')}` : ''}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={addMutation.isPending}>
@@ -176,8 +142,9 @@ export function AddClientDialog({
           <Button
             type="button"
             data-testid="add-client-confirm-btn"
-            disabled={selectedIds.length === 0 || addMutation.isPending}
-            onClick={() => addMutation.mutate(selectedIds)}
+            disabled={pendingClients.length === 0 || addMutation.isPending}
+            title={existingSelection.length > 0 ? t('templateDetail.clientAlreadyAdded') : undefined}
+            onClick={() => addMutation.mutate(pendingClients)}
           >
             {addMutation.isPending ? t('common.loading') : t('templateDetail.addClientConfirmBtn')}
           </Button>

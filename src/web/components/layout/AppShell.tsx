@@ -2,23 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { BottomNav } from './BottomNav';
 import { DesktopSidebar, TabletSidebarDrawer } from './Sidebar';
 import { Topbar } from './Topbar';
-
-export const LOGIN_ARRIVAL_STORAGE_KEY = 'private-rules-login-arrival';
-
-function consumeLoginArrivalFlag(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    const flag = window.sessionStorage.getItem(LOGIN_ARRIVAL_STORAGE_KEY);
-    if (!flag) return false;
-    window.sessionStorage.removeItem(LOGIN_ARRIVAL_STORAGE_KEY);
-    if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
+import { consumeLoginArrivalFlag } from '../../lib/login-arrival';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [tabletOpen, setTabletOpen] = useState(false);

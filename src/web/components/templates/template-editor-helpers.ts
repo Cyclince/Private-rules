@@ -1,5 +1,4 @@
 import { toCardMap, type CardLookup } from '../../../domain/templates/model';
-import { validateModuleCombinationMetadata } from '../../../domain/templates/modules/metadata';
 import type { ConflictResolution, OverlayConflict } from '../../../domain/templates/overlay';
 import { applyOverlay } from '../../../domain/templates/overlay';
 import { getStageOrder, sortCardsByStage } from '../../../domain/templates/stages';
@@ -7,7 +6,6 @@ import type { AppCard, PolicyRef } from '../../../shared/schemas/card';
 import type {
   TemplateBody,
   TemplateCardRef,
-  TemplateModuleBinding,
   TemplateOverlay,
   TemplateOverlayOp,
 } from '../../../shared/schemas/template';
@@ -96,83 +94,13 @@ export function buildSortByStageOps(cards: readonly TemplateCardRef[], cardLooku
   return ops;
 }
 
-/**
- * Appends an overlay operation while compacting redundant tail scalar ops
- * (e.g. repeated `setGroupMode`, `setOutput`, `setFinal`, `setDns`, `setModule`,
- * `setPatch` on the same target) to keep `overlay` concise and readable.
- */
-export function appendOverlayOp(overlay: TemplateOverlay, op: TemplateOverlayOp): TemplateOverlay {
-  const next = [...overlay];
-  const replaceSingleton = (predicate: (existing: TemplateOverlayOp) => boolean) => {
-    const idx = next.findIndex(predicate);
-    if (idx !== -1) next.splice(idx, 1);
-    next.push(op);
-    return next;
-  };
-
-  switch (op.op) {
-    case 'setGroupMode':
-      return replaceSingleton((item) => item.op === 'setGroupMode');
-    case 'setOutput':
-      return replaceSingleton((item) => item.op === 'setOutput');
-    case 'setFinal':
-      return replaceSingleton((item) => item.op === 'setFinal');
-    case 'setDns':
-      return replaceSingleton((item) => item.op === 'setDns');
-    case 'setGeneral':
-      return replaceSingleton((item) => item.op === 'setGeneral');
-    case 'setModule':
-      return replaceSingleton((item) => item.op === 'setModule' && item.moduleId === op.moduleId);
-    case 'setPatch':
-      return replaceSingleton((item) => item.op === 'setPatch' && item.client === op.client);
-    case 'setCardEnabled':
-      return replaceSingleton((item) => item.op === 'setCardEnabled' && item.cardId === op.cardId);
-    default:
-      next.push(op);
-      return next;
-  }
-}
+export { appendOverlayOp } from '../../lib/overlay-ops';
 
 export function resolveDraftBody(baseBody: TemplateBody, overlay: TemplateOverlay): TemplateBody {
   return applyOverlay(baseBody, overlay).resolved;
 }
 
-export type ModuleToggleCheck = {
-  allowed: boolean;
-  reason?: string;
-  conflictWith?: string;
-};
-
-/**
- * Checks whether toggling `moduleId` to `nextEnabled` would create a module
- * conflict (design §10.12) using the pure domain validator.
- */
-export function checkModuleToggleConflict(
-  currentModules: readonly TemplateModuleBinding[],
-  moduleId: string,
-  nextEnabled: boolean,
-): ModuleToggleCheck {
-  if (!nextEnabled) return { allowed: true };
-  const exists = currentModules.some((m) => m.id === moduleId);
-  const candidate: TemplateModuleBinding[] = exists
-    ? currentModules.map((m) => (m.id === moduleId ? { ...m, enabled: true } : m))
-    : [...currentModules, { id: moduleId, enabled: true }];
-
-  const result = validateModuleCombinationMetadata(candidate);
-  if (result.ok) return { allowed: true };
-  const firstConflict = result.conflicts[0];
-  if (firstConflict) {
-    return {
-      allowed: false,
-      reason: firstConflict.reason,
-      conflictWith: firstConflict.moduleA === moduleId ? firstConflict.moduleB : firstConflict.moduleA,
-    };
-  }
-  return {
-    allowed: false,
-    reason: result.errors[0]?.message ?? 'Module combination is invalid.',
-  };
-}
+export { checkModuleToggleConflict, type ModuleToggleCheck } from '../../lib/module-checks';
 
 export type VersionDiffLine = {
   kind: 'same' | 'added' | 'removed';

@@ -1,7 +1,9 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { requireAuthBeforeLoad } from '../lib/auth-guard';
-import { publicationDetailQueryOptions } from '../lib/query';
 
+// The publications route only forwards to its template. Loading the query option
+// helpers here (instead of a static import) keeps the shared query module and the
+// API RPC client out of the first-screen bundle; this redirect never renders.
 export const Route = createFileRoute('/publications')({
   beforeLoad: async ({ context, location, search }) => {
     await requireAuthBeforeLoad(context.queryClient, location.href);
@@ -11,6 +13,7 @@ export const Route = createFileRoute('/publications')({
 
     if (pubId) {
       try {
+        const { publicationDetailQueryOptions } = await import('../lib/query');
         const detail = await context.queryClient.ensureQueryData(publicationDetailQueryOptions(pubId));
         if (detail.publication?.templateId) {
           throw redirect({

@@ -66,11 +66,19 @@ export const quickCreateRulesetInputSchema = z.object({
 });
 export type QuickCreateRulesetInput = z.output<typeof quickCreateRulesetInputSchema>;
 
+/** Upper bound for the cached preview node names. */
+export const MAX_PREVIEW_SAMPLE_NAMES = 30;
+
 export const quickCreatePreviewSummarySchema = z.object({
   nodeCount: z.number().int().nonnegative(),
   regions: z.record(z.string(), z.number().int().nonnegative()).default({}),
   status: z.enum(['ok', 'error']).optional(),
   checkedAt: z.string().optional(),
+  /**
+   * A small sample of non-info node names from the last successful check. Kept so the
+   * node-pool editor can preview matches without contacting the airport again.
+   */
+  sampleNames: z.array(z.string().trim().min(1).max(120)).max(MAX_PREVIEW_SAMPLE_NAMES).optional(),
 });
 export type QuickCreatePreviewSummary = z.output<typeof quickCreatePreviewSummarySchema>;
 

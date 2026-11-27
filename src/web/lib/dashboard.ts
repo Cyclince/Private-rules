@@ -5,7 +5,6 @@ type DashboardOutput = {
   clients: readonly string[];
   bindings: readonly { needsRebind: boolean; lastStatus?: string }[];
 };
-import { publicationsListQueryOptions, templatesListQueryOptions } from './query';
 
 type AirportStatus = 'ok' | 'bound' | 'error' | 'empty';
 
@@ -58,6 +57,9 @@ export function dashboardTemplatesQueryOptions(queryClient: QueryClient) {
     queryKey: ['templates', 'dashboard'] as const,
     staleTime: 0,
     queryFn: async () => {
+      // Loaded inside the query function: the dashboard's own first paint does not
+      // need the shared query-option module, so it must not be part of its chunk.
+      const { publicationsListQueryOptions, templatesListQueryOptions } = await import('./query');
       const [templates, publications] = await Promise.all([
         collectDashboardPages(async (cursor) => {
           const page = await queryClient.fetchQuery(templatesListQueryOptions({ cursor, limit: 100 }));

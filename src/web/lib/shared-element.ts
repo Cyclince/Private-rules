@@ -11,7 +11,15 @@ export const SHARED_ELEMENT_NAMES = {
   rulesTitle: 'shared-rules-title',
   subscriptionIcon: 'shared-subscription-icon',
   subscriptionTitle: 'shared-subscription-title',
+  templatesIcon: 'shared-templates-icon',
+  templatesTitle: 'shared-templates-title',
 } as const;
+
+/** Leading emoji of a template name, or a neutral glyph so list and detail share one icon. */
+export function templateGlyph(name: string): string {
+  const leading = /^(\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*)/u.exec(name.trim());
+  return leading?.[1] ?? '🧩';
+}
 
 /** Inline style helper: only names elements when the API exists (keeps the fallback DOM clean). */
 export function sharedElementStyle(name: string): { viewTransitionName: string } | undefined {

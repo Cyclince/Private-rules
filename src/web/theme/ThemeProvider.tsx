@@ -1,6 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { prefersReducedMotion, startThemeViewTransition } from '../lib/motion';
+import { prefersReducedMotion } from '../lib/reduced-motion';
 import { isTelegramMiniApp } from '../lib/telegram/webapp';
+
+/**
+ * Theme switching can use a View Transition once the helper chunk arrives; until
+ * then (and in browsers without support) the CSS property transition fallback runs.
+ * Loading it lazily keeps `motion.ts` out of the first-screen bundle.
+ */
+type ThemeTransitionStarter = (update: () => void) => boolean;
+let startThemeViewTransition: ThemeTransitionStarter | null = null;
+if (typeof window !== 'undefined') {
+  void import('../lib/motion')
+    .then((motion) => {
+      startThemeViewTransition = motion.startThemeViewTransition;
+    })
+    .catch(() => undefined);
+}
 
 export type Theme = 'dark' | 'light';
 export type ThemePreference = 'system' | 'light' | 'dark';
@@ -119,6 +134,7 @@ export function ThemeProvider({ children, initialTheme }: { children: ReactNode;
     if (
       animate &&
       !prefersReducedMotion() &&
+      startThemeViewTransition &&
       startThemeViewTransition(() => {
         document.documentElement.classList.remove('theme-transition');
         applyThemeToDocument(theme, false);

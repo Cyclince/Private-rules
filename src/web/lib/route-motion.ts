@@ -1,18 +1,37 @@
 import { useRouter } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import {
-  readHistoryIndex,
-  resolveNavigationMotion,
-  type NavigationLocation,
-  type NavigationMotion,
-} from './navigation-motion';
+
+type NavigationMotion = 'fade' | 'forward' | 'back';
 
 type RouterLocationLike = {
   pathname: string;
   state?: { __TSR_index?: unknown } | null;
 };
 
-function toNavigationLocation(location: RouterLocationLike | undefined | null): NavigationLocation | null {
+/**
+ * Direction rules are pure data + path matching, only needed once the user
+ * navigates for the first time. Loading them beside the entry chunk keeps the
+ * first-screen bundle small; until they arrive a page switch fades through.
+ */
+type MotionResolver = (
+  previous: { pathname: string; historyIndex: number | null },
+  next: { pathname: string; historyIndex: number | null },
+) => NavigationMotion;
+let resolveNavigationMotion: MotionResolver | null = null;
+if (typeof window !== 'undefined') {
+  void import('./navigation-motion')
+    .then((module) => {
+      resolveNavigationMotion = module.resolveNavigationMotion as MotionResolver;
+    })
+    .catch(() => undefined);
+}
+
+function readHistoryIndex(state: RouterLocationLike['state']): number | null {
+  const raw = state?.__TSR_index;
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+}
+
+function toNavigationLocation(location: RouterLocationLike | undefined | null) {
   if (!location) return null;
   return { pathname: location.pathname, historyIndex: readHistoryIndex(location.state) };
 }
@@ -37,7 +56,7 @@ export function useRouteMotion(): NavigationMotion {
       const previous = toNavigationLocation(fromLocation);
       const next = toNavigationLocation(toLocation);
       if (!next) return;
-      const kind = resolveNavigationMotion(previous, next);
+      const kind = previous && resolveNavigationMotion ? resolveNavigationMotion(previous, next) : 'fade';
       setMotion(kind);
       if (typeof document === 'undefined') return;
       document.documentElement.dataset.motionNav = kind;

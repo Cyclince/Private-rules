@@ -16,9 +16,8 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import type { TemplateRecord } from '../../shared/schemas/template';
 import type { EditorCenterTab } from '../components/templates/TemplateCanvas';
 import type { EditorMobileStep, EditorRightPanelTab } from '../components/templates/TemplateAdvancedEditor';
-import { TemplateSimpleNodesTab } from '../components/templates/TemplateSimpleNodesTab';
-import { TemplateSimpleOutputTab } from '../components/templates/TemplateSimpleOutputTab';
-import { TemplateSimpleRoutingTab } from '../components/templates/TemplateSimpleRoutingTab';
+import { TemplateDetailTabs } from '../components/templates/detail/TemplateDetailTabs';
+import { TemplateTierSwitch } from '../components/templates/TemplateTierSwitch';
 import { ActionMenu } from '../components/ui/action-menu';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
@@ -33,7 +32,23 @@ import {
   invalidateTemplates,
   templateSimpleQueryOptions,
 } from '../lib/query';
+import { sharedElementStyle, SHARED_ELEMENT_NAMES, templateGlyph } from '../lib/shared-element';
 import { useToast } from '../lib/toast';
+
+// The four plain-language tabs are separate chunks: the route itself only needs
+// the header, tier switch and tab bar, so opening the page fetches one tab.
+const TemplateSimpleRoutingTab = lazy(() =>
+  import('../components/templates/TemplateSimpleRoutingTab').then((m) => ({ default: m.TemplateSimpleRoutingTab })),
+);
+const TemplateSimpleNodesTab = lazy(() =>
+  import('../components/templates/TemplateSimpleNodesTab').then((m) => ({ default: m.TemplateSimpleNodesTab })),
+);
+const TemplateModulesTab = lazy(() =>
+  import('../components/templates/TemplateModulesTab').then((m) => ({ default: m.TemplateModulesTab })),
+);
+const TemplateSimpleOutputTab = lazy(() =>
+  import('../components/templates/TemplateSimpleOutputTab').then((m) => ({ default: m.TemplateSimpleOutputTab })),
+);
 
 const TemplateAdvancedEditor = lazy(() =>
   import('../components/templates/TemplateAdvancedEditor').then((m) => ({ default: m.TemplateAdvancedEditor })),
@@ -55,7 +70,12 @@ const DeleteConfirmDialog = lazy(() =>
 
 const ADVANCED_MODE_STORAGE_KEY = 'private-rules:template-advanced-mode';
 
-type DetailTab = 'routing' | 'nodes' | 'output';
+const DETAIL_TAB_IDS = ['routing', 'nodes', 'modules', 'output'] as const;
+type DetailTab = (typeof DETAIL_TAB_IDS)[number];
+
+function isDetailTab(value: string): value is DetailTab {
+  return (DETAIL_TAB_IDS as readonly string[]).includes(value);
+}
 
 type TemplateDetailSearch = {
   tab?: DetailTab;
@@ -64,7 +84,6 @@ type TemplateDetailSearch = {
   panel?: EditorRightPanelTab;
 };
 
-const VALID_DETAIL_TABS = new Set<string>(['routing', 'nodes', 'output']);
 const VALID_STEPS = new Set<string>(['catalog', 'editor', 'inspect']);
 const VALID_EDITOR_TABS = new Set<string>(['rules', 'groups', 'modules', 'patches']);
 const VALID_PANELS = new Set<string>(['lint', 'probe', 'preview', 'versions']);
@@ -86,8 +105,8 @@ export const Route = createFileRoute('/templates/$id')({
     let tab: DetailTab | undefined;
     let editorTab: EditorCenterTab | undefined;
 
-    if (rawTab && VALID_DETAIL_TABS.has(rawTab)) {
-      tab = rawTab as DetailTab;
+    if (rawTab && isDetailTab(rawTab)) {
+      tab = rawTab;
     } else if (rawTab && VALID_EDITOR_TABS.has(rawTab)) {
       // Preserve beta.1 deep links like ?tab=modules or ?tab=patches inside routing advanced editor
       tab = 'routing';
@@ -303,6 +322,7 @@ function TemplateDetailPage() {
   const tabs: ReadonlyArray<{ id: DetailTab; label: string }> = [
     { id: 'routing', label: t('templateDetail.tabRouting') },
     { id: 'nodes', label: t('templateDetail.tabNodes') },
+    { id: 'modules', label: t('templateDetail.tabModules') },
     { id: 'output', label: t('templateDetail.tabOutput') },
   ];
 
@@ -354,7 +374,18 @@ function TemplateDetailPage() {
             </form>
           ) : (
             <div className="flex min-w-0 items-center gap-1.5">
-              <h1 data-testid="template-detail-title" className="truncate text-base font-semibold text-text sm:text-lg">
+              <span
+                aria-hidden="true"
+                style={sharedElementStyle(SHARED_ELEMENT_NAMES.templatesIcon)}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-surface-muted text-base"
+              >
+                {templateGlyph(view.template.name)}
+              </span>
+              <h1
+                data-testid="template-detail-title"
+                style={sharedElementStyle(SHARED_ELEMENT_NAMES.templatesTitle)}
+                className="truncate text-base font-semibold text-text sm:text-lg"
+              >
                 {view.template.name}
               </h1>
               {!inTelegram ? (
@@ -376,7 +407,9 @@ function TemplateDetailPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <TemplateTierSwitch view={view} readOnly={inTelegram} />
+
           <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-text">
             <span>{t('templateDetail.advancedToggle')}</span>
             <Switch
@@ -421,78 +454,84 @@ function TemplateDetailPage() {
         </div>
       ) : null}
 
-      {/* 3-Tab Navigation */}
-      <nav
-        aria-label={t('templateDetail.tabsAriaLabel')}
-        data-testid="template-detail-tabs"
-        className="grid grid-cols-3 gap-1 rounded-[var(--radius-md)] border border-border bg-surface p-1"
-      >
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              data-testid={`template-tab-${tab.id}`}
-              aria-current={isActive ? 'page' : undefined}
-              onClick={() => updateSearch({ tab: tab.id })}
-              className={`cursor-pointer rounded-[var(--radius-sm)] px-3 py-2 text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-text-muted hover:bg-surface-muted hover:text-text'
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </nav>
+      {/* 4-tab navigation with the M4a sliding indicator */}
+      <TemplateDetailTabs
+        tabs={tabs.map((tab) => ({ id: tab.id, label: tab.label, testId: `template-tab-${tab.id}` }))}
+        activeTab={activeTab}
+        ariaLabel={t('templateDetail.tabsAriaLabel')}
+        onSelect={(tab) => updateSearch({ tab })}
+      />
 
-      {/* Active Tab Content */}
-      {activeTab === 'routing' ? (
-        advancedMode ? (
-          <Suspense
-            fallback={
-              <div className="flex flex-col gap-3">
-                <div className="h-14 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />
-                <div className="h-96 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />
-              </div>
-            }
-          >
-            <TemplateAdvancedEditor
-              templateId={id}
-              activeStep={activeStep}
-              activeTab={activeEditorTab}
-              activePanel={activePanel}
-              onUpdateSearch={(patch) => updateSearch(patch)}
-            />
-          </Suspense>
-        ) : (
-          <TemplateSimpleRoutingTab view={view} readOnly={inTelegram} />
-        )
-      ) : activeTab === 'nodes' ? (
-        advancedMode ? (
-          <Suspense fallback={<div className="h-72 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />}>
-            <TemplateAdvancedNodesPanel
-              templateId={id}
-              readOnly={inTelegram}
-              onGoToOutput={() => updateSearch({ tab: 'output' })}
-            />
-          </Suspense>
-        ) : (
-          <TemplateSimpleNodesTab
-            view={view}
-            readOnly={inTelegram}
-            onGoToOutput={() => updateSearch({ tab: 'output' })}
-          />
-        )
-      ) : advancedMode ? (
-        <Suspense fallback={<div className="h-72 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />}>
-          <TemplateAdvancedOutputPanel templateId={id} readOnly={inTelegram} />
+      {/* Active tab content: fades in through `.motion-tab-panel` on every switch */}
+      <div key={activeTab} className="motion-tab-panel flex flex-col gap-4">
+        <Suspense
+          fallback={
+            <div className="flex flex-col gap-3" data-testid="template-tab-loading">
+              <div className="h-24 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />
+              <div className="h-64 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />
+            </div>
+          }
+        >
+          {activeTab === 'routing' ? (
+            advancedMode ? (
+              <Suspense
+                fallback={
+                  <div className="flex flex-col gap-3">
+                    <div className="h-14 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />
+                    <div className="h-96 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />
+                  </div>
+                }
+              >
+                <TemplateAdvancedEditor
+                  templateId={id}
+                  activeStep={activeStep}
+                  activeTab={activeEditorTab}
+                  activePanel={activePanel}
+                  onUpdateSearch={(patch) => updateSearch(patch)}
+                />
+              </Suspense>
+            ) : (
+              <TemplateSimpleRoutingTab view={view} readOnly={inTelegram} />
+            )
+          ) : activeTab === 'nodes' ? (
+            advancedMode ? (
+              <Suspense fallback={<div className="h-72 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />}>
+                <TemplateAdvancedNodesPanel
+                  templateId={id}
+                  readOnly={inTelegram}
+                  onGoToOutput={() => updateSearch({ tab: 'output' })}
+                />
+              </Suspense>
+            ) : (
+              <TemplateSimpleNodesTab
+                view={view}
+                readOnly={inTelegram}
+                onGoToOutput={() => updateSearch({ tab: 'output' })}
+              />
+            )
+          ) : activeTab === 'modules' ? (
+            advancedMode ? (
+              <Suspense fallback={<div className="h-72 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />}>
+                <TemplateAdvancedEditor
+                  templateId={id}
+                  activeStep={activeStep}
+                  activeTab="modules"
+                  activePanel={activePanel}
+                  onUpdateSearch={(patch) => updateSearch(patch)}
+                />
+              </Suspense>
+            ) : (
+              <TemplateModulesTab view={view} readOnly={inTelegram} />
+            )
+          ) : advancedMode ? (
+            <Suspense fallback={<div className="h-72 animate-pulse rounded-[var(--radius-lg)] bg-surface-muted" />}>
+              <TemplateAdvancedOutputPanel templateId={id} readOnly={inTelegram} />
+            </Suspense>
+          ) : (
+            <TemplateSimpleOutputTab view={view} readOnly={inTelegram} />
+          )}
         </Suspense>
-      ) : (
-        <TemplateSimpleOutputTab view={view} readOnly={inTelegram} />
-      )}
+      </div>
 
       {/* Lazy Dialogs from ⋯ Menu */}
       {versionsOpen ? (

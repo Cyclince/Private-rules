@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link, redirect } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { AlertTriangle, CheckCircle2, RefreshCw, Sparkles } from 'lucide-react';
 import { dashboardTemplatesQueryOptions } from '../lib/dashboard';
 import { useState } from 'react';
@@ -12,62 +12,35 @@ import { healthQueryOptions, invalidateRulesets, rulesetsListQueryOptions } from
 import { useToast } from '../lib/toast';
 
 type DashboardRange = '24h' | '7d' | '30d';
-type LegacyView = 'dashboard' | 'rules' | 'sources' | 'links' | 'settings';
-
 type DashboardSearch = {
   range?: DashboardRange;
-  view?: LegacyView;
+  /** Legacy 1.0.x view switch; the redirect table is loaded on demand. */
+  view?: string;
   category?: string;
   source?: string;
 };
 
 const VALID_RANGES = new Set<DashboardRange>(['24h', '7d', '30d']);
-const VALID_LEGACY_VIEWS = new Set<LegacyView>(['dashboard', 'rules', 'sources', 'links', 'settings']);
 
 export const Route = createFileRoute('/')({
   validateSearch: (search: Record<string, unknown>): DashboardSearch => {
     const raw = typeof search.range === 'string' ? (search.range as DashboardRange) : undefined;
-    const rawView = typeof search.view === 'string' ? (search.view as LegacyView) : undefined;
+    const rawView = typeof search.view === 'string' ? search.view : undefined;
     const category = typeof search.category === 'string' && search.category ? search.category : undefined;
     const source = typeof search.source === 'string' && search.source ? search.source : undefined;
     return {
       ...(raw && VALID_RANGES.has(raw) ? { range: raw } : {}),
-      ...(rawView && VALID_LEGACY_VIEWS.has(rawView) ? { view: rawView } : {}),
+      ...(rawView ? { view: rawView } : {}),
       ...(category ? { category } : {}),
       ...(source ? { source } : {}),
     };
   },
   beforeLoad: async ({ context, location, search }) => {
     await Promise.all([requireAuthBeforeLoad(context.queryClient, location.href), loadPageTranslations()]);
-    if (search.view === 'rules' || search.view === 'sources') {
-      if (search.category) {
-        throw redirect({
-          to: '/rules/$id',
-          params: { id: search.category },
-          replace: true,
-        });
-      }
-      throw redirect({
-        to: '/rules',
-        search: {},
-        replace: true,
-      });
-    }
-    if (search.view === 'links') {
-      if (search.category) {
-        throw redirect({
-          to: '/subscriptions/$id',
-          params: { id: search.category },
-          replace: true,
-        });
-      }
-      throw redirect({
-        to: '/subscriptions',
-        replace: true,
-      });
-    }
-    if (search.view === 'settings') {
-      throw redirect({ to: '/settings', search: {}, replace: true });
+    if (search.view) {
+      const { legacyDashboardRedirect } = await import('../lib/legacy-redirects');
+      const target = legacyDashboardRedirect(search.view, search.category);
+      if (target) throw target;
     }
   },
   component: DashboardPage,

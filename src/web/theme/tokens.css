@@ -715,7 +715,9 @@ html[data-motion-nav='forward']::view-transition-new(root) {
 html.vt-ready::view-transition-group(shared-rules-icon),
 html.vt-ready::view-transition-group(shared-rules-title),
 html.vt-ready::view-transition-group(shared-subscription-icon),
-html.vt-ready::view-transition-group(shared-subscription-title) {
+html.vt-ready::view-transition-group(shared-subscription-title),
+html.vt-ready::view-transition-group(shared-templates-icon),
+html.vt-ready::view-transition-group(shared-templates-title) {
   animation-duration: var(--motion-fast);
   animation-timing-function: var(--ease-out);
 }
@@ -723,7 +725,9 @@ html.vt-ready::view-transition-group(shared-subscription-title) {
 html.vt-ready::view-transition-old(shared-rules-icon),
 html.vt-ready::view-transition-old(shared-rules-title),
 html.vt-ready::view-transition-old(shared-subscription-icon),
-html.vt-ready::view-transition-old(shared-subscription-title) {
+html.vt-ready::view-transition-old(shared-subscription-title),
+html.vt-ready::view-transition-old(shared-templates-icon),
+html.vt-ready::view-transition-old(shared-templates-title) {
   animation-duration: var(--motion-fast);
 }
 
