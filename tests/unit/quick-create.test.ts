@@ -409,6 +409,45 @@ describe('M2a quick-create pure domain logic', () => {
       expect(body.modules.find((m) => m.id === 'tunnel-direct')?.enabled).toBe(true);
     });
 
+    it('applies explicit nodePoolOptions (selectedRegions, includeProviderPools, traitPoolIds) and pro module overrides', () => {
+      const slots = buildNormalizedQuickCreateSlots([{ name: '主力机场' }, { name: '备用机场' }]);
+      const { body } = buildQuickCreateTemplateBody({
+        standardBaseBody,
+        builtinCards: BUILTIN_CARDS,
+        complexity: 'pro',
+        scenarios: getDefaultWizardScenarios(),
+        rulesets: [],
+        groupMode: 'region',
+        combineMode: 'perProvider',
+        slots,
+        hasSubscription: true,
+        detectedRegions: ['HK', 'JP', 'US'],
+        nodePoolOptions: {
+          selectedRegions: ['HK', 'US'],
+          includeProviderPools: false,
+          traitPoolIds: ['pool-trait-low-rate'],
+        },
+        modules: [
+          { id: 'dns-leak-guard', enabled: false },
+          { id: 'block-encrypted-dns', enabled: true },
+          { id: 'game-download-direct', enabled: false },
+        ],
+      });
+
+      const poolIds = (body.pools ?? []).map((p) => p.id);
+      expect(poolIds).toContain('region-hk');
+      expect(poolIds).toContain('region-us');
+      expect(poolIds).not.toContain('region-jp');
+      expect(poolIds).toContain('pool-trait-low-rate');
+      expect(poolIds).not.toContain('pool-trait-gaming');
+      expect(poolIds.some((id) => id.startsWith('pool-provider-'))).toBe(false);
+
+      expect(validateModuleCombination(body.modules).ok).toBe(true);
+      expect(body.modules.find((m) => m.id === 'dns-leak-guard')?.enabled).toBe(false);
+      expect(body.modules.find((m) => m.id === 'block-encrypted-dns')?.enabled).toBe(true);
+      expect(body.modules.find((m) => m.id === 'game-download-direct')?.enabled).toBe(false);
+    });
+
     it.each(TEMPLATE_CLIENT_IDS)('compiles and lints quick-create simple body cleanly for %s', (client) => {
       const { body, generatedCards } = buildQuickCreateTemplateBody({
         standardBaseBody,

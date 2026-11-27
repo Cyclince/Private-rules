@@ -142,15 +142,30 @@ test.describe('M3.5 reduced-motion accessibility across key routes and overlays'
       await expectNearZeroMotion(page.locator('[data-testid="app-main"] > .motion-page'));
       await expectNoHoverDisplacement(page.getByTestId(`subscription-card-${ruleset.id}`));
 
-      // 5. Templates wizard client buttons, presets & node selection mode cards
+      // 5. Templates wizard step transitions, tier cards, presets & node pool mode cards
       await page.goto('/admin/templates/new');
       await expect(page.getByTestId('wizard-step-1')).toBeVisible();
-      const clientCard = page.getByTestId('wizard-client-clash-verge-rev');
+      await expectNearZeroMotion(page.getByTestId('wizard-step-panel'));
+      await page.getByTestId('app-picker-platform-mac').click();
+      const clientCard = page.getByTestId('app-option-clash-verge-rev');
       await expectNoHoverDisplacement(clientCard);
-      await clientCard.click();
+      if ((await clientCard.getAttribute('aria-selected')) !== 'true') {
+        await clientCard.click();
+      }
       await page.getByTestId('wizard-next-btn').click();
       await expect(page.getByTestId('wizard-step-2')).toBeVisible();
+      await expectNearZeroMotion(page.getByTestId('wizard-step-panel'));
+      await page.getByTestId('wizard-next-btn').click();
+      await expect(page.getByTestId('wizard-step-3')).toBeVisible();
+      await expectNoHoverDisplacement(page.getByTestId('wizard-tier-advanced'));
+      await page.getByTestId('wizard-tier-advanced').click();
+      await page.getByTestId('wizard-next-btn').click();
+      await expect(page.getByTestId('wizard-step-4')).toBeVisible();
       await expectNoHoverDisplacement(page.getByTestId('wizard-preset-recommended'));
+      await page.getByTestId('wizard-next-btn').click();
+      await expect(page.getByTestId('wizard-step-5')).toBeVisible();
+      await page.getByTestId('wizard-next-btn').click();
+      await expect(page.getByTestId('wizard-step-6')).toBeVisible();
       await expectNoHoverDisplacement(page.getByTestId('wizard-group-mode-auto'));
 
       // 6. M4a: staggered list rows, detail header shared elements and page motion stay instant

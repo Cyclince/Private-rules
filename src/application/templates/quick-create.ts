@@ -13,6 +13,7 @@ import {
   buildQuickCreateTemplateBody,
   normalizeSubscriptionName,
   serializeTemplateBodyForStorage,
+  validateModuleCombination,
   type QuickCreateResolvedRuleset,
 } from '../../domain/templates';
 import { encryptNodeSecret, maskSubscriptionUrl } from '../../infrastructure/crypto/node-secrets';
@@ -408,7 +409,19 @@ export async function quickCreateTemplate(
     clientLabels: input.clientLabels,
     previewSummary: effectivePreviewSummary,
     subscriptionPreviews: Object.keys(subscriptionPreviews).length > 0 ? subscriptionPreviews : undefined,
+    nodePoolOptions: input.nodePoolOptions,
+    modules: input.modules,
   });
+
+  if (complexity === 'pro' && body.modules && body.modules.length > 0) {
+    const moduleCheck = validateModuleCombination(body.modules);
+    if (!moduleCheck.ok) {
+      throw new AppError('VALIDATION_FAILED', moduleCheck.errors[0]?.message ?? '增强模块配置存在冲突。', {
+        errors: moduleCheck.errors,
+        conflicts: moduleCheck.conflicts,
+      });
+    }
+  }
 
   const resolvedBody = applyOverlay(body, []).resolved;
 

@@ -2,6 +2,7 @@ import type { TemplateClientId } from '../../shared/clients';
 import type { AppCard, PolicyRef } from '../../shared/schemas/card';
 import type {
   NodeCombineMode,
+  QuickCreateNodePoolOptions,
   QuickCreatePreviewSummary,
   QuickCreateScenarioInput,
   WizardGroupMode,
@@ -15,6 +16,7 @@ import type {
   RegionGroup,
   TemplateBody,
   TemplateCardRef,
+  TemplateModuleBinding,
 } from '../../shared/schemas/template';
 import {
   ALL_AUTO_POOL,
@@ -641,6 +643,8 @@ export type BuildQuickCreateTemplateBodyInput = {
   clientLabels?: Partial<Record<TemplateClientId, string>>;
   previewSummary?: QuickCreatePreviewSummary;
   subscriptionPreviews?: Record<string, QuickCreatePreviewSummary>;
+  nodePoolOptions?: QuickCreateNodePoolOptions;
+  modules?: readonly TemplateModuleBinding[];
 };
 
 export type BuildQuickCreateTemplateBodyResult = {
@@ -682,6 +686,8 @@ function buildProPools(options: {
   slots: readonly NodeSlot[];
   groupMode: WizardGroupMode;
   combineMode: NodeCombineMode;
+  includeProviderPools?: boolean;
+  traitPoolIds?: readonly string[];
 }): {
   pools: NodePool[];
   traitRefs: PolicyRef[];
@@ -691,8 +697,14 @@ function buildProPools(options: {
   const regionPools = options.regionGroups.map((rg) =>
     regionGroupToNodePool(rg, { defaultHidden: defaultRegionHidden }),
   );
-  const providerPools = buildProviderPools(options.slots, { hidden: options.combineMode !== 'perProvider' });
-  const traitPools = TRAIT_POOLS.map((pool) => structuredClone(pool));
+  const providerPools =
+    options.includeProviderPools === false
+      ? []
+      : buildProviderPools(options.slots, { hidden: options.combineMode !== 'perProvider' });
+  const allowedTraits = options.traitPoolIds ? new Set(options.traitPoolIds) : null;
+  const traitPools = (allowedTraits ? TRAIT_POOLS.filter((pool) => allowedTraits.has(pool.id)) : TRAIT_POOLS).map(
+    (pool) => structuredClone(pool),
+  );
   const allPool = structuredClone(ALL_AUTO_POOL);
 
   const presentIds = new Set<string>([
@@ -857,25 +869,37 @@ export function buildQuickCreateTemplateBody(
     if (code) requiredRegionCodes.push(code);
   }
 
+  const explicitSelectedRegions = input.nodePoolOptions?.selectedRegions;
   const regionGroups =
-    complexity === 'pro'
+    explicitSelectedRegions !== undefined
       ? resolveWizardRegionGroups({
-          groupMode: 'region',
-          hasSubscription: input.hasSubscription,
-          detectedRegions:
-            input.hasSubscription && (input.detectedRegions?.length ?? 0) > 0
-              ? input.detectedRegions
-              : BUILTIN_REGION_POOL_CODES,
+          groupMode:
+            explicitSelectedRegions.length > 0 && (complexity === 'pro' || input.groupMode === 'region')
+              ? 'region'
+              : 'auto',
+          hasSubscription: explicitSelectedRegions.length > 0,
+          detectedRegions: explicitSelectedRegions,
           requiredRegionCodes,
           slotId: singleMainSlot ? 'slot-main' : null,
         })
-      : resolveWizardRegionGroups({
-          groupMode: input.groupMode,
-          hasSubscription: input.hasSubscription,
-          detectedRegions: input.detectedRegions,
-          requiredRegionCodes,
-          slotId: singleMainSlot ? 'slot-main' : null,
-        });
+      : complexity === 'pro'
+        ? resolveWizardRegionGroups({
+            groupMode: 'region',
+            hasSubscription: input.hasSubscription,
+            detectedRegions:
+              input.hasSubscription && (input.detectedRegions?.length ?? 0) > 0
+                ? input.detectedRegions
+                : BUILTIN_REGION_POOL_CODES,
+            requiredRegionCodes,
+            slotId: singleMainSlot ? 'slot-main' : null,
+          })
+        : resolveWizardRegionGroups({
+            groupMode: input.groupMode,
+            hasSubscription: input.hasSubscription,
+            detectedRegions: input.detectedRegions,
+            requiredRegionCodes,
+            slotId: singleMainSlot ? 'slot-main' : null,
+          });
   const availableRegionGroupIds = regionGroups.map((group) => group.id);
   const availableRegionSet = new Set(availableRegionGroupIds);
   const regionRefs: PolicyRef[] = availableRegionGroupIds.map((regionGroupId) => ({
@@ -890,6 +914,8 @@ export function buildQuickCreateTemplateBody(
           slots: effectiveSlots,
           groupMode: input.groupMode,
           combineMode,
+          includeProviderPools: input.nodePoolOptions?.includeProviderPools,
+          traitPoolIds: input.nodePoolOptions?.traitPoolIds,
         })
       : null;
 
@@ -1064,6 +1090,15 @@ export function buildQuickCreateTemplateBody(
       ? { subscriptionPreviews: structuredClone(input.subscriptionPreviews) }
       : {}),
   };
+  const defaultModules = buildDefaultModulesForComplexity(complexity);
+  let resolvedModules = defaultModules;
+  if (complexity === 'pro' && input.modules && input.modules.length > 0) {
+    const overrideMap = new Map(input.modules.map((item) => [item.id, item]));
+    resolvedModules = defaultModules.map((mod) => {
+      const override = overrideMap.get(mod.id);
+      return override ? { ...mod, enabled: override.enabled } : mod;
+    });
+  }
   const body: TemplateBody = {
     ...baseBody,
     slots: effectiveSlots,
@@ -1075,7 +1110,7 @@ export function buildQuickCreateTemplateBody(
     combineMode,
     final: { kind: 'card', cardId: 'final-fallback' },
     output: 'full',
-    modules: buildDefaultModulesForComplexity(complexity),
+    modules: resolvedModules,
     wizardMeta,
   };
 

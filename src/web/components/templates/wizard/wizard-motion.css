@@ -1,0 +1,38 @@
+/* Direction-aware step slide transitions using unified M3.5 motion tokens */
+@keyframes wizard-step-in-forward {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes wizard-step-in-backward {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.wizard-step-panel[data-direction='forward'] {
+  animation: wizard-step-in-forward var(--motion-base) var(--ease-out) both;
+}
+
+.wizard-step-panel[data-direction='backward'] {
+  animation: wizard-step-in-backward var(--motion-base) var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wizard-step-panel[data-direction='forward'],
+  .wizard-step-panel[data-direction='backward'] {
+    animation-duration: 0.01ms !important;
+    transform: none !important;
+  }
+}

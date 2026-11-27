@@ -107,6 +107,28 @@ export const templateWizardMetaSchema = z.object({
 });
 export type TemplateWizardMeta = z.output<typeof templateWizardMetaSchema>;
 
+export const quickCreateNodePoolOptionsSchema = z.object({
+  selectedRegions: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(2)
+        .max(8)
+        .transform((code) => code.toUpperCase()),
+    )
+    .max(30)
+    .optional(),
+  includeProviderPools: z.boolean().optional(),
+  traitPoolIds: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
+});
+export type QuickCreateNodePoolOptions = z.output<typeof quickCreateNodePoolOptionsSchema>;
+
+export const quickCreateModuleBindingSchema = z.object({
+  id: z.string().trim().min(1).max(60),
+  enabled: z.boolean(),
+});
+
 /** Request payload for B1 `POST /api/templates/quick-create`. */
 export const quickCreateTemplateSchema = z.object({
   name: z.string().trim().min(1, '请输入模板名称').max(120).default('我的配置'),
@@ -114,8 +136,8 @@ export const quickCreateTemplateSchema = z.object({
   clients: z.array(templateClientIdSchema).min(1, '请至少选择一个客户端'),
   clientDisplayNames: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
   clientLabels: z.partialRecord(templateClientIdSchema, z.string().trim().min(1).max(80)).optional(),
-  scenarios: z.array(quickCreateScenarioInputSchema).default([]),
-  rulesets: z.array(quickCreateRulesetInputSchema).default([]),
+  scenarios: z.array(quickCreateScenarioInputSchema).optional().default([]),
+  rulesets: z.array(quickCreateRulesetInputSchema).optional().default([]),
   groupMode: wizardGroupModeSchema.default('auto'),
   combineMode: nodeCombineModeSchema.default('merge'),
   subscriptions: z
@@ -140,8 +162,11 @@ export const quickCreateTemplateSchema = z.object({
     )
     .optional(),
   previewSummary: quickCreatePreviewSummarySchema.optional(),
+  nodePoolOptions: quickCreateNodePoolOptionsSchema.optional(),
+  modules: z.array(quickCreateModuleBindingSchema).max(30).optional(),
 });
 export type QuickCreateTemplateInput = z.output<typeof quickCreateTemplateSchema>;
+export type QuickCreateTemplateRequest = z.input<typeof quickCreateTemplateSchema>;
 
 /** Plain-language error codes returned by B2 `POST /api/templates/preview-subscription`. */
 export const PREVIEW_SUBSCRIPTION_ERROR_CODES = [

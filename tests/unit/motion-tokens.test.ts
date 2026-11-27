@@ -51,17 +51,31 @@ describe('M3.5 unified motion tokens and reduced-motion rules', () => {
       /\.motion-card:disabled,\s*\.motion-card\[aria-disabled='true'\]\s*\{\s*transform:\s*none;\s*\}/,
     );
 
-    const [subs, templates, wizard, nodesTab, overview] = await Promise.all([
+    const [subs, templates, wizard, wizardSteps, wizardMotionCss, nodesTab, overview] = await Promise.all([
       readFile(resolve(process.cwd(), 'src/web/routes/subscriptions.index.tsx'), 'utf8'),
       readFile(resolve(process.cwd(), 'src/web/routes/templates.index.tsx'), 'utf8'),
       readFile(resolve(process.cwd(), 'src/web/components/templates/QuickCreateWizard.tsx'), 'utf8'),
+      Promise.all(
+        [
+          'WizardStepSubscriptions.tsx',
+          'WizardStepComplexity.tsx',
+          'WizardStepPolicyGroups.tsx',
+          'WizardStepNodePools.tsx',
+          'WizardStepModules.tsx',
+        ].map((file) => readFile(resolve(process.cwd(), 'src/web/components/templates/wizard', file), 'utf8')),
+      ).then((contents) => contents.join('\n')),
+      readFile(resolve(process.cwd(), 'src/web/components/templates/wizard/wizard-motion.css'), 'utf8'),
       readFile(resolve(process.cwd(), 'src/web/components/templates/TemplateSimpleNodesTab.tsx'), 'utf8'),
       readFile(resolve(process.cwd(), 'src/web/routes/index.tsx'), 'utf8'),
     ]);
 
     expect(subs).toContain('motion-card');
     expect(templates).toMatch(/<Card[^>]*\binteractive\b/);
-    expect((wizard.match(/motion-card/g) ?? []).length).toBeGreaterThanOrEqual(4);
+    expect((`${wizard}\n${wizardSteps}`.match(/motion-card/g) ?? []).length).toBeGreaterThanOrEqual(4);
+    expect(wizardMotionCss).toContain('--motion-base');
+    expect(wizardMotionCss).toContain('--ease-out');
+    expect(wizardMotionCss).toContain('prefers-reduced-motion: reduce');
+    expect(wizardMotionCss).not.toMatch(/blur\(/i);
     expect(nodesTab).toContain('motion-card');
     expect(overview).toContain('motion-btn motion-btn-lift');
     expect(overview).toContain('motion-card');
