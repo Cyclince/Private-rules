@@ -1,6 +1,6 @@
 # Private Rules
 
-Private Rules 是一个操作简单、维护方便的私有自托管规则控制台。Docker 镜像内置 Web 控制台、Node.js 服务与 SQLite 数据库支持，使用 Docker Compose 即可运行，无需下载源码或在服务器上编译。
+Private Rules 是一个操作简单、维护方便的私有自托管规则与配置控制台。Docker 镜像内置 Web 控制台、Node.js 服务与 SQLite 数据库支持，使用 Docker Compose 即可运行，无需下载源码或在服务器上编译。
 
 项目源码：[Cyclince/Private_rules](https://github.com/Cyclince/Private_rules)
 
@@ -42,9 +42,9 @@ docker compose pull
 docker compose up -d
 ```
 
-Compose 默认锁定稳定版 `cyclince/private-rules:1.0.7`；`cyclince/private-rules:latest` 同时指向这个版本。两个标签均支持 `linux/amd64` 与 `linux/arm64`。
+Compose 默认锁定稳定版 `cyclince/private-rules:1.0.7`；`cyclince/private-rules:latest` 同时指向这个版本。如需体验 `1.1.0` 公测版（新增 3 步配置模板向导），只需把镜像标签改为 `cyclince/private-rules:1.1.0-beta.2` 或 `:beta`（不影响 `:latest`，其余配置不用动，首次升级会自动生成 `.bak-1.0.x` 备份）。所有标签均支持 `linux/amd64` 与 `linux/arm64`。
 
-详细步骤请查看 [Docker Compose 从零部署](https://github.com/Cyclince/Private_rules/wiki/Docker-Compose-Deployment)。
+详细部署步骤请查看 [Docker Compose 从零部署](https://github.com/Cyclince/Private_rules/wiki/Docker-Compose-Deployment)，从 1.0.x 升级至 1.1.0 请查看 [升级指南](https://github.com/Cyclince/Private_rules/blob/main/docs/upgrade-1.1.0.md)。
 
 ## License
 

@@ -1,6 +1,6 @@
 services:
   private-rules:
-    image: cyclince/private-rules:1.0.7 # 1.1.0 公测可改为 :1.1.0-beta.1（或 :beta）
+    image: cyclince/private-rules:1.0.7 # 1.1.0 公测可改为 :1.1.0-beta.2（或 :beta）
     container_name: private-rules
     restart: unless-stopped
     ports:

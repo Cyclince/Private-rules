@@ -44,7 +44,7 @@ RULE_TOKEN=粘贴上面的随机值
 - `ADMIN_PASSWORD`：登录管理后台使用。
 - `RULE_TOKEN`：生成私密订阅地址，请勿公开。
 
-登录会话密钥和 Telegram Webhook 密钥由后端首次启动时自动生成，并保存在应用数据库中，无需写入 `.env`。
+登录会话密钥（同时用于 1.1.0 配置模板的节点订阅加密）和 Telegram Webhook 密钥由后端首次启动时自动生成，并保存在应用数据库中，无需写入 `.env`。日常备份时建议连同数据卷一起保存。
 
 ## 4. 启动服务
 
@@ -103,6 +103,8 @@ docker compose pull
 docker compose up -d
 docker compose ps
 ```
+
+如需体验 `1.1.0` 公测版（新增配置模板向导），只需把 `docker-compose.yml` 中的 `image` 改为 `cyclince/private-rules:1.1.0-beta.2`（或 `:beta`），其余配置和 `.env` 都不用改，再执行 `docker compose pull && docker compose up -d` 即可。首次升级会自动在数据卷中保存 `private-rules.db.bak-1.0.x` 备份；完整升级与回滚步骤见 [1.0.x → 1.1.0 升级指南](https://github.com/Cyclince/Private_rules/blob/main/docs/upgrade-1.1.0.md)。
 
 升级前建议先导出 JSON 备份。
 
