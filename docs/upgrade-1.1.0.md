@@ -1,10 +1,15 @@
 # Private Rules 1.0.x → 1.1.0 升级指南
 
-本指南适用于从 **1.0.0–1.0.7** 升级至 **1.1.0**（含 `1.1.0-beta.2` 公测版）的 Docker Compose 与 Cloudflare Workers 部署。
+本指南适用于从 **1.0.0–1.0.7** 升级至 **1.1.0**（含 `1.1.0-beta.3` 公测版）的 Docker Compose 与 Cloudflare Workers 部署。
 
 升级后，原有的规则数据、上游来源与订阅链接（`/rules/:file`、`/sub/:token/:file`）全部保持兼容，输出与 1.0.7 逐字节一致（仅 `PROCESS-NAME` 规则有小幅优化，见下文）。`docker-compose.yml` 与 1.0.x 完全一致，Docker 用户只需修改镜像标签就能升级。
 
-> 如果你已经在用 `1.1.0-beta.1`，直接拉取 `1.1.0-beta.2`（或 `:beta`）重建容器，或重新部署 Workers 即可，已有模板与加密节点订阅都会保留。
+> ### 从 `1.1.0-beta.2` 升级到 `1.1.0-beta.3`
+>
+> - **升级方式不变，只改镜像标签**：Docker 用户把 `image` 改为 `cyclince/private-rules:1.1.0-beta.3`（或 `:beta`）后重新拉取启动，Cloudflare Workers 用户重新构建部署即可；已有规则、订阅、模板和加密节点订阅都会保留。
+> - **已有模板会自动迁移为「进阶」档**：未显式指定复杂度的 `beta.1` / `beta.2` 模板在读取与保存时会自动识别为 `进阶` 档，原有地区分组也会自动升级为「节点池」结构。
+> - **配置输出会随默认质量改进而变化**：由于 `beta.3` 优化了 mihomo 的 DNS 策略（`respect-rules`、`nameserver-policy`）、默认流量嗅探、MetaCubeX `.mrs` 二进制规则集、策略组图标与辅助组隐藏等，升级后模板编译输出的内容会与 `beta.2` 有所不同（原有 `1.0.x` 分流规则订阅输出不变）。如服务器或客户端访问 GitHub 不畅，建议在后台「设置」填写 **GitHub 镜像地址**。
+> - **如果还在使用 `1.1.0-beta.1`**：同样可直接拉取 `1.1.0-beta.3`（或 `:beta`）重建容器或重新部署 Workers。
 
 ---
 
@@ -41,7 +46,7 @@ ${DATABASE_PATH}.bak-1.0.x
 现有的 1.0.x `docker-compose.yml` 与 `.env` **其余内容都不用改**，新增的可选环境变量都已有合理默认值。
 
 1. **只修改 `docker-compose.yml` 中的 `image` 这一行**：
-   - 公开测试版：`cyclince/private-rules:1.1.0-beta.2`（或 `cyclince/private-rules:beta`；`:latest` 仍指向 `1.0.7`）
+   - 公开测试版：`cyclince/private-rules:1.1.0-beta.3`（或 `cyclince/private-rules:beta`；`:latest` 仍指向 `1.0.7`）
    - 正式版推出后：`cyclince/private-rules:1.1.0`
 
 2. **拉取镜像并重建容器**（不要使用 `docker compose down -v`，否则会删除数据卷）：
@@ -59,7 +64,7 @@ docker compose logs --tail=100 private-rules
 curl -s http://127.0.0.1:5173/health
 ```
 
-确认 `/health` 返回 `"ok": true`、`"database": "ok"` 且 `version` 为 `1.1.0-beta.2`（或目标版本），日志中可以看到 `.bak-1.0.x` 已生成且没有报错。未手动设置 `SESSION_SECRET` 时，首次启动还会打印一行提示：`已自动生成加密密钥，备份时请连同数据目录一起备份`。
+确认 `/health` 返回 `"ok": true`、`"database": "ok"` 且 `version` 为 `1.1.0-beta.3`（或目标版本），日志中可以看到 `.bak-1.0.x` 已生成且没有报错。未手动设置 `SESSION_SECRET` 时，首次启动还会打印一行提示：`已自动生成加密密钥，备份时请连同数据目录一起备份`。
 
 ---
 
