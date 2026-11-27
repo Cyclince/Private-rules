@@ -110,7 +110,11 @@ describe('1.0.7 security and data-safety fixes', () => {
       const qxText = await (await request('/rules/next-rules-qx.list')).text();
       expect(qxText).toContain('USER-AGENT,CustomBot/*,PROXY');
       expect(qxText).toContain('# skipped (Quantumult X does not support DOMAIN-REGEX): DOMAIN-REGEX,^ad\\..*\\.example$');
-      expect(qxText).toContain('# skipped (Quantumult X does not support PROCESS-NAME): PROCESS-NAME,curl');
+      // iOS clients cannot match by process: PROCESS-NAME is omitted entirely (no comment line).
+      expect(qxText).not.toContain('PROCESS-NAME');
+      const loonText = await (await request('/rules/next-rules-loon.list')).text();
+      expect(loonText).not.toContain('PROCESS-NAME');
+      expect(loonText).toContain('DOMAIN-REGEX');
       expect(qxText).toContain('# skipped (Quantumult X does not support URL-REGEX): URL-REGEX,^https://ads\\.example/');
 
       const singboxJson = await (await request('/rules/next-rules.json')).json() as { rules: Array<Record<string, unknown>> };

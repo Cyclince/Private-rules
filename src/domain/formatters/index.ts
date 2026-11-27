@@ -52,6 +52,12 @@ export type Formatter = {
 const NO_RESOLVE_RULE_TYPES = new Set<DomainRule['type']>(['IP-CIDR', 'SRC-IP-CIDR', 'IP-ASN', 'GEOIP']);
 const QX_UNSUPPORTED_TYPES = new Set<DomainRule['type']>(['DOMAIN-REGEX', 'PROCESS-NAME', 'URL-REGEX']);
 const LOON_UNSUPPORTED_TYPES = new Set<DomainRule['type']>(['PROCESS-NAME']);
+/**
+ * iOS clients (Loon, Quantumult X) cannot match by process, so PROCESS-NAME rules
+ * are omitted from their rule files entirely (no comment line). They are still
+ * listed in the compatibility report.
+ */
+const SILENTLY_DROPPED_TYPES = new Set<DomainRule['type']>(['PROCESS-NAME']);
 const SINGBOX_UNSUPPORTED_NEW_TYPES = new Set<DomainRule['type']>(['USER-AGENT', 'URL-REGEX']);
 
 function ruleLine(rule: DomainRule) {
@@ -160,7 +166,7 @@ export function listWithReport(category: RuleCategory, loonCompatible = false): 
     if (loonCompatible && LOON_UNSUPPORTED_TYPES.has(rule.type)) {
       const reason = `Loon does not support ${rule.type}`;
       skipped.push({ type: rule.type, value: rule.value, reason });
-      lines.push(`# skipped (${reason}): ${rule.type},${rule.value}`);
+      if (!SILENTLY_DROPPED_TYPES.has(rule.type)) lines.push(`# skipped (${reason}): ${rule.type},${rule.value}`);
       continue;
     }
     lines.push(...ruleNote(rule.note));
@@ -189,7 +195,7 @@ export function quantumultXWithReport(category: RuleCategory, data: RulesData): 
     if (QX_UNSUPPORTED_TYPES.has(rule.type)) {
       const reason = `Quantumult X does not support ${rule.type}`;
       skipped.push({ type: rule.type, value: rule.value, reason });
-      lines.push(`# skipped (${reason}): ${rule.type},${rule.value}`);
+      if (!SILENTLY_DROPPED_TYPES.has(rule.type)) lines.push(`# skipped (${reason}): ${rule.type},${rule.value}`);
       continue;
     }
     lines.push(...ruleNote(rule.note));
