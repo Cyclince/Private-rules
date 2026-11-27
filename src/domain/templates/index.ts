@@ -60,6 +60,8 @@ export {
   type StageOrderingViolation,
 } from './stages';
 export {
+  DEFAULT_QURE_ICON_PACK,
+  buildDefaultIconPack,
   extractEmojiFromName,
   recognizeGroupIcon,
   type IconMatchSource,
@@ -244,9 +246,12 @@ export {
   getPresetScenarioSelection,
   inferDefaultRouteForRulesetName,
   mapWizardClientSelection,
+  normalizeWizardPresetTier,
   resolveWizardRegionGroups,
+  type AnyWizardPresetTier,
   type BuildQuickCreateTemplateBodyInput,
   type BuildQuickCreateTemplateBodyResult,
+  type LegacyWizardPresetTier,
   type QuickCreateResolvedRuleset,
   type WizardClientOption,
   type WizardClientOptionId,

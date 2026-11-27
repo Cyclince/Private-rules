@@ -4,7 +4,10 @@ import { applyOverlay, rebaseOverlay, resolveOverlayConflicts } from '../../src/
 import type { TemplateBody, TemplateOverlayOp } from '../../src/shared/schemas/template';
 
 function cloneLightBase(): TemplateBody {
-  return structuredClone(buildStarterTemplate('light').baseBody);
+  const body = structuredClone(buildStarterTemplate('all').baseBody);
+  body.cards = body.cards.filter((c) => c.cardId !== 'discord' && c.cardId !== 'spotify');
+  body.regionGroups = body.regionGroups.filter((g) => g.id !== 'region-gb');
+  return body;
 }
 
 describe('template overlay replay and upstream rebase', () => {

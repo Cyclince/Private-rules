@@ -70,7 +70,7 @@ describe('client capability matrix (mihomo official fields)', () => {
   });
 });
 
-describe('compileMihomo — 4 starter tiers × (full/minimal) × (select/fallback) snapshots', () => {
+describe('compileMihomo — 3 starter tiers × (full/minimal) × (select/fallback) snapshots', () => {
   const outputs: readonly OutputProfile[] = ['full', 'minimal'];
   const groupModes: readonly TemplateGroupMode[] = ['select', 'fallback'];
 
@@ -146,7 +146,7 @@ describe('compileMihomo — 4 starter tiers × (full/minimal) × (select/fallbac
             }
           }
 
-          if (tier === 'heavy') {
+          if (tier === 'all') {
             expect(rules.some((line) => line.startsWith('NOT,((OR,((DST-PORT,80),(DST-PORT,443)))),'))).toBe(true);
           }
 
@@ -406,5 +406,319 @@ describe('compileMihomo — escaping & anti-YAML-injection security', () => {
 
     // Compatibility report recorded the sanitized group names
     expect(compiled.report.items.some((item) => item.code === 'GROUP_NAME_SANITIZED')).toBe(true);
+  });
+});
+
+describe('compileMihomo — beta.3 reference template features (T1)', () => {
+  it('adds additional-prefix, hidden per-airport groups, and hidden all-nodes group only when multiple slots exist', () => {
+    // Single slot: NO additional-prefix and NO airport / all-nodes helper groups
+    const singleTpl = buildStarterTemplate('recommended', { output: 'full' });
+    const singleCompiled = compileMihomo({
+      body: singleTpl.baseBody,
+      cards: BUILTIN_CARDS,
+      catalogIndex: BUILTIN_CATALOG,
+      baseUrl: FIXED_BASE_URL,
+      slotBindings: STANDARD_SLOT_BINDINGS,
+    });
+    const singleDoc = parseYaml(singleCompiled.content) as Record<string, unknown>;
+    const singleProviders = singleDoc['proxy-providers'] as Record<string, Record<string, unknown>>;
+    expect(
+      (singleProviders['slot-main']?.override as Record<string, unknown> | undefined)?.['additional-prefix'],
+    ).toBeUndefined();
+    const singleGroups = singleDoc['proxy-groups'] as Array<Record<string, unknown>>;
+    expect(singleGroups.some((g) => g.name === '🌐 全部节点')).toBe(false);
+
+    // Multiple slots: additional-prefix, hidden per-airport groups, hidden 全部节点, and region/auto spanning all providers
+    const multiTpl = buildStarterTemplate('all', { output: 'full' });
+    multiTpl.baseBody.slots = [
+      { id: 'slot-main', name: '主力机场', excludeInfo: true },
+      { id: 'slot-backup', name: '备用机场', excludeInfo: true },
+    ];
+    const multiCompiled = compileMihomo({
+      body: multiTpl.baseBody,
+      cards: BUILTIN_CARDS,
+      catalogIndex: BUILTIN_CATALOG,
+      baseUrl: FIXED_BASE_URL,
+      slotBindings: {
+        'slot-main': { kind: 'http', url: 'https://example.com/sub/main' },
+        'slot-backup': { kind: 'http', url: 'https://example.com/sub/backup' },
+      },
+    });
+    const multiDoc = parseYaml(multiCompiled.content) as Record<string, unknown>;
+    const providers = multiDoc['proxy-providers'] as Record<string, Record<string, unknown>>;
+    expect((providers['slot-main']?.override as Record<string, unknown>)?.['additional-prefix']).toBe('主力机场 · ');
+    expect((providers['slot-backup']?.override as Record<string, unknown>)?.['additional-prefix']).toBe('备用机场 · ');
+
+    const groups = multiDoc['proxy-groups'] as Array<Record<string, unknown>>;
+    const mainAirportGroup = groups.find((g) => g.name === '主力机场');
+    const backupAirportGroup = groups.find((g) => g.name === '备用机场');
+    const allNodesGroup = groups.find((g) => g.name === '🌐 全部节点');
+    expect(mainAirportGroup).toMatchObject({
+      type: 'url-test',
+      hidden: true,
+      use: ['slot-main'],
+      lazy: true,
+      timeout: 5000,
+      'expected-status': 204,
+    });
+    expect(backupAirportGroup).toMatchObject({
+      type: 'url-test',
+      hidden: true,
+      use: ['slot-backup'],
+      lazy: true,
+      timeout: 5000,
+      'expected-status': 204,
+    });
+    expect(allNodesGroup).toMatchObject({
+      type: 'select',
+      hidden: true,
+      use: ['slot-main', 'slot-backup'],
+    });
+
+    const proxySelect = groups.find((g) => g.name === '🚀 节点选择');
+    expect(proxySelect?.proxies).toContain('主力机场');
+    expect(proxySelect?.proxies).toContain('备用机场');
+    expect(proxySelect?.proxies).toContain('🌐 全部节点');
+
+    const autoSelect = groups.find((g) => g.name === '⚡ 自动选择');
+    expect(autoSelect?.use).toEqual(['slot-main', 'slot-backup']);
+
+    const hkRegion = groups.find((g) => g.name === '🇭🇰 香港节点');
+    expect(hkRegion?.use).toEqual(['slot-main', 'slot-backup']);
+    expect(hkRegion?.hidden).toBe(true);
+  });
+
+  it('injects default QureColor icons for recognized groups, honors custom iconPack & mirror, and omits icon for unrecognized groups', () => {
+    const customCard: AppCard = {
+      id: 'mystery-custom-group',
+      slug: 'mystery-custom-group',
+      name: '🛸 未知神秘分组',
+      category: 'other',
+      stage: 'app',
+      group: { type: 'select', candidates: [{ kind: 'card', cardId: 'proxy-select' }] },
+      matchers: [],
+    };
+    const tpl = buildStarterTemplate('less', { output: 'minimal' });
+    tpl.baseBody.cards.push({ cardId: 'mystery-custom-group', enabled: true });
+
+    const compiled = compileMihomo({
+      body: tpl.baseBody,
+      cards: [...BUILTIN_CARDS, customCard],
+      catalogIndex: BUILTIN_CATALOG,
+      baseUrl: FIXED_BASE_URL,
+      githubMirrorUrl: 'https://ghproxy.example.com',
+      slotBindings: STANDARD_SLOT_BINDINGS,
+    });
+
+    const doc = parseYaml(compiled.content) as Record<string, unknown>;
+    const groups = doc['proxy-groups'] as Array<Record<string, unknown>>;
+
+    const proxySelect = groups.find((g) => g.name === '🚀 节点选择');
+    expect(String(proxySelect?.icon)).toMatch(
+      /^https:\/\/ghproxy\.example\.com\/https:\/\/raw\.githubusercontent\.com\/Koolson\/Qure\/master\/IconSet\/Color\/Proxy\.png$/,
+    );
+
+    const openaiGroup = groups.find((g) => g.name === '🤖 OpenAI / ChatGPT');
+    expect(String(openaiGroup?.icon)).toContain('Bot.png');
+
+    // Unrecognized custom group MUST NOT emit icon
+    const mysteryGroup = groups.find((g) => g.name === '🛸 未知神秘分组');
+    expect(mysteryGroup).toBeDefined();
+    expect(mysteryGroup?.icon).toBeUndefined();
+
+    // Custom iconPack overrides default icons
+    const customCompiled = compileMihomo({
+      body: tpl.baseBody,
+      cards: [...BUILTIN_CARDS, customCard],
+      catalogIndex: BUILTIN_CATALOG,
+      baseUrl: FIXED_BASE_URL,
+      slotBindings: STANDARD_SLOT_BINDINGS,
+      iconPack: [{ name: 'Proxy', url: 'https://cdn.example.com/icons/custom-proxy.png' }],
+    });
+    const customDoc = parseYaml(customCompiled.content) as Record<string, unknown>;
+    const customGroups = customDoc['proxy-groups'] as Array<Record<string, unknown>>;
+    expect(customGroups.find((g) => g.name === '🚀 节点选择')?.icon).toBe(
+      'https://cdn.example.com/icons/custom-proxy.png',
+    );
+  });
+
+  it('keeps recommended tier visible groups around 8-12, hides auxiliary/region groups, and reveals region groups when groupMode=region', () => {
+    const recTpl = buildStarterTemplate('recommended', { output: 'full' });
+    const recCompiled = compileMihomo({
+      body: recTpl.baseBody,
+      cards: BUILTIN_CARDS,
+      catalogIndex: BUILTIN_CATALOG,
+      baseUrl: FIXED_BASE_URL,
+      slotBindings: STANDARD_SLOT_BINDINGS,
+    });
+    const recDoc = parseYaml(recCompiled.content) as Record<string, unknown>;
+    const recGroups = recDoc['proxy-groups'] as Array<Record<string, unknown>>;
+    const visibleRecGroups = recGroups.filter((g) => g.hidden !== true);
+    expect(visibleRecGroups.length).toBeGreaterThanOrEqual(8);
+    expect(visibleRecGroups.length).toBeLessThanOrEqual(12);
+    expect(recGroups.find((g) => g.name === '🏠 局域网直连')?.hidden).toBe(true);
+    expect(recGroups.find((g) => g.name === '🇨🇳 国内直连')?.hidden).toBe(true);
+    expect(recGroups.find((g) => g.name === '🐟 漏网之鱼')?.hidden).toBeUndefined();
+
+    // groupMode=region reveals region groups
+    const regionTpl = buildStarterTemplate('all', { output: 'full' });
+    regionTpl.baseBody.wizardMeta = {
+      clients: ['mihomo'],
+      clientDisplayNames: ['Clash Verge Rev'],
+      groupMode: 'region',
+      hasSubscription: true,
+    };
+    const regionCompiled = compileMihomo({
+      body: regionTpl.baseBody,
+      cards: BUILTIN_CARDS,
+      catalogIndex: BUILTIN_CATALOG,
+      baseUrl: FIXED_BASE_URL,
+      slotBindings: STANDARD_SLOT_BINDINGS,
+    });
+    const regionDoc = parseYaml(regionCompiled.content) as Record<string, unknown>;
+    const regionGroups = regionDoc['proxy-groups'] as Array<Record<string, unknown>>;
+    expect(regionGroups.find((g) => g.name === '🇭🇰 香港节点')?.hidden).toBeUndefined();
+    expect(regionGroups.find((g) => g.name === '🇺🇸 美国节点')?.hidden).toBeUndefined();
+  });
+
+  it('emits modern mihomo DNS (nameserver-policy, proxy-server-nameserver, respect-rules, no fallback), sniffer, profile, and health-check defaults', () => {
+    const tpl = buildStarterTemplate('recommended', { output: 'full', groupMode: 'fallback' });
+    const compiled = compileMihomo({
+      body: tpl.baseBody,
+      cards: BUILTIN_CARDS,
+      catalogIndex: BUILTIN_CATALOG,
+      baseUrl: FIXED_BASE_URL,
+      slotBindings: STANDARD_SLOT_BINDINGS,
+    });
+    const doc = parseYaml(compiled.content) as Record<string, unknown>;
+
+    expect(doc['mixed-port']).toBe(7890);
+    expect(doc['external-controller']).toBeUndefined();
+    expect(doc.secret).toBeUndefined();
+    expect(doc.profile).toEqual({ 'store-selected': true, 'store-fake-ip': true });
+
+    const dns = doc.dns as Record<string, unknown>;
+    expect(dns.enable).toBe(true);
+    expect(dns['enhanced-mode']).toBe('fake-ip');
+    expect(dns['respect-rules']).toBe(true);
+    expect(dns['proxy-server-nameserver']).toEqual(['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query']);
+    expect(dns['nameserver-policy']).toEqual({
+      'geosite:cn': ['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'],
+      'geosite:private': ['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'],
+    });
+    expect(dns.fallback).toBeUndefined();
+    expect(dns['fallback-filter']).toBeUndefined();
+
+    const sniffer = doc.sniffer as Record<string, unknown>;
+    expect(sniffer.enable).toBe(true);
+    expect((sniffer.sniff as Record<string, unknown>).HTTP).toBeDefined();
+    expect((sniffer.sniff as Record<string, unknown>).TLS).toBeDefined();
+    expect((sniffer.sniff as Record<string, unknown>).QUIC).toBeDefined();
+    expect(sniffer['skip-domain']).toContain('+.push.apple.com');
+    expect(sniffer['skip-domain']).toContain('+.lan');
+
+    const providers = doc['proxy-providers'] as Record<string, Record<string, unknown>>;
+    expect(providers['slot-main']?.['health-check']).toMatchObject({
+      enable: true,
+      lazy: true,
+      timeout: 5000,
+      'expected-status': 204,
+    });
+
+    const groups = doc['proxy-groups'] as Array<Record<string, unknown>>;
+    const urlTestOrFallback = groups.filter((g) => g.type === 'url-test' || g.type === 'fallback');
+    expect(urlTestOrFallback.length).toBeGreaterThan(0);
+    for (const g of urlTestOrFallback) {
+      expect(g.lazy).toBe(true);
+      expect(g.timeout).toBe(5000);
+      expect(g['expected-status']).toBe(204);
+    }
+  });
+
+  it('compiles built-in geosite/geoip to MetaCubeX .mrs rule-providers with mirror support, falls back for unknown entries & legacyGeodata mode, and keeps user rulesets as yaml', () => {
+    const mixedCard: AppCard = {
+      id: 'mixed-geo-test',
+      slug: 'mixed-geo-test',
+      name: '🧪 规则来源测试',
+      category: 'other',
+      stage: 'app',
+      group: { type: 'select', candidates: [{ kind: 'builtin', id: 'DIRECT' }] },
+      matchers: [
+        { kind: 'geosite', name: 'openai' },
+        { kind: 'geosite', name: 'unknown-custom-site' },
+        { kind: 'geoip', name: 'cn', noResolve: true },
+        { kind: 'geoip', name: 'unknown-region-ip', noResolve: true },
+        { kind: 'ruleset', ruleSetId: 'my-own-rules' },
+      ],
+    };
+
+    const baseBody: TemplateBody = {
+      slots: [],
+      regionGroups: [],
+      cards: [{ cardId: 'mixed-geo-test', enabled: true }],
+      groupMode: 'select',
+      final: { kind: 'builtin', id: 'DIRECT' },
+      output: 'minimal',
+      dns: { mode: 'fake-ip' },
+      modules: [],
+    };
+
+    // Default mode: built-in geosite/geoip -> MetaCubeX .mrs with GitHub mirror; unknown -> GEOSITE/GEOIP; user ruleset -> self-hosted yaml
+    const compiled = compileMihomo({
+      body: baseBody,
+      cards: [mixedCard],
+      baseUrl: FIXED_BASE_URL,
+      githubMirrorUrl: 'https://ghproxy.example.com',
+      rulesetBehaviors: new Map([['my-own-rules', { domain: 0, classical: 4, ipcidr: 0 }]]),
+    });
+    const doc = parseYaml(compiled.content) as Record<string, unknown>;
+    const ruleProviders = doc['rule-providers'] as Record<string, Record<string, unknown>>;
+    const rules = doc.rules as string[];
+
+    expect(ruleProviders['geosite-openai']).toMatchObject({
+      type: 'http',
+      behavior: 'domain',
+      format: 'mrs',
+      url: 'https://ghproxy.example.com/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/openai.mrs',
+    });
+    expect(ruleProviders['geoip-cn']).toMatchObject({
+      type: 'http',
+      behavior: 'ipcidr',
+      format: 'mrs',
+      url: 'https://ghproxy.example.com/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs',
+    });
+    // User's own ruleset stays self-hosted yaml classical (NOT rewritten by GitHub mirror)
+    expect(ruleProviders['ruleset-my-own-rules-classical']).toMatchObject({
+      type: 'http',
+      behavior: 'classical',
+      format: 'yaml',
+      url: 'https://rules.example.com/sub/my-own-rules/clash-classical',
+    });
+
+    expect(rules).toContain('RULE-SET,geosite-openai,🧪 规则来源测试');
+    expect(rules).toContain('GEOSITE,unknown-custom-site,🧪 规则来源测试');
+    expect(rules).toContain('RULE-SET,geoip-cn,🧪 规则来源测试,no-resolve');
+    expect(rules).toContain('GEOIP,UNKNOWN-REGION-IP,🧪 规则来源测试,no-resolve');
+    expect(rules).toContain('RULE-SET,ruleset-my-own-rules-classical,🧪 规则来源测试');
+
+    // Compatibility mode (legacyGeodata: true): all geosite/geoip fall back to GEOSITE/GEOIP
+    const legacyCompiled = compileMihomo({
+      body: { ...baseBody, legacyGeodata: true },
+      cards: [mixedCard],
+      baseUrl: FIXED_BASE_URL,
+      githubMirrorUrl: 'https://ghproxy.example.com',
+      rulesetBehaviors: new Map([['my-own-rules', { domain: 0, classical: 4, ipcidr: 0 }]]),
+    });
+    const legacyDoc = parseYaml(legacyCompiled.content) as Record<string, unknown>;
+    const legacyProviders = legacyDoc['rule-providers'] as Record<string, Record<string, unknown>>;
+    const legacyRules = legacyDoc.rules as string[];
+
+    expect(legacyProviders['geosite-openai']).toBeUndefined();
+    expect(legacyProviders['geoip-cn']).toBeUndefined();
+    expect(legacyProviders['ruleset-my-own-rules-classical']).toBeDefined();
+    expect(legacyRules).toContain('GEOSITE,openai,🧪 规则来源测试');
+    expect(legacyRules).toContain('GEOSITE,unknown-custom-site,🧪 规则来源测试');
+    expect(legacyRules).toContain('GEOIP,CN,🧪 规则来源测试,no-resolve');
+    expect(legacyRules).toContain('GEOIP,UNKNOWN-REGION-IP,🧪 规则来源测试,no-resolve');
   });
 });

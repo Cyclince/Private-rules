@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { STARTER_TEMPLATE_TIERS } from '../../builtin';
+import { ALL_STARTER_TEMPLATE_TIERS } from '../../builtin';
 import {
   createTemplate,
   deleteTemplate,
@@ -42,7 +42,7 @@ import { externalBaseUrl, rejectTelegramWrite, type AppBindings } from '../helpe
 import { persistentRateLimit } from '../middleware/rate-limit';
 import { validate } from '../middleware/validate';
 
-const starterTierSchema = z.enum(STARTER_TEMPLATE_TIERS);
+const starterTierSchema = z.enum(ALL_STARTER_TEMPLATE_TIERS);
 
 const listTemplatesQuerySchema = z.object({
   q: z.string().optional(),

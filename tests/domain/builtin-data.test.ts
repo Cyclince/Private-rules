@@ -4,15 +4,17 @@ import {
   BUILTIN_CATALOG,
   BUILTIN_TEMPLATES,
   CATALOG_PROVIDERS,
+  LEGACY_STARTER_TIERS,
   STARTER_TEMPLATE_TIERS,
   buildStarterTemplate,
+  normalizeStarterTier,
 } from '../../src/builtin';
 import { checkStageOrdering, resolveTemplateCards, validateTemplateGraph } from '../../src/domain/templates';
 import { CATALOG_CATEGORY_VALUES, appCardSchema, catalogEntrySchema, templateSchema } from '../../src/shared/schemas';
 import type { AppCard } from '../../src/shared/schemas/card';
 import type { TemplateBody } from '../../src/shared/schemas/template';
 
-describe('built-in catalog, starter cards, and 4-tier starter templates', () => {
+describe('built-in catalog, starter cards, and 3-tier starter templates', () => {
   it('validates every built-in catalog entry against catalogEntrySchema and verifies provider/parent attribution', () => {
     expect(BUILTIN_CATALOG.length).toBeGreaterThanOrEqual(30);
     const ids = new Set<string>();
@@ -85,10 +87,23 @@ describe('built-in catalog, starter cards, and 4-tier starter templates', () => 
   );
 
   it('applies template-level groupMode toggle to business cards without affecting terminal/direct-first groups', () => {
-    expect(BUILTIN_TEMPLATES).toHaveLength(4);
+    expect(BUILTIN_TEMPLATES).toHaveLength(3);
+    expect(BUILTIN_TEMPLATES.map((t) => t.slug)).toEqual(['starter-less', 'starter-recommended', 'starter-all']);
 
-    const stdSelect = buildStarterTemplate('standard', { groupMode: 'select' });
-    const stdFallback = buildStarterTemplate('standard', { groupMode: 'fallback' });
+    // Legacy 4-tier aliases map cleanly to the 3 canonical tiers while preserving legacy slugs
+    expect(normalizeStarterTier('minimal')).toBe('less');
+    expect(normalizeStarterTier('light')).toBe('less');
+    expect(normalizeStarterTier('standard')).toBe('recommended');
+    expect(normalizeStarterTier('heavy')).toBe('all');
+    for (const legacyTier of LEGACY_STARTER_TIERS) {
+      const legacyTpl = buildStarterTemplate(legacyTier);
+      expect(legacyTpl.slug).toBe(`starter-${legacyTier}`);
+      expect(templateSchema.parse(legacyTpl)).toBeTruthy();
+      expect(validateTemplateGraph(legacyTpl.baseBody, BUILTIN_CARDS).ok).toBe(true);
+    }
+
+    const stdSelect = buildStarterTemplate('recommended', { groupMode: 'select' });
+    const stdFallback = buildStarterTemplate('recommended', { groupMode: 'fallback' });
 
     const resolvedSelect = resolveTemplateCards(stdSelect.baseBody, BUILTIN_CARDS);
     const resolvedFallback = resolveTemplateCards(stdFallback.baseBody, BUILTIN_CARDS);

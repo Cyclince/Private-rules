@@ -207,24 +207,38 @@ describe('template hit-test probe engine (design §10.8)', () => {
     expect(cached.unresolvedSources).toEqual([]);
   });
 
-  it('probes built-in starter template with geosite cache cleanly', () => {
-    const std = buildStarterTemplate('standard');
-    const res = probeTemplate({
+  it('probes built-in starter templates with geosite cache cleanly', () => {
+    const caches = {
+      geositeRules: new Map([
+        ['private', [{ type: 'DOMAIN-SUFFIX', value: 'local' }]],
+        ['category-ads-all', [{ type: 'DOMAIN-SUFFIX', value: 'doubleclick.net' }]],
+        ['openai', [{ type: 'DOMAIN-SUFFIX', value: 'openai.com' }]],
+      ]),
+      catalogRules: new Map([['domestic-direct-custom', []]]),
+    };
+
+    const recommended = buildStarterTemplate('recommended');
+    const resRecommended = probeTemplate({
       target: 'api.openai.com',
-      body: std.baseBody,
+      body: recommended.baseBody,
       cards: BUILTIN_CARDS,
-      caches: {
-        geositeRules: new Map([
-          ['private', [{ type: 'DOMAIN-SUFFIX', value: 'local' }]],
-          ['category-ads-all', [{ type: 'DOMAIN-SUFFIX', value: 'doubleclick.net' }]],
-          ['openai', [{ type: 'DOMAIN-SUFFIX', value: 'openai.com' }]],
-        ]),
-        catalogRules: new Map([['domestic-direct-custom', []]]),
-      },
+      caches,
     });
-    expect(res.cardId).toBe('openai');
-    expect(res.stage).toBe('app');
-    expect(res.finalPolicy).toEqual({ kind: 'region', regionGroupId: 'region-us' });
-    expect(res.unresolvedSources).toEqual([]);
+    expect(resRecommended.cardId).toBe('openai');
+    expect(resRecommended.stage).toBe('app');
+    expect(resRecommended.finalPolicy).toEqual({ kind: 'slot', slotId: 'slot-main' });
+    expect(resRecommended.unresolvedSources).toEqual([]);
+
+    const allTier = buildStarterTemplate('all');
+    const resAll = probeTemplate({
+      target: 'api.openai.com',
+      body: allTier.baseBody,
+      cards: BUILTIN_CARDS,
+      caches,
+    });
+    expect(resAll.cardId).toBe('openai');
+    expect(resAll.stage).toBe('app');
+    expect(resAll.finalPolicy).toEqual({ kind: 'region', regionGroupId: 'region-us' });
+    expect(resAll.unresolvedSources).toEqual([]);
   });
 });

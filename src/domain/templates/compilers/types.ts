@@ -128,6 +128,8 @@ export type CompileTemplateInput = {
   slotBindings?: ReadonlyMap<string, CompiledNodeSlotBinding> | Readonly<Record<string, CompiledNodeSlotBinding>>;
   /** Optional external icon pack entries for resolving `icon` URLs on proxy groups. */
   iconPack?: readonly IconPackEntry[];
+  /** Optional GitHub mirror base URL from settings for rewriting upstream `.mrs` & icon URLs. */
+  githubMirrorUrl?: string;
   /** Whether to apply enabled enhancement modules during compilation (defaults to `true`). */
   applyModules?: boolean;
   /** Optional custom enhancement module registry. */

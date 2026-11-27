@@ -150,7 +150,7 @@ test.describe('M3.5 reduced-motion accessibility across key routes and overlays'
       await clientCard.click();
       await page.getByTestId('wizard-next-btn').click();
       await expect(page.getByTestId('wizard-step-2')).toBeVisible();
-      await expectNoHoverDisplacement(page.getByTestId('wizard-preset-standard'));
+      await expectNoHoverDisplacement(page.getByTestId('wizard-preset-recommended'));
       await expectNoHoverDisplacement(page.getByTestId('wizard-group-mode-auto'));
     } finally {
       await request.delete(`/api/rulesets/${ruleset.id}`, { headers: JSON_HEADERS });

@@ -1,4 +1,5 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import { rewriteGithubUrl } from '../../../lib/github-mirror';
 import type { OutputProfile } from '../../../shared/clients';
 import type {
   Condition,
@@ -10,7 +11,7 @@ import type {
 import type { DnsProfile, NodeSlot, RegionGroup, TemplateBody } from '../../../shared/schemas/template';
 import { buildExcludeInfoRegex, buildRegionRegex, detectRegexDialectIssues } from '../../nodes/regex';
 import { CLIENT_CAPABILITIES, isRemoteFormatSupported, isRuleTypeSupported } from '../capabilities';
-import { recognizeGroupIcon } from '../icons';
+import { buildDefaultIconPack, recognizeGroupIcon } from '../icons';
 import { DEFAULT_HEALTH_CHECK, resolveTemplateCards, type ResolvedTemplateCard } from '../model';
 import { applyEnhancementModules } from '../modules';
 import { planRulesetReferences, type PlannedMatcherBinding, type PlannedProvider } from '../planner';
@@ -25,9 +26,83 @@ import type {
 const MIHOMO_CAPS = CLIENT_CAPABILITIES.mihomo;
 
 const DEFAULT_PROVIDER_INTERVAL_SEC = 3600;
+const DEFAULT_MRS_INTERVAL_SEC = 86_400;
 const DEFAULT_BOOTSTRAP_DNS = ['223.5.5.5', '119.29.29.29'];
+const DEFAULT_DOMESTIC_DOH = ['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'];
+const DEFAULT_PROXY_DOH = ['https://1.1.1.1/dns-query', 'https://dns.google/dns-query'];
 const DEFAULT_FAKE_IP_RANGE = '198.18.0.1/16';
 const DEFAULT_LOAD_BALANCE_STRATEGY = 'consistent-hashing';
+const DEFAULT_HEALTH_CHECK_TIMEOUT_MS = 5000;
+const DEFAULT_EXPECTED_STATUS = 204;
+
+/**
+ * Verified MetaCubeX meta-rules-dat `.mrs` binary rule-set URL templates
+ * (HTTP HEAD verified against `MetaCubeX/meta-rules-dat` branch `meta`):
+ * - GeoSite (`behavior: domain`, `format: mrs`):
+ *   `https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/<name>.mrs`
+ * - GeoIP (`behavior: ipcidr`, `format: mrs`):
+ *   `https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/<name>.mrs`
+ */
+const METACUBEX_MRS_GEOSITE_BASE = 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite';
+const METACUBEX_MRS_GEOIP_BASE = 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip';
+
+/** Verified MetaCubeX `.mrs` geosite entries; unknown entries fall back to `GEOSITE`. */
+const KNOWN_METACUBEX_GEOSITE_MRS = new Set([
+  'private',
+  'category-ads-all',
+  'openai',
+  'category-ai-!cn',
+  'telegram',
+  'twitter',
+  'discord',
+  'youtube',
+  'netflix',
+  'disney',
+  'bilibili',
+  'spotify',
+  'tiktok',
+  'github',
+  'googlefcm',
+  'google',
+  'apple',
+  'onedrive',
+  'microsoft',
+  'steam',
+  'category-games',
+  'speedtest',
+  'gfw',
+  'cn',
+]);
+
+/** Verified MetaCubeX `.mrs` geoip entries; unknown entries fall back to `GEOIP`. */
+const KNOWN_METACUBEX_GEOIP_MRS = new Set(['private', 'telegram', 'google', 'netflix', 'twitter', 'cn']);
+
+/** Core hubs that stay visible in mihomo GUI (design §6A.3). */
+const VISIBLE_CORE_HUB_CARD_IDS = new Set(['proxy-select', 'auto-select', 'final-fallback', 'module-dns-leak-final']);
+
+/** Auxiliary infrastructure / plumbing cards marked `hidden: true` to keep visible groups around 8–12. */
+const HIDDEN_AUXILIARY_CARD_IDS = new Set([
+  'lan-direct',
+  'custom-direct',
+  'gfw-proxy',
+  'proxy-ip',
+  'domestic-direct',
+  'non-standard-ports',
+  'speedtest',
+  'module-block-encrypted-dns',
+  'module-game-download-direct',
+  'module-tunnel-direct',
+]);
+
+function applyGithubMirror(url: string, mirrorUrl?: string): string {
+  const mirror = mirrorUrl?.trim() ?? '';
+  if (!mirror) return url;
+  try {
+    return rewriteGithubUrl(url, mirror);
+  } catch {
+    return url;
+  }
+}
 
 // eslint-disable-next-line no-control-regex
 const CONTROL_AND_LINE_BREAK_RE = /[\r\n\u2028\u2029\x00-\x1f\x7f]+/g;
@@ -132,9 +207,10 @@ function resolveGroupIconUrl(
     matchers?: ResolvedTemplateCard['effective']['matchers'];
   },
   iconPack?: CompileTemplateInput['iconPack'],
+  githubMirrorUrl?: string,
 ): string | undefined {
   if (isHttpUrl(input.explicitIcon)) {
-    return sanitizeMihomoScalar(input.explicitIcon);
+    return applyGithubMirror(sanitizeMihomoScalar(input.explicitIcon), githubMirrorUrl);
   }
   if (!iconPack || iconPack.length === 0) return undefined;
   const recognized = recognizeGroupIcon(
@@ -148,8 +224,13 @@ function resolveGroupIconUrl(
     },
     iconPack,
   );
+  // Omit icon for unrecognized groups (generic fallback or generic other/infrastructure category)
+  if (recognized.source === 'fallback') return undefined;
+  if (recognized.source === 'category' && (input.category === 'other' || input.category === 'infrastructure')) {
+    return undefined;
+  }
   if (isHttpUrl(recognized.packIcon?.url)) {
-    return sanitizeMihomoScalar(recognized.packIcon.url);
+    return applyGithubMirror(sanitizeMihomoScalar(recognized.packIcon.url), githubMirrorUrl);
   }
   return undefined;
 }
@@ -269,23 +350,36 @@ function buildProxyProviderEntry(
   binding: CompiledNodeSlotBinding | undefined,
   general: TemplateBody['general'],
   items: CompatibilityItem[],
+  multiSlot: boolean,
 ): { entry: Record<string, unknown>; inlineProxyCount: number } {
   const excludeInfoRegex = slot.excludeInfo !== false ? buildExcludeInfoRegex('mihomo').exclude : undefined;
   const hcUrl = sanitizeMihomoScalar(slot.healthCheck?.url ?? general?.testUrl ?? DEFAULT_HEALTH_CHECK.url);
   const hcInterval = slot.healthCheck?.intervalSec ?? general?.testIntervalSec ?? DEFAULT_HEALTH_CHECK.intervalSec;
   const overrideUdp = slot.udp !== false;
+  const additionalPrefix = multiSlot ? `${sanitizeMihomoScalar(slot.name) || providerKey} · ` : undefined;
+
+  const overrideObj: Record<string, unknown> = {};
+  if (overrideUdp) {
+    overrideObj.udp = true;
+  }
+  if (additionalPrefix) {
+    overrideObj['additional-prefix'] = additionalPrefix;
+  }
 
   const commonFields: Record<string, unknown> = {};
   if (excludeInfoRegex) {
     commonFields['exclude-filter'] = excludeInfoRegex;
   }
-  if (overrideUdp) {
-    commonFields.override = { udp: true };
+  if (Object.keys(overrideObj).length > 0) {
+    commonFields.override = overrideObj;
   }
   commonFields['health-check'] = {
     enable: true,
     url: hcUrl,
     interval: hcInterval,
+    lazy: true,
+    timeout: DEFAULT_HEALTH_CHECK_TIMEOUT_MS,
+    'expected-status': DEFAULT_EXPECTED_STATUS,
   };
 
   if (!binding || binding.kind === 'snapshot') {
@@ -364,7 +458,7 @@ function buildProxyProviderEntry(
     entry: {
       type: 'inline',
       ...(excludeInfoRegex ? { 'exclude-filter': excludeInfoRegex } : {}),
-      ...(overrideUdp ? { override: { udp: true } } : {}),
+      ...(Object.keys(overrideObj).length > 0 ? { override: overrideObj } : {}),
       payload: sanitizedPayload,
     },
     inlineProxyCount: sanitizedPayload.length,
@@ -376,6 +470,7 @@ function buildRuleProviderEntry(
   providerKey: string,
   inlinePayloads: ReadonlyMap<string, readonly string[]>,
   items: CompatibilityItem[],
+  githubMirrorUrl?: string,
 ): { entry: Record<string, unknown>; effectiveBehavior: RemoteRuleBehavior } {
   const behavior = provider.behavior;
   let format = provider.format;
@@ -403,6 +498,7 @@ function buildRuleProviderEntry(
   }
 
   let url: string | undefined;
+  const shouldApplyMirror = provider.source.kind === 'remote' || provider.source.kind === 'catalog';
   if (provider.source.kind === 'remote' || provider.source.kind === 'catalog') {
     url = provider.source.url;
   } else if (provider.source.kind === 'ruleset' || provider.source.kind === 'geosite-hosted') {
@@ -423,13 +519,16 @@ function buildRuleProviderEntry(
     });
   }
 
+  const finalUrl = shouldApplyMirror
+    ? applyGithubMirror(sanitizeMihomoScalar(url), githubMirrorUrl)
+    : sanitizeMihomoScalar(url);
   const ext = formatExtensionForRuleProvider(format);
   return {
     entry: {
       type: 'http',
       behavior,
       format,
-      url: sanitizeMihomoScalar(url),
+      url: finalUrl,
       path: `./providers/rules/${providerKey}.${ext}`,
       interval: provider.updateIntervalSec,
     },
@@ -532,6 +631,56 @@ function compileTopLevelCondition(
   };
 }
 
+function compileProfileSection(): Record<string, unknown> {
+  return {
+    'store-selected': true,
+    'store-fake-ip': true,
+  };
+}
+
+function compileSnifferSection(): Record<string, unknown> {
+  return {
+    enable: true,
+    'force-dns-mapping': true,
+    'parse-pure-ip': true,
+    'override-destination': true,
+    sniff: {
+      HTTP: {
+        ports: [80, '8080-8880'],
+        'override-destination': true,
+      },
+      TLS: {
+        ports: [443, 8443],
+      },
+      QUIC: {
+        ports: [443, 8443],
+      },
+    },
+    'skip-domain': ['Mijia Cloud', '+.push.apple.com', '+.lan', '+.local'],
+  };
+}
+
+function sanitizeDnsPolicyMap(raw: unknown): Record<string, string | string[]> | undefined {
+  if (!isPlainObject(raw)) return undefined;
+  const out: Record<string, string | string[]> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+    const cleanKey = sanitizeMihomoScalar(key);
+    if (!cleanKey) continue;
+    if (typeof value === 'string') {
+      const cleanVal = sanitizeMihomoScalar(value);
+      if (cleanVal) out[cleanKey] = cleanVal;
+    } else if (Array.isArray(value)) {
+      const cleanArr = value
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => sanitizeMihomoScalar(item))
+        .filter(Boolean);
+      if (cleanArr.length > 0) out[cleanKey] = cleanArr;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function compileDnsSection(
   dns: DnsProfile,
   general: TemplateBody['general'],
@@ -543,6 +692,8 @@ function compileDnsSection(
       : dns.mode === 'custom' && typeof dns.custom?.['enhanced-mode'] === 'string'
         ? sanitizeMihomoScalar(dns.custom['enhanced-mode'])
         : 'fake-ip';
+
+  const respectRules = dns.respectRules ?? true;
 
   const result: Record<string, unknown> = {
     enable: dns.enable ?? true,
@@ -561,28 +712,45 @@ function compileDnsSection(
     }
   }
 
-  if (dns.respectRules) {
+  if (respectRules) {
     result['respect-rules'] = true;
   }
 
   const defaultNs =
     dns.defaultNameserver && dns.defaultNameserver.length > 0
       ? dns.defaultNameserver.map((entry) => sanitizeMihomoScalar(entry)).filter(Boolean)
-      : undefined;
-  if (defaultNs && defaultNs.length > 0) {
+      : [...DEFAULT_BOOTSTRAP_DNS];
+  if (defaultNs.length > 0) {
     result['default-nameserver'] = defaultNs;
   }
 
-  if (dns.nameserver && dns.nameserver.length > 0) {
-    result.nameserver = dns.nameserver.map((entry) => sanitizeMihomoScalar(entry)).filter(Boolean);
-  }
+  const cleanedInputNs =
+    dns.nameserver && dns.nameserver.length > 0
+      ? dns.nameserver.map((entry) => sanitizeMihomoScalar(entry)).filter(Boolean)
+      : [];
+  const cleanedLegacyFallback =
+    dns.fallback && dns.fallback.length > 0
+      ? dns.fallback.map((entry) => sanitizeMihomoScalar(entry)).filter(Boolean)
+      : [];
 
-  if (dns.fallback && dns.fallback.length > 0) {
-    result.fallback = dns.fallback.map((entry) => sanitizeMihomoScalar(entry)).filter(Boolean);
-  }
+  // Modern mihomo DNS avoids legacy `fallback` / `fallback-filter`:
+  // - `nameserver` uses foreign DoH (routed via `respect-rules: true`)
+  // - `nameserver-policy` routes `geosite:cn` & `geosite:private` to domestic DoH
+  // - `proxy-server-nameserver` resolves airport proxy hostnames via domestic DoH
+  const domesticDoh =
+    cleanedLegacyFallback.length > 0 && cleanedInputNs.length > 0 ? cleanedInputNs : [...DEFAULT_DOMESTIC_DOH];
+  const primaryNameservers =
+    cleanedLegacyFallback.length > 0
+      ? cleanedLegacyFallback
+      : cleanedInputNs.length > 0
+        ? cleanedInputNs
+        : [...DEFAULT_PROXY_DOH];
 
-  // Extract proxy-server-nameserver (supports both camelCase from dns-leak module and kebab-case)
-  const rawProxyServerNs = dns.custom?.['proxy-server-nameserver'] ?? dns.custom?.proxyServerNameserver;
+  result.nameserver = primaryNameservers;
+
+  // Extract proxy-server-nameserver (supports structured field, camelCase from dns-leak module, and kebab-case)
+  const rawProxyServerNs =
+    dns.proxyServerNameserver ?? dns.custom?.['proxy-server-nameserver'] ?? dns.custom?.proxyServerNameserver;
   let proxyServerNs: string[] | undefined;
   if (Array.isArray(rawProxyServerNs)) {
     const cleaned = rawProxyServerNs
@@ -592,25 +760,34 @@ function compileDnsSection(
     if (cleaned.length > 0) proxyServerNs = cleaned;
   }
 
-  if (dns.respectRules && MIHOMO_CAPS.requiresProxyServerNameserverWithRespectRules && !proxyServerNs) {
-    proxyServerNs = defaultNs && defaultNs.length > 0 ? [...defaultNs] : [...DEFAULT_BOOTSTRAP_DNS];
-    items.push({
-      code: 'PROXY_SERVER_NAMESERVER_INFERRED',
-      severity: 'info',
-      message: 'mihomo 开启 respect-rules 时要求配置 proxy-server-nameserver，已自动从 default-nameserver 补全。',
-    });
+  if (!proxyServerNs) {
+    proxyServerNs = [...domesticDoh];
+    if (dns.respectRules === true && MIHOMO_CAPS.requiresProxyServerNameserverWithRespectRules) {
+      items.push({
+        code: 'PROXY_SERVER_NAMESERVER_INFERRED',
+        severity: 'info',
+        message: 'mihomo 开启 respect-rules 时要求配置 proxy-server-nameserver，已自动使用国内 DoH 补全。',
+      });
+    }
   }
 
-  if (proxyServerNs && proxyServerNs.length > 0) {
-    result['proxy-server-nameserver'] = proxyServerNs;
-  }
+  result['proxy-server-nameserver'] = proxyServerNs;
 
-  // Forward remaining safe custom DNS keys (excluding internal metadata and already-mapped keys)
+  const customPolicy = sanitizeDnsPolicyMap(dns.nameserverPolicy ?? dns.custom?.['nameserver-policy']);
+  result['nameserver-policy'] = customPolicy ?? {
+    'geosite:cn': [...domesticDoh],
+    'geosite:private': [...domesticDoh],
+  };
+
+  // Forward remaining safe custom DNS keys (excluding internal metadata, legacy fallback, and already-mapped keys)
   if (dns.custom) {
     const handledKeys = new Set([
       'dnsLeakGuard',
       'proxyServerNameserver',
       'proxy-server-nameserver',
+      'nameserver-policy',
+      'fallback',
+      'fallback-filter',
       'enhanced-mode',
       'fake-ip-range',
     ]);
@@ -677,6 +854,10 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
   const body = resolved.body;
   const enabledCards = resolved.cards.filter((card) => card.enabled);
   const ipNoResolveEnabled = appliedModules.includes('ip-no-resolve');
+  const githubMirrorUrl = input.githubMirrorUrl?.trim() || undefined;
+  const effectiveIconPack = input.iconPack !== undefined ? input.iconPack : buildDefaultIconPack(githubMirrorUrl);
+  const multiSlot = body.slots.length > 1;
+  const useLegacyGeodata = Boolean(body.legacyGeodata);
 
   if (output === 'minimal') {
     items.push({
@@ -702,15 +883,20 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
       slotBindingMap.get(slot.id),
       body.general,
       items,
+      multiSlot,
     );
     proxyProviders[key] = entry;
     totalInlineProxies += inlineProxyCount;
   }
 
-  // 3. Allocate unique sanitized group names for all enabled cards and region groups
+  const allProviderKeys = [...slotProviderKeyById.values()];
+
+  // 3. Allocate unique sanitized group names for all enabled cards, region groups, and multi-airport helper groups
   const usedGroupNames = new Set<string>();
   const cardGroupNameById = new Map<string, string>();
   const regionGroupNameById = new Map<string, string>();
+  const airportGroupNameBySlotId = new Map<string, string>();
+  let allNodesGroupName: string | undefined;
 
   for (const card of enabledCards) {
     const sanitized = sanitizeMihomoGroupName(card.effective.name, card.cardId);
@@ -754,6 +940,15 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
     regionGroupNameById.set(regionGroup.id, finalName);
   }
 
+  if (multiSlot) {
+    for (const slot of body.slots) {
+      const sanitized = sanitizeMihomoGroupName(slot.name, slot.id);
+      const finalName = allocateUniqueName(sanitized, usedGroupNames, true);
+      airportGroupNameBySlotId.set(slot.id, finalName);
+    }
+    allNodesGroupName = allocateUniqueName('🌐 全部节点', usedGroupNames, true);
+  }
+
   // Helper to resolve a PolicyRef into either a policy name or a slot reference
   const syntheticFilterGroups: Record<string, unknown>[] = [];
   const syntheticFilterGroupNames = new Map<string, string>();
@@ -789,9 +984,27 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
       interval:
         card.effective.group.test?.intervalSec ?? body.general?.testIntervalSec ?? DEFAULT_HEALTH_CHECK.intervalSec,
       tolerance: card.effective.group.test?.toleranceMs ?? DEFAULT_HEALTH_CHECK.toleranceMs ?? 50,
+      lazy: true,
+      timeout: DEFAULT_HEALTH_CHECK_TIMEOUT_MS,
+      'expected-status': DEFAULT_EXPECTED_STATUS,
+      hidden: true,
     };
     syntheticFilterGroups.push(groupObj);
     return groupName;
+  };
+
+  const shouldHideCardGroup = (card: ResolvedTemplateCard, groupType: string): boolean => {
+    if (VISIBLE_CORE_HUB_CARD_IDS.has(card.cardId)) return false;
+    if (HIDDEN_AUXILIARY_CARD_IDS.has(card.cardId)) return true;
+    if ((groupType === 'fallback' || groupType === 'load-balance') && card.effective.matchers.length === 0) {
+      return true;
+    }
+    return false;
+  };
+
+  const shouldHideRegionGroup = (regionGroup: RegionGroup): boolean => {
+    if (regionGroup.hidden !== undefined) return regionGroup.hidden;
+    return body.wizardMeta?.groupMode !== 'region';
   };
 
   // 4. Build proxy-groups for enabled cards
@@ -847,6 +1060,24 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
       }
 
       // candidate.kind === 'slot'
+      if (multiSlot && !candidate.filter && card.cardId === 'proxy-select') {
+        // In multi-airport mode, `proxy-select` exposes per-airport hidden groups + `全部节点` instead of raw single-slot nodes
+        for (const airportGroupName of airportGroupNameBySlotId.values()) {
+          if (!proxies.includes(airportGroupName)) proxies.push(airportGroupName);
+        }
+        if (allNodesGroupName && !proxies.includes(allNodesGroupName)) {
+          proxies.push(allNodesGroupName);
+        }
+        continue;
+      }
+
+      if (multiSlot && !candidate.filter && card.cardId === 'auto-select') {
+        for (const key of allProviderKeys) {
+          if (!use.includes(key)) use.push(key);
+        }
+        continue;
+      }
+
       const providerKey = slotProviderKeyById.get(candidate.slotId);
       if (!providerKey) {
         items.push({
@@ -876,6 +1107,22 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
       }
     }
 
+    // Ensure multi-airport `proxy-select` always includes airport groups and `全部节点` even if its candidates omitted slot refs
+    if (multiSlot && card.cardId === 'proxy-select') {
+      const insertBeforeDirect = (name: string) => {
+        if (proxies.includes(name)) return;
+        const directIdx = proxies.indexOf('DIRECT');
+        if (directIdx >= 0) proxies.splice(directIdx, 0, name);
+        else proxies.push(name);
+      };
+      for (const airportGroupName of airportGroupNameBySlotId.values()) {
+        insertBeforeDirect(airportGroupName);
+      }
+      if (allNodesGroupName) {
+        insertBeforeDirect(allNodesGroupName);
+      }
+    }
+
     if (proxies.length === 0 && use.length === 0) {
       proxies.push('DIRECT');
       items.push({
@@ -902,9 +1149,18 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
       if (groupSpec.type === 'url-test') {
         groupObj.tolerance = groupSpec.test?.toleranceMs ?? DEFAULT_HEALTH_CHECK.toleranceMs ?? 50;
       }
+      if (groupSpec.type === 'url-test' || groupSpec.type === 'fallback') {
+        groupObj.lazy = true;
+        groupObj.timeout = DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
+        groupObj['expected-status'] = DEFAULT_EXPECTED_STATUS;
+      }
       if (groupSpec.type === 'load-balance') {
         groupObj.strategy = DEFAULT_LOAD_BALANCE_STRATEGY;
       }
+    }
+
+    if (shouldHideCardGroup(card, groupSpec.type)) {
+      groupObj.hidden = true;
     }
 
     const iconUrl = resolveGroupIconUrl(
@@ -916,7 +1172,8 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
         groupType: groupSpec.type,
         matchers: card.effective.matchers,
       },
-      input.iconPack,
+      effectiveIconPack,
+      githubMirrorUrl,
     );
     if (iconUrl) {
       groupObj.icon = iconUrl;
@@ -925,12 +1182,19 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
     proxyGroups.push(groupObj);
   }
 
-  // 5. Build proxy-groups for regionGroups (plus any synthesized filtered slot sub-groups)
+  // 5. Build proxy-groups for regionGroups, multi-airport helper groups, and synthesized filtered slot sub-groups
   const compileRegionGroup = (regionGroup: RegionGroup): Record<string, unknown> => {
     const groupName = regionGroupNameById.get(regionGroup.id)!;
     const use: string[] = [];
 
-    if (regionGroup.slotId) {
+    if (
+      multiSlot &&
+      (!regionGroup.slotId || regionGroup.slotId === 'slot-main' || !slotProviderKeyById.has(regionGroup.slotId))
+    ) {
+      for (const key of allProviderKeys) {
+        use.push(key);
+      }
+    } else if (regionGroup.slotId) {
       const providerKey = slotProviderKeyById.get(regionGroup.slotId);
       if (providerKey) {
         use.push(providerKey);
@@ -943,7 +1207,7 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
         });
       }
     } else {
-      for (const key of slotProviderKeyById.values()) {
+      for (const key of allProviderKeys) {
         use.push(key);
       }
     }
@@ -989,9 +1253,18 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
       if (regionGroup.type === 'url-test') {
         groupObj.tolerance = regionGroup.test?.toleranceMs ?? DEFAULT_HEALTH_CHECK.toleranceMs ?? 50;
       }
+      if (regionGroup.type === 'url-test' || regionGroup.type === 'fallback') {
+        groupObj.lazy = true;
+        groupObj.timeout = DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
+        groupObj['expected-status'] = DEFAULT_EXPECTED_STATUS;
+      }
       if (regionGroup.type === 'load-balance') {
         groupObj.strategy = DEFAULT_LOAD_BALANCE_STRATEGY;
       }
+    }
+
+    if (shouldHideRegionGroup(regionGroup)) {
+      groupObj.hidden = true;
     }
 
     const iconUrl = resolveGroupIconUrl(
@@ -1000,7 +1273,8 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
         region: regionGroup.region,
         groupType: regionGroup.type,
       },
-      input.iconPack,
+      effectiveIconPack,
+      githubMirrorUrl,
     );
     if (iconUrl) {
       groupObj.icon = iconUrl;
@@ -1012,6 +1286,61 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
   for (const regionGroup of body.regionGroups) {
     proxyGroups.push(compileRegionGroup(regionGroup));
   }
+
+  if (multiSlot) {
+    for (const slot of body.slots) {
+      const providerKey = slotProviderKeyById.get(slot.id)!;
+      const airportGroupName = airportGroupNameBySlotId.get(slot.id)!;
+      const airportGroup: Record<string, unknown> = {
+        name: airportGroupName,
+        type: 'url-test',
+        use: [providerKey],
+        url: sanitizeMihomoScalar(slot.healthCheck?.url ?? body.general?.testUrl ?? DEFAULT_HEALTH_CHECK.url),
+        interval: slot.healthCheck?.intervalSec ?? body.general?.testIntervalSec ?? DEFAULT_HEALTH_CHECK.intervalSec,
+        tolerance: slot.healthCheck?.toleranceMs ?? DEFAULT_HEALTH_CHECK.toleranceMs ?? 50,
+        lazy: true,
+        timeout: DEFAULT_HEALTH_CHECK_TIMEOUT_MS,
+        'expected-status': DEFAULT_EXPECTED_STATUS,
+        hidden: true,
+      };
+      const airportIcon = resolveGroupIconUrl(
+        {
+          name: slot.name,
+          slug: 'airport',
+          groupType: 'url-test',
+        },
+        effectiveIconPack,
+        githubMirrorUrl,
+      );
+      if (airportIcon) {
+        airportGroup.icon = airportIcon;
+      }
+      proxyGroups.push(airportGroup);
+    }
+
+    if (allNodesGroupName) {
+      const allNodesGroup: Record<string, unknown> = {
+        name: allNodesGroupName,
+        type: 'select',
+        use: allProviderKeys,
+        hidden: true,
+      };
+      const allNodesIcon = resolveGroupIconUrl(
+        {
+          name: allNodesGroupName,
+          slug: 'all-nodes',
+          groupType: 'select',
+        },
+        effectiveIconPack,
+        githubMirrorUrl,
+      );
+      if (allNodesIcon) {
+        allNodesGroup.icon = allNodesIcon;
+      }
+      proxyGroups.push(allNodesGroup);
+    }
+  }
+
   for (const synthGroup of syntheticFilterGroups) {
     proxyGroups.push(synthGroup);
   }
@@ -1045,10 +1374,35 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
   for (const provider of plan.providers) {
     const key = allocateUniqueKey(sanitizeMihomoProviderKey(provider.id, 'ruleset'), usedRuleProviderKeys);
     ruleProviderKeyById.set(provider.id, key);
-    const { entry, effectiveBehavior } = buildRuleProviderEntry(provider, key, inlinePayloads, items);
+    const { entry, effectiveBehavior } = buildRuleProviderEntry(provider, key, inlinePayloads, items, githubMirrorUrl);
     ruleProviderBehaviorById.set(provider.id, effectiveBehavior);
     ruleProviders[key] = entry;
   }
+
+  const mrsProviderKeyByRef = new Map<string, string>();
+  const ensureMrsRuleProvider = (kind: 'geosite' | 'geoip', name: string): string => {
+    const refKey = `${kind}:${name}`;
+    const existing = mrsProviderKeyByRef.get(refKey);
+    if (existing) return existing;
+
+    const desiredKey = sanitizeMihomoProviderKey(`${kind}-${name}`, kind);
+    const key = allocateUniqueKey(desiredKey, usedRuleProviderKeys);
+    const behavior: RemoteRuleBehavior = kind === 'geosite' ? 'domain' : 'ipcidr';
+    const rawUrl =
+      kind === 'geosite'
+        ? `${METACUBEX_MRS_GEOSITE_BASE}/${encodeURIComponent(name)}.mrs`
+        : `${METACUBEX_MRS_GEOIP_BASE}/${encodeURIComponent(name)}.mrs`;
+    ruleProviders[key] = {
+      type: 'http',
+      behavior,
+      format: 'mrs',
+      url: applyGithubMirror(rawUrl, githubMirrorUrl),
+      path: `./providers/rules/${key}.mrs`,
+      interval: DEFAULT_MRS_INTERVAL_SEC,
+    };
+    mrsProviderKeyByRef.set(refKey, key);
+    return key;
+  };
 
   // Index bindings by (cardId, matcherIndex) for fast ordered emission
   const bindingMap = new Map<string, PlannedMatcherBinding>();
@@ -1069,15 +1423,34 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
       if (matcher.kind === 'geosite') {
         const name = sanitizeMihomoRuleValue(matcher.name).toLowerCase();
         if (name) {
-          rules.push(`GEOSITE,${name},${policyName}`);
+          if (!useLegacyGeodata && KNOWN_METACUBEX_GEOSITE_MRS.has(name)) {
+            const providerKey = ensureMrsRuleProvider('geosite', name);
+            rules.push(`RULE-SET,${providerKey},${policyName}`);
+          } else {
+            rules.push(`GEOSITE,${name},${policyName}`);
+          }
         }
         return;
       }
 
       if (matcher.kind === 'geoip') {
-        const name = sanitizeMihomoRuleValue(matcher.name).toUpperCase();
-        if (name) {
-          rules.push(matcher.noResolve ? `GEOIP,${name},${policyName},no-resolve` : `GEOIP,${name},${policyName}`);
+        const cleanVal = sanitizeMihomoRuleValue(matcher.name);
+        const lowerName = cleanVal.toLowerCase();
+        const upperName = cleanVal.toUpperCase();
+        if (lowerName) {
+          const appendNoResolve = Boolean(matcher.noResolve);
+          if (!useLegacyGeodata && KNOWN_METACUBEX_GEOIP_MRS.has(lowerName)) {
+            const providerKey = ensureMrsRuleProvider('geoip', lowerName);
+            rules.push(
+              appendNoResolve
+                ? `RULE-SET,${providerKey},${policyName},no-resolve`
+                : `RULE-SET,${providerKey},${policyName}`,
+            );
+          } else {
+            rules.push(
+              appendNoResolve ? `GEOIP,${upperName},${policyName},no-resolve` : `GEOIP,${upperName},${policyName}`,
+            );
+          }
         }
         return;
       }
@@ -1154,7 +1527,9 @@ export function compileMihomo(input: CompileTemplateInput): CompiledConfigResult
     document['unified-delay'] = true;
     document['tcp-concurrent'] = true;
     document['find-process-mode'] = 'strict';
+    document.profile = compileProfileSection();
     document.dns = compileDnsSection(body.dns, body.general, items);
+    document.sniffer = compileSnifferSection();
   }
 
   if (Object.keys(proxyProviders).length > 0) {

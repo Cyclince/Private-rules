@@ -23,7 +23,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Switch } from '../ui/switch';
 
-const PRESET_TIERS: readonly SimplePresetTier[] = ['minimal', 'light', 'standard', 'heavy'];
+const PRESET_TIERS: readonly SimplePresetTier[] = ['less', 'recommended', 'all'];
 
 function scenarioTitleKey(id: WizardScenarioId): MessageKey {
   return `wizard.scenario.${id}` as MessageKey;
@@ -228,7 +228,7 @@ export function TemplateSimpleRoutingTab({ view, readOnly }: TemplateSimpleRouti
           <CardDescription>{t('templateDetail.routingSubtitle')}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {PRESET_TIERS.map((tier) => {
               const isActive = activePreset === tier;
               return (
@@ -244,7 +244,9 @@ export function TemplateSimpleRoutingTab({ view, readOnly }: TemplateSimpleRouti
                       : 'border-border bg-bg text-text hover:border-primary/40 hover:bg-surface-muted/50'
                   }`}
                 >
-                  {tier === 'standard' ? t('wizard.preset.standardDefault') : t(`wizard.preset.${tier}` as MessageKey)}
+                  {tier === 'recommended'
+                    ? t('wizard.preset.recommendedDefault')
+                    : t(`wizard.preset.${tier}` as MessageKey)}
                 </button>
               );
             })}

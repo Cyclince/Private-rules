@@ -9,6 +9,7 @@ import { summarizeRulesetBehaviors } from '../../domain/formatters';
 import { id, slugify } from '../../domain/rules/slug';
 import {
   applyOverlay,
+  buildDefaultIconPack,
   compileTemplate,
   importMihomoYaml,
   importSubconverterIni,
@@ -32,6 +33,7 @@ import {
   type RebaseDiff,
 } from '../../domain/templates';
 import { safeFetchText } from '../../infrastructure/http/fetch';
+import { rewriteGithubUrl } from '../../lib/github-mirror';
 import {
   SUPPORTED_TEMPLATE_CLIENTS,
   TEMPLATE_CLIENTS,
@@ -236,13 +238,25 @@ export async function loadTemplateRulesetContext(
 }
 
 /**
- * Reads cached external icon packs (if already cached in DB, without triggering
- * outbound HTTP fetches during compilation).
+ * Reads cached external icon packs (custom icon packs first, then cached preset pack,
+ * then the built-in default QureColor pack fallback) without triggering outbound HTTP
+ * fetches during compilation. Applies configured GitHub mirror URL when present.
  */
 export async function loadCachedIconPackEntries(env: Env): Promise<IconPackEntry[]> {
   const repos = createRepositories(env.DB);
   const settings = await repos.settings.getAll();
-  const urls = [...new Set([...PRESET_ICON_PACK_URLS, ...settings.customIconPackUrls])];
+  const mirrorUrl = settings.githubMirrorUrl?.trim() ?? '';
+  const rewriteUrl = (rawUrl: string): string => {
+    if (!mirrorUrl) return rawUrl;
+    try {
+      return rewriteGithubUrl(rawUrl, mirrorUrl);
+    } catch {
+      return rawUrl;
+    }
+  };
+
+  // Custom icon packs take precedence over the default preset pack
+  const urls = [...new Set([...settings.customIconPackUrls, ...PRESET_ICON_PACK_URLS])];
   const entries: IconPackEntry[] = [];
   for (const url of urls) {
     const cached = await repos.iconPacks.findByUrl(url);
@@ -259,7 +273,7 @@ export async function loadCachedIconPackEntries(env: Env): Promise<IconPackEntry
           ) {
             entries.push({
               name: (item as { name: string }).name,
-              url: (item as { url: string }).url,
+              url: rewriteUrl((item as { url: string }).url),
             });
           }
         }
@@ -268,6 +282,9 @@ export async function loadCachedIconPackEntries(env: Env): Promise<IconPackEntry
       // Ignore malformed cache rows
     }
   }
+
+  // Always append built-in default QureColor pack as fallback so icons work immediately out-of-the-box
+  entries.push(...buildDefaultIconPack(mirrorUrl));
   return entries;
 }
 
@@ -855,10 +872,11 @@ export async function previewTemplateById(
       ? applyOverlay(template.baseBody, options.overlay).resolved
       : resolvedBody;
 
-  const [cards, catalogIndex, iconPack] = await Promise.all([
+  const [cards, catalogIndex, iconPack, settings] = await Promise.all([
     loadCardLookup(env),
     loadCatalogIndexMap(env),
     loadCachedIconPackEntries(env),
+    createRepositories(env.DB).settings.getAll(),
   ]);
   const rulesetCtx = await loadTemplateRulesetContext(env, effectiveBody, cards);
 
@@ -872,6 +890,7 @@ export async function previewTemplateById(
     rulesetBehaviors: rulesetCtx.rulesetBehaviors,
     baseUrl: options.baseUrl,
     iconPack,
+    githubMirrorUrl: settings.githubMirrorUrl || undefined,
     experimentalFullConfig: options.experimentalFullConfig,
   });
 }

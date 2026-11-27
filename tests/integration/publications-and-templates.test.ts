@@ -1498,4 +1498,88 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
     expect(exportedPublic?.experimentalFullConfig).toBe(true);
     expect(exportedBound?.experimentalFullConfig).toBeUndefined();
   });
+
+  it('wires default/custom icon packs and GitHub mirror into /p, /t, and template preview for mihomo', async () => {
+    const tplRes = await adminRequest('/api/templates', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'Icon Delivery Template',
+        slug: 'icon-delivery-tpl',
+        starterTier: 'recommended',
+      }),
+    });
+    expect(tplRes.status).toBe(201);
+    const { template } = (await tplRes.json()) as { template: { id: string } };
+
+    // Preview includes default QureColor group icons and MetaCubeX .mrs rule-providers
+    const previewRes = await adminRequest(`/api/templates/${template.id}/preview?client=mihomo&output=full`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    expect(previewRes.status).toBe(200);
+    const previewJson = (await previewRes.json()) as { preview: { content: string } };
+    const previewDoc = parseYaml(previewJson.preview.content) as {
+      'proxy-groups': Array<{ name: string; icon?: string }>;
+      'rule-providers': Record<string, { url: string; format?: string }>;
+    };
+    expect(previewDoc['proxy-groups'].find((g) => g.name === '🚀 节点选择')?.icon).toContain('Proxy.png');
+    expect(previewDoc['rule-providers']['geosite-openai']?.format).toBe('mrs');
+
+    // Create public (/p) and token (/t) publications
+    const pubPublicRes = await adminRequest('/api/publications', {
+      method: 'POST',
+      body: JSON.stringify({
+        slug: 'icon-public',
+        templateId: template.id,
+        clients: ['mihomo'],
+        access: 'public',
+        output: 'full',
+      }),
+    });
+    expect(pubPublicRes.status).toBe(201);
+
+    const pubTokenRes = await adminRequest('/api/publications', {
+      method: 'POST',
+      body: JSON.stringify({
+        slug: 'icon-token',
+        templateId: template.id,
+        clients: ['mihomo'],
+        access: 'token',
+        output: 'full',
+      }),
+    });
+    expect(pubTokenRes.status).toBe(201);
+
+    const pRes = await app.request('/p/icon-public/mihomo.yaml', {}, env);
+    expect(pRes.status).toBe(200);
+    const pDoc = parseYaml(await pRes.text()) as {
+      'proxy-groups': Array<{ name: string; icon?: string }>;
+    };
+    expect(pDoc['proxy-groups'].find((g) => g.name === '🚀 节点选择')?.icon).toContain('Proxy.png');
+
+    const tRes = await app.request('/t/pub-secret-token/icon-token/mihomo.yaml', {}, env);
+    expect(tRes.status).toBe(200);
+    const tDoc = parseYaml(await tRes.text()) as {
+      'proxy-groups': Array<{ name: string; icon?: string }>;
+    };
+    expect(tDoc['proxy-groups'].find((g) => g.name === '🚀 节点选择')?.icon).toContain('Proxy.png');
+
+    // Configure GitHub mirror in settings -> /p and /t rewrite icon & .mrs URLs cleanly
+    const patchSettings = await adminRequest('/api/settings', {
+      method: 'PATCH',
+      body: JSON.stringify({ githubMirrorUrl: 'https://mirror.example.com' }),
+    });
+    expect(patchSettings.status).toBe(200);
+
+    const pMirroredRes = await app.request('/p/icon-public/mihomo.yaml', {}, env);
+    expect(pMirroredRes.status).toBe(200);
+    const pMirroredDoc = parseYaml(await pMirroredRes.text()) as {
+      'proxy-groups': Array<{ name: string; icon?: string }>;
+      'rule-providers': Record<string, { url: string }>;
+    };
+    expect(pMirroredDoc['proxy-groups'].find((g) => g.name === '🚀 节点选择')?.icon).toMatch(
+      /^https:\/\/mirror\.example\.com\//,
+    );
+    expect(pMirroredDoc['rule-providers']['geosite-openai']?.url).toMatch(/^https:\/\/mirror\.example\.com\//);
+  });
 });

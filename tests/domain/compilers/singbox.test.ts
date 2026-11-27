@@ -547,7 +547,7 @@ describe('compileSingbox — special characters, DNS leak guard, rulesets, compa
       },
     ];
 
-    const tpl = buildStarterTemplate('light', { output: 'minimal' });
+    const tpl = buildStarterTemplate('all', { output: 'minimal' });
     const res = compileSingbox({
       body: tpl.baseBody,
       cards: BUILTIN_CARDS,

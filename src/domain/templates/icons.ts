@@ -1,3 +1,4 @@
+import { rewriteGithubUrl } from '../../lib/github-mirror';
 import type { CatalogCategory, GroupType, Matcher } from '../../shared/schemas/card';
 import { detectNodeRegions, getRegionDefinition } from '../nodes';
 
@@ -5,6 +6,78 @@ export type IconPackEntry = {
   name: string;
   url: string;
 };
+
+const QURE_COLOR_BASE_URL = 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color';
+
+/**
+ * Built-in default icon pack entries sourced from Koolson/Qure (`QureColor-All.json`)
+ * so mihomo configs include icons out-of-the-box even before the icon-pack cache is refreshed.
+ * Custom icon packs configured in settings always take precedence over this fallback.
+ */
+export const DEFAULT_QURE_ICON_PACK: readonly IconPackEntry[] = [
+  'Advertising.png',
+  'Airport.png',
+  'Apple.png',
+  'Australia.png',
+  'Auto.png',
+  'Available.png',
+  'bilibili.png',
+  'Bot.png',
+  'Canada.png',
+  'China.png',
+  'China_Map.png',
+  'Direct.png',
+  'Discord.png',
+  'Disney.png',
+  'Domestic.png',
+  'Final.png',
+  'France.png',
+  'Game.png',
+  'Germany.png',
+  'GitHub.png',
+  'Global.png',
+  'Google.png',
+  'Google_Search.png',
+  'Hong_Kong.png',
+  'Japan.png',
+  'Korea.png',
+  'Microsoft.png',
+  'Netflix.png',
+  'OneDrive.png',
+  'PayPal.png',
+  'Proxy.png',
+  'Reject.png',
+  'Round_Robin.png',
+  'Server.png',
+  'Singapore.png',
+  'Speedtest.png',
+  'Spotify.png',
+  'Steam.png',
+  'Streaming.png',
+  'Taiwan.png',
+  'Telegram.png',
+  'TikTok.png',
+  'Twitter.png',
+  'United_Kingdom.png',
+  'United_States.png',
+  'YouTube.png',
+].map((file) => ({
+  name: file.replace(/\.png$/i, ''),
+  url: `${QURE_COLOR_BASE_URL}/${file}`,
+}));
+
+/**
+ * Returns the default QureColor icon pack entries, optionally rewritten through
+ * a configured GitHub mirror URL (pure function, no I/O).
+ */
+export function buildDefaultIconPack(githubMirrorUrl?: string): IconPackEntry[] {
+  const mirror = githubMirrorUrl?.trim() ?? '';
+  if (!mirror) return DEFAULT_QURE_ICON_PACK.map((entry) => ({ ...entry }));
+  return DEFAULT_QURE_ICON_PACK.map((entry) => ({
+    name: entry.name,
+    url: rewriteGithubUrl(entry.url, mirror),
+  }));
+}
 
 export type IconMatchSource = 'emoji' | 'service' | 'category' | 'region' | 'role' | 'matcher' | 'fallback';
 
@@ -38,9 +111,9 @@ type ServiceIconRule = {
 };
 
 const SERVICE_ICON_RULES: readonly ServiceIconRule[] = [
-  { key: 'openai', emoji: '🤖', pattern: /\b(openai|chatgpt|gpt)\b/i, packAliases: ['ChatGPT', 'OpenAI', 'AI'] },
-  { key: 'claude', emoji: '🧠', pattern: /\b(claude|anthropic)\b/i, packAliases: ['Claude', 'AI'] },
-  { key: 'gemini', emoji: '✨', pattern: /\b(gemini|bard)\b/i, packAliases: ['Gemini', 'Google', 'AI'] },
+  { key: 'openai', emoji: '🤖', pattern: /\b(openai|chatgpt|gpt)\b/i, packAliases: ['ChatGPT', 'OpenAI', 'Bot', 'AI'] },
+  { key: 'claude', emoji: '🧠', pattern: /\b(claude|anthropic)\b/i, packAliases: ['Claude', 'Bot', 'AI'] },
+  { key: 'gemini', emoji: '✨', pattern: /\b(gemini|bard)\b/i, packAliases: ['Gemini', 'Google', 'Bot', 'AI'] },
   {
     key: 'ai',
     emoji: '✨',
@@ -133,6 +206,18 @@ const ROLE_ICON_RULES: readonly ServiceIconRule[] = [
     packAliases: ['RoundRobin', 'LoadBalance'],
   },
   {
+    key: 'all-nodes',
+    emoji: '🌐',
+    pattern: /\ball[-_\s]?nodes\b|全部节点|全部節點/i,
+    packAliases: ['Global', 'Server', 'Proxy'],
+  },
+  {
+    key: 'airport',
+    emoji: '✈️',
+    pattern: /\bairport\b|机场|機場/i,
+    packAliases: ['Airport', 'Server'],
+  },
+  {
     key: 'proxy',
     emoji: '🚀',
     pattern: /\b(proxy|gfw|select)\b|节点选择|節點選擇|代理/i,
@@ -149,7 +234,10 @@ export function extractEmojiFromName(name: string): string | undefined {
 }
 
 function normalizeIconName(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return name
+    .replace(/\.(png|svg|webp|jpe?g|ico|gif)$/i, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
 }
 
 function matchPackIcon(aliases: readonly string[], packIcons?: readonly IconPackEntry[]): IconPackEntry | undefined {
@@ -220,7 +308,7 @@ export function recognizeGroupIcon(
     }
     const role = ROLE_ICON_RULES.find((rule) => rule.pattern.test(combinedName));
     if (role) return { key: role.key, packAliases: role.packAliases };
-    if (input.category) {
+    if (input.category && input.category !== 'other' && input.category !== 'infrastructure') {
       const cat = CATEGORY_ICONS[input.category];
       return { key: cat.key, packAliases: cat.packAliases };
     }

@@ -43,39 +43,39 @@ describe('M2a quick-create pure domain logic', () => {
   });
 
   describe('presets -> scenario checkboxes mapping', () => {
-    it('matches the 4 tiers (minimal ⊂ light ⊂ standard ⊂ heavy)', () => {
-      const minimal = getPresetScenarioSelection('minimal');
-      const light = getPresetScenarioSelection('light');
-      const standard = getPresetScenarioSelection('standard');
-      const heavy = getPresetScenarioSelection('heavy');
+    it('matches the 3 canonical tiers (less ⊂ recommended ⊂ all) and supports legacy tier aliases', () => {
+      const less = getPresetScenarioSelection('less');
+      const recommended = getPresetScenarioSelection('recommended');
+      const all = getPresetScenarioSelection('all');
 
-      expect(minimal['domestic-direct']).toBe(true);
-      expect(minimal['ad-block']).toBe(false);
-      expect(minimal.ai).toBe(false);
+      expect(less['domestic-direct']).toBe(true);
+      expect(less.ai).toBe(true);
+      expect(less['ad-block']).toBe(false);
+      expect(less.streaming).toBe(false);
 
-      expect(light['domestic-direct']).toBe(true);
-      expect(light['ad-block']).toBe(true);
-      expect(light.ai).toBe(true);
-      expect(light.streaming).toBe(false);
-
-      expect(standard['domestic-direct']).toBe(true);
-      expect(standard['ad-block']).toBe(true);
-      expect(standard.ai).toBe(true);
-      expect(standard.telegram).toBe(true);
-      expect(standard.streaming).toBe(true);
-      expect(standard.social).toBe(false);
-      expect(standard.github).toBe(false);
+      expect(recommended['domestic-direct']).toBe(true);
+      expect(recommended['ad-block']).toBe(true);
+      expect(recommended.ai).toBe(true);
+      expect(recommended.telegram).toBe(true);
+      expect(recommended.streaming).toBe(true);
+      expect(recommended.social).toBe(false);
+      expect(recommended.github).toBe(false);
 
       for (const def of WIZARD_SCENARIO_DEFINITIONS) {
-        expect(heavy[def.id]).toBe(true);
+        expect(all[def.id]).toBe(true);
       }
 
-      expect(detectMatchingPresetTier(minimal)).toBe('minimal');
-      expect(detectMatchingPresetTier(light)).toBe('light');
-      expect(detectMatchingPresetTier(standard)).toBe('standard');
-      expect(detectMatchingPresetTier(heavy)).toBe('heavy');
+      expect(detectMatchingPresetTier(less)).toBe('less');
+      expect(detectMatchingPresetTier(recommended)).toBe('recommended');
+      expect(detectMatchingPresetTier(all)).toBe('all');
 
-      const custom: Record<WizardScenarioId, boolean> = { ...standard, github: true };
+      // Legacy tier aliases map cleanly to canonical presets
+      expect(getPresetScenarioSelection('minimal')).toEqual(less);
+      expect(getPresetScenarioSelection('light')).toEqual(less);
+      expect(getPresetScenarioSelection('standard')).toEqual(recommended);
+      expect(getPresetScenarioSelection('heavy')).toEqual(all);
+
+      const custom: Record<WizardScenarioId, boolean> = { ...recommended, github: true };
       expect(detectMatchingPresetTier(custom)).toBeNull();
     });
   });

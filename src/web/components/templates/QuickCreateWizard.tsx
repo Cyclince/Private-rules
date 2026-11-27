@@ -54,7 +54,7 @@ import { WizardDoneLinks } from './WizardDoneLinks';
 
 type WizardStep = 1 | 2 | 3 | 'done';
 
-const PRESET_TIERS: readonly WizardPresetTier[] = ['minimal', 'light', 'standard', 'heavy'];
+const PRESET_TIERS: readonly WizardPresetTier[] = ['less', 'recommended', 'all'];
 const GROUP_MODES: readonly WizardGroupMode[] = ['auto', 'select', 'region'];
 
 function scenarioTitleKey(id: WizardScenarioId): MessageKey {
@@ -288,6 +288,11 @@ export function QuickCreateWizard() {
         enabled: presetMap[sc.id] ?? false,
       })),
     );
+    if (tier === 'all') {
+      setGroupMode('region');
+    } else if (groupMode === 'region') {
+      setGroupMode('auto');
+    }
   };
 
   const toggleScenario = (scenarioId: WizardScenarioId) => {
@@ -541,11 +546,13 @@ export function QuickCreateWizard() {
             {/* Quick presets (D5=A) */}
             <div className="flex flex-col gap-2">
               <span className="text-xs font-semibold text-text-muted">{t('wizard.presetsLabel')}</span>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {PRESET_TIERS.map((tier) => {
                   const isActive = activePreset === tier;
                   const label =
-                    tier === 'standard' ? t('wizard.preset.standardDefault') : t(`wizard.preset.${tier}` as MessageKey);
+                    tier === 'recommended'
+                      ? t('wizard.preset.recommendedDefault')
+                      : t(`wizard.preset.${tier}` as MessageKey);
                   return (
                     <button
                       key={tier}

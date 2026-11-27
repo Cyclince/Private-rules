@@ -11,7 +11,16 @@ import type { RegionGroup, TemplateBody, TemplateCardRef } from '../../shared/sc
 import { getRegionDefinition } from '../nodes/regions';
 import { DEFAULT_HEALTH_CHECK } from './model';
 
-export type WizardPresetTier = 'minimal' | 'light' | 'standard' | 'heavy';
+export type WizardPresetTier = 'less' | 'recommended' | 'all';
+export type LegacyWizardPresetTier = 'minimal' | 'light' | 'standard' | 'heavy';
+export type AnyWizardPresetTier = WizardPresetTier | LegacyWizardPresetTier;
+
+export function normalizeWizardPresetTier(tier: AnyWizardPresetTier): WizardPresetTier {
+  if (tier === 'less' || tier === 'recommended' || tier === 'all') return tier;
+  if (tier === 'minimal' || tier === 'light') return 'less';
+  if (tier === 'standard') return 'recommended';
+  return 'all';
+}
 
 export type WizardScenarioDefinition = {
   id: WizardScenarioId;
@@ -209,17 +218,18 @@ export function inferDefaultRouteForRulesetName(name: string): WizardRouteTarget
 }
 
 const PRESET_ENABLED_SCENARIOS: Readonly<Record<WizardPresetTier, readonly WizardScenarioId[]>> = {
-  minimal: ['domestic-direct'],
-  light: ['domestic-direct', 'ad-block', 'ai', 'telegram'],
-  standard: ['domestic-direct', 'ad-block', 'ai', 'telegram', 'streaming'],
-  heavy: WIZARD_SCENARIO_DEFINITIONS.map((def) => def.id),
+  less: ['domestic-direct', 'ai'],
+  recommended: ['domestic-direct', 'ad-block', 'ai', 'telegram', 'streaming'],
+  all: WIZARD_SCENARIO_DEFINITIONS.map((def) => def.id),
 };
 
 /**
- * Returns the scenario checkbox map for one of the 4 quick presets in wizard step 2 (D5).
+ * Returns the scenario checkbox map for one of the 3 quick presets in wizard step 2 (D4, §5.2).
+ * Accepts legacy 4-tier names (`minimal` / `light` / `standard` / `heavy`) for compatibility.
  */
-export function getPresetScenarioSelection(tier: WizardPresetTier): Record<WizardScenarioId, boolean> {
-  const enabledSet = new Set<WizardScenarioId>(PRESET_ENABLED_SCENARIOS[tier]);
+export function getPresetScenarioSelection(tier: AnyWizardPresetTier): Record<WizardScenarioId, boolean> {
+  const canonical = normalizeWizardPresetTier(tier);
+  const enabledSet = new Set<WizardScenarioId>(PRESET_ENABLED_SCENARIOS[canonical]);
   const result = {} as Record<WizardScenarioId, boolean>;
   for (const def of WIZARD_SCENARIO_DEFINITIONS) {
     result[def.id] = enabledSet.has(def.id);
@@ -229,12 +239,12 @@ export function getPresetScenarioSelection(tier: WizardPresetTier): Record<Wizar
 
 /**
  * Returns the matching preset tier if the current scenario checkbox map matches
- * one of the 4 presets exactly, otherwise `null`.
+ * one of the 3 presets exactly, otherwise `null`.
  */
 export function detectMatchingPresetTier(
   selection: Readonly<Record<WizardScenarioId, boolean>>,
 ): WizardPresetTier | null {
-  for (const tier of ['minimal', 'light', 'standard', 'heavy'] as const) {
+  for (const tier of ['less', 'recommended', 'all'] as const) {
     const expected = getPresetScenarioSelection(tier);
     const matches = WIZARD_SCENARIO_DEFINITIONS.every((def) => Boolean(selection[def.id]) === expected[def.id]);
     if (matches) return tier;

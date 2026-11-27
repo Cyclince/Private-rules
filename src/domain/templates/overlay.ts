@@ -343,6 +343,8 @@ export function applyOverlay(baseBody: TemplateBody, overlay: readonly TemplateO
         else if (op.patch.test !== undefined) group.test = structuredClone(op.patch.test);
         if (op.patch.slotId === null) delete group.slotId;
         else if (op.patch.slotId !== undefined) group.slotId = op.patch.slotId;
+        if (op.patch.hidden === null) delete group.hidden;
+        else if (op.patch.hidden !== undefined) group.hidden = op.patch.hidden;
         appliedCount += 1;
         return;
       }
@@ -478,6 +480,16 @@ export function applyOverlay(baseBody: TemplateBody, overlay: readonly TemplateO
             ...resolved.clientPatches,
             [op.client]: op.patch,
           };
+        }
+        appliedCount += 1;
+        return;
+      }
+
+      case 'setLegacyGeodata': {
+        if (op.legacyGeodata) {
+          resolved.legacyGeodata = true;
+        } else {
+          delete resolved.legacyGeodata;
         }
         appliedCount += 1;
         return;

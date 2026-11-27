@@ -53,6 +53,7 @@ export const regionGroupSchema = z.object({
   extraExclude: z.string().min(1).optional(),
   test: groupHealthCheckSchema.optional(),
   slotId: z.string().trim().min(1).optional(),
+  hidden: z.boolean().optional(),
 });
 export type RegionGroup = z.output<typeof regionGroupSchema>;
 
@@ -72,6 +73,10 @@ export const dnsProfileSchema = z.object({
   nameserver: z.array(z.string().trim().min(1)).optional(),
   fallback: z.array(z.string().trim().min(1)).optional(),
   defaultNameserver: z.array(z.string().trim().min(1)).optional(),
+  proxyServerNameserver: z.array(z.string().trim().min(1)).optional(),
+  nameserverPolicy: z
+    .record(z.string().trim().min(1), z.union([z.string().trim().min(1), z.array(z.string().trim().min(1))]))
+    .optional(),
   fakeIpFilter: z.array(z.string().trim().min(1)).optional(),
   respectRules: z.boolean().optional(),
   custom: z.record(z.string(), z.unknown()).optional(),
@@ -115,6 +120,8 @@ export const templateBodySchema = z.object({
   modules: z.array(templateModuleBindingSchema),
   clientPatches: clientPatchesSchema.optional(),
   wizardMeta: templateWizardMetaSchema.optional(),
+  /** When true, mihomo emits legacy GEOSITE/GEOIP rules instead of MetaCubeX `.mrs` rule-providers. */
+  legacyGeodata: z.boolean().optional(),
 });
 export type TemplateBody = z.output<typeof templateBodySchema>;
 
@@ -132,6 +139,7 @@ const regionGroupPatchSchema = z.object({
   extraExclude: z.string().min(1).nullable().optional(),
   test: groupHealthCheckSchema.nullable().optional(),
   slotId: z.string().trim().min(1).nullable().optional(),
+  hidden: z.boolean().nullable().optional(),
 });
 
 const nodeSlotPatchSchema = z.object({
@@ -229,6 +237,10 @@ export const templateOverlayOpSchema = z.discriminatedUnion('op', [
     client: templateClientIdSchema,
     patch: z.string().nullable(),
   }),
+  z.object({
+    op: z.literal('setLegacyGeodata'),
+    legacyGeodata: z.boolean(),
+  }),
 ]);
 export type TemplateOverlayOp = z.output<typeof templateOverlayOpSchema>;
 
@@ -267,6 +279,7 @@ export const backupTemplateBodySchema = z
     general: generalSettingsSchema.optional(),
     modules: z.array(templateModuleBindingSchema).optional(),
     clientPatches: clientPatchesSchema.optional(),
+    legacyGeodata: z.boolean().optional(),
   })
   .catchall(z.unknown());
 export type BackupTemplateBody = z.output<typeof backupTemplateBodySchema>;

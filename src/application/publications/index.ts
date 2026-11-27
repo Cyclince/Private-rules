@@ -696,10 +696,14 @@ export async function resolvePublicationDelivery(
     .filter((ref) => ref.enabled && cardStampMap.has(ref.cardId))
     .map((ref) => `${ref.cardId}:${cardStampMap.get(ref.cardId)}`);
 
+  const settings = await repos.settings.getAll();
   const depsMaterial = [
     params.baseUrl,
     publication.updatedAt ?? '',
     template.updatedAt ?? '',
+    settings.githubMirrorUrl ?? '',
+    settings.customIconPackUrls.join(','),
+    settings.iconPackLastUpdatedAt ?? '',
     ...usedCardStamps,
     ...rulesetStampParts,
   ].join('|');
@@ -802,10 +806,11 @@ export async function compilePublicationDelivery(
     }
   }
 
-  const [cards, catalogIndex, iconPack] = await Promise.all([
+  const [cards, catalogIndex, iconPack, settings] = await Promise.all([
     loadCardLookup(env),
     loadCatalogIndexMap(env),
     loadCachedIconPackEntries(env),
+    createRepositories(env.DB).settings.getAll(),
   ]);
   const rulesetCtx = await loadTemplateRulesetContext(env, delivery.resolvedBody, cards);
 
@@ -820,6 +825,7 @@ export async function compilePublicationDelivery(
     baseUrl,
     slotBindings,
     iconPack,
+    githubMirrorUrl: settings.githubMirrorUrl || undefined,
     experimentalFullConfig: delivery.publication.experimentalFullConfig,
   });
 }

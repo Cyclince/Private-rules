@@ -25,7 +25,7 @@ const cardMap = new Map(BUILTIN_CARDS.map((card) => [card.id, card]));
 
 describe('template-editor-helpers', () => {
   it('buildMoveCardOp moves cards and synthesizes anchor-based moveCard ops', () => {
-    const starter = buildStarterTemplate('light');
+    const starter = buildStarterTemplate('all');
     const cards = starter.baseBody.cards;
     const result = buildMoveCardOp(cards, 'domestic-direct', 'microsoft');
     expect(result).not.toBeNull();
@@ -111,7 +111,7 @@ describe('template-editor-helpers', () => {
   });
 
   it('diffTemplateBodies summarizes card, mode, module, and patch differences', () => {
-    const before = buildStarterTemplate('light').baseBody;
+    const before = buildStarterTemplate('all').baseBody;
     const after = resolveDraftBody(before, [
       { op: 'setGroupMode', groupMode: 'fallback' },
       { op: 'setModule', moduleId: 'dns-leak-guard', enabled: true },

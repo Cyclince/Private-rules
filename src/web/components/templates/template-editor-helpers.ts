@@ -394,5 +394,7 @@ export function formatOverlayOpSummary(op: TemplateOverlayOp): string {
       return `setModule(${op.moduleId}=${String(op.enabled)})`;
     case 'setPatch':
       return `setPatch(${op.client})`;
+    case 'setLegacyGeodata':
+      return `setLegacyGeodata(${String(op.legacyGeodata)})`;
   }
 }

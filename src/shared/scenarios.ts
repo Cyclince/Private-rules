@@ -24,7 +24,16 @@ export const CARD_TO_SCENARIO_ID: ReadonlyMap<string, WizardScenarioId> = new Ma
   ),
 );
 
-export type SimplePresetTier = 'minimal' | 'light' | 'standard' | 'heavy';
+export type SimplePresetTier = 'less' | 'recommended' | 'all';
+export type LegacySimplePresetTier = 'minimal' | 'light' | 'standard' | 'heavy';
+export type AnySimplePresetTier = SimplePresetTier | LegacySimplePresetTier;
+
+export function normalizeSimplePresetTier(tier: AnySimplePresetTier): SimplePresetTier {
+  if (tier === 'less' || tier === 'recommended' || tier === 'all') return tier;
+  if (tier === 'minimal' || tier === 'light') return 'less';
+  if (tier === 'standard') return 'recommended';
+  return 'all';
+}
 
 type SimpleScenarioMeta = {
   id: WizardScenarioId;
@@ -38,68 +47,69 @@ export const SIMPLE_SCENARIO_METAS: readonly SimpleScenarioMeta[] = [
     id: 'domestic-direct',
     configurableRoute: false,
     defaultRoute: 'direct',
-    presetEnabled: { minimal: true, light: true, standard: true, heavy: true },
+    presetEnabled: { less: true, recommended: true, all: true },
   },
   {
     id: 'ad-block',
     configurableRoute: false,
     defaultRoute: 'reject',
-    presetEnabled: { minimal: false, light: true, standard: true, heavy: true },
+    presetEnabled: { less: false, recommended: true, all: true },
   },
   {
     id: 'ai',
     configurableRoute: true,
-    defaultRoute: 'proxy',
-    presetEnabled: { minimal: false, light: true, standard: true, heavy: true },
+    defaultRoute: 'auto',
+    presetEnabled: { less: true, recommended: true, all: true },
   },
   {
     id: 'telegram',
     configurableRoute: true,
     defaultRoute: 'proxy',
-    presetEnabled: { minimal: false, light: false, standard: true, heavy: true },
+    presetEnabled: { less: false, recommended: true, all: true },
   },
   {
     id: 'streaming',
     configurableRoute: true,
     defaultRoute: 'proxy',
-    presetEnabled: { minimal: false, light: false, standard: true, heavy: true },
+    presetEnabled: { less: false, recommended: true, all: true },
   },
   {
     id: 'bilibili-hkmt',
     configurableRoute: true,
-    defaultRoute: 'direct',
-    presetEnabled: { minimal: false, light: false, standard: true, heavy: true },
+    defaultRoute: 'proxy',
+    presetEnabled: { less: false, recommended: false, all: true },
   },
   {
     id: 'social',
     configurableRoute: true,
     defaultRoute: 'proxy',
-    presetEnabled: { minimal: false, light: false, standard: true, heavy: true },
+    presetEnabled: { less: false, recommended: false, all: true },
   },
   {
     id: 'github',
     configurableRoute: true,
     defaultRoute: 'proxy',
-    presetEnabled: { minimal: false, light: false, standard: true, heavy: true },
+    presetEnabled: { less: false, recommended: false, all: true },
   },
   {
     id: 'gaming',
     configurableRoute: true,
-    defaultRoute: 'direct',
-    presetEnabled: { minimal: false, light: false, standard: true, heavy: true },
+    defaultRoute: 'proxy',
+    presetEnabled: { less: false, recommended: false, all: true },
   },
   {
     id: 'apple-ms-google',
     configurableRoute: true,
     defaultRoute: 'proxy',
-    presetEnabled: { minimal: false, light: false, standard: false, heavy: true },
+    presetEnabled: { less: false, recommended: false, all: true },
   },
 ];
 
-export function getSimplePresetScenarios(tier: SimplePresetTier): QuickCreateScenarioInput[] {
+export function getSimplePresetScenarios(tier: AnySimplePresetTier): QuickCreateScenarioInput[] {
+  const canonical = normalizeSimplePresetTier(tier);
   return SIMPLE_SCENARIO_METAS.map((meta) => ({
     id: meta.id,
-    enabled: meta.presetEnabled[tier],
+    enabled: meta.presetEnabled[canonical],
     route: meta.defaultRoute,
   }));
 }
@@ -108,7 +118,7 @@ export function detectSimplePresetTier(
   scenarios: readonly Pick<QuickCreateScenarioInput, 'id' | 'enabled'>[],
 ): SimplePresetTier | null {
   const byId = new Map(scenarios.map((s) => [s.id, s.enabled]));
-  for (const tier of ['minimal', 'light', 'standard', 'heavy'] as const) {
+  for (const tier of ['less', 'recommended', 'all'] as const) {
     const matches = SIMPLE_SCENARIO_METAS.every((meta) => Boolean(byId.get(meta.id)) === meta.presetEnabled[tier]);
     if (matches) return tier;
   }

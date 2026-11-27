@@ -197,5 +197,61 @@ describe('mihomo -t kernel config validation', () => {
       });
       expect(stdout).toContain('is successful');
     }, 120_000);
+
+    it('validates multi-airport recommended config with mihomo -t', async () => {
+      const tpl = buildStarterTemplate('recommended', { groupMode: 'select', output: 'full' });
+      tpl.baseBody.slots = [
+        { id: 'slot-main', name: '主力机场', excludeInfo: true },
+        { id: 'slot-backup', name: '备用机场', excludeInfo: true },
+      ];
+      const compiled = compileMihomo({
+        body: tpl.baseBody,
+        cards: BUILTIN_CARDS,
+        templateName: `${tpl.name} (Multi-Airport)`,
+        generatedAt: '2026-01-01T00:00:00.000Z',
+        catalogIndex: localCatalog,
+        rulesetBehaviors: new Map([['custom-direct', SPLIT_SAMPLE.counts]]),
+        baseUrl,
+        slotBindings: {
+          'slot-main': { kind: 'http', url: `${baseUrl}/proxies/main.yaml` },
+          'slot-backup': { kind: 'http', url: `${baseUrl}/proxies/backup.yaml` },
+        },
+      });
+
+      const configPath = join(workDir, 'recommended-multi-airport.yaml');
+      await writeFile(configPath, compiled.content, 'utf8');
+
+      const stdout = execFileSync(MIHOMO_BIN!, ['-t', '-d', workDir, '-f', configPath], {
+        encoding: 'utf8',
+        timeout: 120_000,
+      });
+      expect(stdout).toContain('is successful');
+    }, 120_000);
+
+    it('validates legacyGeodata compatibility mode config with mihomo -t', async () => {
+      const tpl = buildStarterTemplate('recommended', { groupMode: 'select', output: 'full' });
+      tpl.baseBody.legacyGeodata = true;
+      const compiled = compileMihomo({
+        body: tpl.baseBody,
+        cards: BUILTIN_CARDS,
+        templateName: `${tpl.name} (Legacy Geodata)`,
+        generatedAt: '2026-01-01T00:00:00.000Z',
+        catalogIndex: localCatalog,
+        rulesetBehaviors: new Map([['custom-direct', SPLIT_SAMPLE.counts]]),
+        baseUrl,
+        slotBindings: {
+          'slot-main': { kind: 'http', url: `${baseUrl}/proxies/main.yaml` },
+        },
+      });
+
+      const configPath = join(workDir, 'recommended-legacy-geodata.yaml');
+      await writeFile(configPath, compiled.content, 'utf8');
+
+      const stdout = execFileSync(MIHOMO_BIN!, ['-t', '-d', workDir, '-f', configPath], {
+        encoding: 'utf8',
+        timeout: 120_000,
+      });
+      expect(stdout).toContain('is successful');
+    }, 120_000);
   });
 });
