@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.11.1",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "type": "module",
   "description": "Private self-hosted rules console for Cloudflare Workers and Docker Compose.",
@@ -60,7 +60,7 @@
     "@radix-ui/react-tooltip": "^1.4.1",
     "@tanstack/react-query": "^5.108.4",
     "@tanstack/react-router": "^1.170.46",
-    "better-sqlite3": "^12.4.1",
+    "better-sqlite3": "^13.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.4",

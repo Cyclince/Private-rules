@@ -704,7 +704,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -1996,7 +1996,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -3262,7 +3262,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -4477,7 +4477,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -5462,7 +5462,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -6079,7 +6079,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -6646,7 +6646,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -7186,7 +7186,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -7605,7 +7605,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -7933,7 +7933,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -8201,7 +8201,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -8452,7 +8452,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -9156,7 +9156,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -10142,7 +10142,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -11098,7 +11098,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }
@@ -12007,7 +12007,7 @@ exports[`compileSingbox — 4 starter tiers × (full/minimal) × (select/fallbac
         },
         "reality": {
           "enabled": true,
-          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2",
+          "public_key": "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM",
           "short_id": "0123abcd"
         }
       }

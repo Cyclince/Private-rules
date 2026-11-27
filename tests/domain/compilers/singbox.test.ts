@@ -23,6 +23,7 @@ import type { TemplateGroupMode } from '../../../src/shared/schemas/template';
 
 const FIXED_GENERATED_AT = '2026-01-01T00:00:00.000Z';
 const FIXED_BASE_URL = 'https://rules.example.com';
+const SAMPLE_REALITY_PUBLIC_KEY = 'cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM';
 
 const SIX_PROTOCOL_NODES: ParsedNode[] = [
   {
@@ -72,7 +73,7 @@ const SIX_PROTOCOL_NODES: ParsedNode[] = [
       serverName: 'www.microsoft.com',
       fingerprint: 'safari',
       reality: {
-        publicKey: 'cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2',
+        publicKey: SAMPLE_REALITY_PUBLIC_KEY,
         shortId: '0123abcd',
       },
     },
@@ -397,7 +398,7 @@ describe('mapParsedNodeToSingboxOutbound — all 6 proxy protocols', () => {
         utls: { enabled: true, fingerprint: 'safari' },
         reality: {
           enabled: true,
-          public_key: 'cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2',
+          public_key: SAMPLE_REALITY_PUBLIC_KEY,
           short_id: '0123abcd',
         },
       },
@@ -415,7 +416,7 @@ describe('mapParsedNodeToSingboxOutbound — all 6 proxy protocols', () => {
         tls: {
           enabled: true,
           serverName: 'www.apple.com',
-          reality: { publicKey: 'abc123' },
+          reality: { publicKey: SAMPLE_REALITY_PUBLIC_KEY },
         },
         transport: {
           type: 'httpupgrade',
@@ -428,7 +429,7 @@ describe('mapParsedNodeToSingboxOutbound — all 6 proxy protocols', () => {
     expect(noFp.outbound?.tls).toMatchObject({
       enabled: true,
       utls: { enabled: true, fingerprint: 'chrome' },
-      reality: { enabled: true, public_key: 'abc123' },
+      reality: { enabled: true, public_key: SAMPLE_REALITY_PUBLIC_KEY },
     });
     expect(noFp.outbound?.transport).toEqual({
       type: 'httpupgrade',

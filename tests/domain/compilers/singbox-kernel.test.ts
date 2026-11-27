@@ -33,6 +33,8 @@ if (!SINGBOX_BIN && !REQUIRE_KERNEL) {
   );
 }
 
+const SAMPLE_REALITY_PUBLIC_KEY = 'cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM';
+
 const SAMPLE_KERNEL_NODES: ParsedNode[] = [
   {
     name: '🇭🇰 HK SS 01',
@@ -70,7 +72,7 @@ const SAMPLE_KERNEL_NODES: ParsedNode[] = [
       serverName: 'www.microsoft.com',
       fingerprint: 'chrome',
       reality: {
-        publicKey: 'cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2',
+        publicKey: SAMPLE_REALITY_PUBLIC_KEY,
         shortId: '0123abcd',
       },
     },

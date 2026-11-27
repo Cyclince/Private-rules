@@ -16,7 +16,7 @@ function toBase64Url(text: string): string {
 
 const VALID_UUID_A = '11111111-2222-3333-4444-555555555555';
 const VALID_UUID_B = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
-const REALITY_PBK = 'dGVzdC1yZWFsaXR5LXB1YmxpYy1rZXktMzJieXRlcw';
+const REALITY_PBK = 'cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM';
 
 describe('parseNodeSubscription (M5.2a pure B-class node parser)', () => {
   describe('Base64 URI & plain URI parsing — all 6 protocols (normal cases)', () => {
@@ -526,6 +526,204 @@ describe('parseNodeSubscription (M5.2a pure B-class node parser)', () => {
 
       // Default limit constant sanity check
       expect(DEFAULT_MAX_SUBSCRIPTION_ENTRIES).toBe(1000);
+    });
+  });
+
+  describe('Reality publicKey (pbk) and shortId (sid) validation', () => {
+    const PBK_URL_UNPADDED = '----____AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+    const PBK_URL_PADDED = '----____AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+    const PBK_STD_UNPADDED = '++++////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+    const PBK_STD_PADDED = '++++////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+
+    it('accepts valid 32-byte base64url and standard base64 pbk (with or without padding) and valid shortId for VLESS and Trojan', () => {
+      const uris = [
+        // Base64URL unpadded + omitted sid
+        `vless://${VALID_UUID_A}@v1.example.test:443?security=reality&pbk=${PBK_URL_UNPADDED}&sni=www.microsoft.com#VLESS-URL-NoSid`,
+        // Base64URL padded + empty sid (0 hex chars)
+        `vless://${VALID_UUID_A}@v2.example.test:443?security=reality&pbk=${PBK_URL_PADDED}&sid=&sni=www.microsoft.com#VLESS-URL-EmptySid`,
+        // Standard Base64 unpadded (raw '+' and '/' in query) + 2-char hex sid
+        `vless://${VALID_UUID_A}@v3.example.test:443?security=reality&pbk=${PBK_STD_UNPADDED}&sid=ab&sni=www.microsoft.com#VLESS-Std-Unpadded`,
+        // Standard Base64 padded (percent-encoded) + 16-char mixed-case hex sid
+        `vless://${VALID_UUID_A}@v4.example.test:443?security=reality&pbk=${encodeURIComponent(PBK_STD_PADDED)}&sid=0123456789ABCDEF&sni=www.microsoft.com#VLESS-Std-Padded`,
+        // Trojan Reality with standard Base64 padded + 8-char hex sid
+        `trojan://tr-pass@t1.example.test:443?security=reality&pbk=${PBK_STD_PADDED}&sid=0123abcd&sni=www.apple.com#Trojan-Reality-Valid`,
+      ];
+
+      const uriResult = parseNodeSubscription(uris.join('\n'));
+      expect(uriResult.report.parsedCount).toBe(5);
+      expect(uriResult.report.skippedCount).toBe(0);
+      expect(uriResult.nodes.map((n) => n.name)).toEqual([
+        'VLESS-URL-NoSid',
+        'VLESS-URL-EmptySid',
+        'VLESS-Std-Unpadded',
+        'VLESS-Std-Padded',
+        'Trojan-Reality-Valid',
+      ]);
+
+      // All valid keys are normalized to canonical 43-char unpadded Base64URL for sing-box compatibility
+      for (const node of uriResult.nodes) {
+        expect((node as { tls?: { reality?: { publicKey: string } } }).tls?.reality?.publicKey).toBe(PBK_URL_UNPADDED);
+      }
+      expect(
+        (uriResult.nodes[0] as { tls?: { reality?: { shortId?: string } } }).tls?.reality?.shortId,
+      ).toBeUndefined();
+      expect(
+        (uriResult.nodes[1] as { tls?: { reality?: { shortId?: string } } }).tls?.reality?.shortId,
+      ).toBeUndefined();
+      expect((uriResult.nodes[2] as { tls?: { reality?: { shortId?: string } } }).tls?.reality?.shortId).toBe('ab');
+      expect((uriResult.nodes[3] as { tls?: { reality?: { shortId?: string } } }).tls?.reality?.shortId).toBe(
+        '0123456789ABCDEF',
+      );
+      expect((uriResult.nodes[4] as { tls?: { reality?: { shortId?: string } } }).tls?.reality?.shortId).toBe(
+        '0123abcd',
+      );
+
+      // Clash YAML VLESS & Trojan Reality with standard base64 + empty/valid short-id
+      const yaml = [
+        'proxies:',
+        '  - name: "YAML VLESS Std Padded"',
+        '    type: vless',
+        '    server: y1.example.test',
+        '    port: 443',
+        `    uuid: ${VALID_UUID_A}`,
+        '    tls: true',
+        '    reality-opts:',
+        `      public-key: "${PBK_STD_PADDED}"`,
+        '      short-id: ""',
+        '  - name: "YAML Trojan Std Unpadded"',
+        '    type: trojan',
+        '    server: y2.example.test',
+        '    port: 443',
+        '    password: secret',
+        '    reality-opts:',
+        `      public-key: "${PBK_STD_UNPADDED}"`,
+        '      short-id: "deadBEEF01234567"',
+      ].join('\n');
+
+      const yamlResult = parseNodeSubscription(yaml);
+      expect(yamlResult.report.parsedCount).toBe(2);
+      expect(yamlResult.report.skippedCount).toBe(0);
+      expect(yamlResult.nodes[0]).toMatchObject({
+        type: 'vless',
+        tls: { enabled: true, reality: { publicKey: PBK_URL_UNPADDED } },
+      });
+      expect(
+        (yamlResult.nodes[0] as { tls?: { reality?: { shortId?: string } } }).tls?.reality?.shortId,
+      ).toBeUndefined();
+      expect(yamlResult.nodes[1]).toMatchObject({
+        type: 'trojan',
+        tls: { enabled: true, reality: { publicKey: PBK_URL_UNPADDED, shortId: 'deadBEEF01234567' } },
+      });
+    });
+
+    it('skips VLESS and Trojan Reality URIs with wrong pbk length, illegal chars, or invalid shortId while keeping valid nodes', () => {
+      const badPbk30Bytes = 'cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2';
+      const badPbk31Bytes = 'dGVzdC1yZWFsaXR5LXB1YmxpYy1rZXktMzJieXRlcw';
+      const badPbk33Bytes = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+      const badPbkDoublePad = 'cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM==';
+      const badPbkIllegalChar = 'cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0Z!M';
+      const badPbkWithSpace = 'cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0Z%20M';
+      const badPbkMixedAlphabet = '----////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+
+      const lines = [
+        // Wrong lengths
+        `vless://${VALID_UUID_A}@b1.example.test:443?security=reality&pbk=${badPbk30Bytes}#BadPbk30`,
+        `vless://${VALID_UUID_A}@b2.example.test:443?security=reality&pbk=${badPbk31Bytes}#BadPbk31`,
+        `vless://${VALID_UUID_A}@b3.example.test:443?security=reality&pbk=${badPbk33Bytes}#BadPbk33`,
+        `vless://${VALID_UUID_A}@b4.example.test:443?security=reality&pbk=${badPbkDoublePad}#BadPbkPad`,
+        // Illegal characters / mixed alphabet
+        `vless://${VALID_UUID_A}@b5.example.test:443?security=reality&pbk=${badPbkIllegalChar}#BadPbkBang`,
+        `vless://${VALID_UUID_A}@b6.example.test:443?security=reality&pbk=${badPbkWithSpace}#BadPbkSpace`,
+        `trojan://secret-tr@b7.example.test:443?security=reality&pbk=${badPbkMixedAlphabet}#BadTrojanMixed`,
+        // Invalid shortId (odd length, >16 chars, non-hex)
+        `vless://${VALID_UUID_A}@b8.example.test:443?security=reality&pbk=${REALITY_PBK}&sid=abc#BadSidOdd`,
+        `vless://${VALID_UUID_A}@b9.example.test:443?security=reality&pbk=${REALITY_PBK}&sid=0123456789abcdef01#BadSidLong`,
+        `vless://${VALID_UUID_A}@b10.example.test:443?security=reality&pbk=${REALITY_PBK}&sid=0123ghij#BadSidNonHex`,
+        `trojan://secret-tr@b11.example.test:443?security=reality&pbk=${REALITY_PBK}&sid=a#BadTrojanSidOdd`,
+        // Valid sibling node must still parse cleanly
+        `vless://${VALID_UUID_A}@ok.example.test:443?security=reality&pbk=${REALITY_PBK}&sid=0123abcd#${encodeURIComponent('🇺🇸 正常 Reality')}`,
+      ];
+
+      const result = parseNodeSubscription(lines.join('\n'));
+      expect(result.nodes).toHaveLength(1);
+      expect(result.nodes[0].name).toBe('🇺🇸 正常 Reality');
+      expect(result.report.parsedCount).toBe(1);
+      expect(result.report.skippedCount).toBe(11);
+      expect(result.report.malformedCount).toBe(11);
+      expect(result.report.skipped).toHaveLength(11);
+      expect(result.report.skipped.every((entry) => entry.reason === 'malformed')).toBe(true);
+
+      const reportJson = JSON.stringify(result.report);
+      expect(reportJson).not.toContain(badPbk30Bytes);
+      expect(reportJson).not.toContain(badPbkIllegalChar);
+      expect(reportJson).not.toContain('secret-tr');
+      expect(reportJson).not.toContain('0123ghij');
+    });
+
+    it('skips Clash YAML VLESS and Trojan Reality entries with invalid public-key or short-id', () => {
+      const yaml = [
+        'proxies:',
+        '  - name: "YAML Bad VLESS KeyLen"',
+        '    type: vless',
+        '    server: bad1.example.test',
+        '    port: 443',
+        `    uuid: ${VALID_UUID_A}`,
+        '    reality-opts:',
+        '      public-key: "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2"',
+        '  - name: "YAML Bad VLESS KeyChar"',
+        '    type: vless',
+        '    server: bad2.example.test',
+        '    port: 443',
+        `    uuid: ${VALID_UUID_A}`,
+        '    reality-opts:',
+        '      public-key: "cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0Z@M"',
+        '  - name: "YAML Bad VLESS ShortId Odd"',
+        '    type: vless',
+        '    server: bad3.example.test',
+        '    port: 443',
+        `    uuid: ${VALID_UUID_A}`,
+        '    reality-opts:',
+        `      public-key: "${REALITY_PBK}"`,
+        '      short-id: "123"',
+        '  - name: "YAML Bad Trojan ShortId TooLong"',
+        '    type: trojan',
+        '    server: bad4.example.test',
+        '    port: 443',
+        '    password: secret',
+        '    reality-opts:',
+        `      public-key: "${REALITY_PBK}"`,
+        '      short-id: "0123456789abcdef01"',
+        '  - name: "YAML Bad Trojan ShortId NonString"',
+        '    type: trojan',
+        '    server: bad5.example.test',
+        '    port: 443',
+        '    password: secret',
+        '    reality-opts:',
+        `      public-key: "${REALITY_PBK}"`,
+        '      short-id: 1234',
+        '  - name: "🇯🇵 正常 Trojan Reality"',
+        '    type: trojan',
+        '    server: good.example.test',
+        '    port: 443',
+        '    password: good-password',
+        '    reality-opts:',
+        `      public-key: "${REALITY_PBK}"`,
+        '      short-id: "0123abcd"',
+      ].join('\n');
+
+      const result = parseNodeSubscription(yaml);
+      expect(result.nodes).toHaveLength(1);
+      expect(result.nodes[0].name).toBe('🇯🇵 正常 Trojan Reality');
+      expect(result.report.parsedCount).toBe(1);
+      expect(result.report.skippedCount).toBe(5);
+      expect(result.report.malformedCount).toBe(5);
+      expect(result.report.skipped.map((s) => s.name)).toEqual([
+        'YAML Bad VLESS KeyLen',
+        'YAML Bad VLESS KeyChar',
+        'YAML Bad VLESS ShortId Odd',
+        'YAML Bad Trojan ShortId TooLong',
+        'YAML Bad Trojan ShortId NonString',
+      ]);
     });
   });
 

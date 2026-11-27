@@ -163,6 +163,8 @@ export type ParseSubscriptionResult = {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SCHEME_LINE_PATTERN = /^([a-z][a-z0-9+.-]{0,31}):\/\//i;
+const REALITY_PBK_PATTERN = /^[A-Za-z0-9+/_-]+={0,2}$/;
+const REALITY_SHORT_ID_PATTERN = /^(?:[0-9a-fA-F]{2}){1,8}$/;
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: false });
 
 const PROTOCOL_ALIASES: Record<string, SupportedNodeProtocol> = {
@@ -259,6 +261,58 @@ function parseNonEmptyString(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const trimmed = raw.replace(/[\r\n\0]/g, '').trim();
   return trimmed ? trimmed : null;
+}
+
+/**
+ * Validates a Reality X25519 public key (`pbk` / `public-key`):
+ * accepts standard Base64 or Base64URL, with or without `=` padding,
+ * and requires the decoded value to be exactly 32 bytes.
+ * Returns canonical unpadded Base64URL (43 chars) required by sing-box.
+ */
+function parseRealityPublicKey(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed || !REALITY_PBK_PATTERN.test(trimmed)) return null;
+  // Disallow mixing standard Base64 (+/) and Base64URL (-_) alphabets
+  if (/[+/]/.test(trimmed) && /[-_]/.test(trimmed)) return null;
+  // When '=' padding is present, total length must be a multiple of 4
+  if (trimmed.includes('=') && trimmed.length % 4 !== 0) return null;
+
+  const unpadded = trimmed.replace(/=+$/, '');
+  // 32 bytes always encode to 43 unpadded base64 characters
+  if (unpadded.length !== 43) return null;
+
+  const stdPadded = `${unpadded.replace(/-/g, '+').replace(/_/g, '/')}=`;
+  let binary: string;
+  try {
+    binary = atob(stdPadded);
+  } catch {
+    return null;
+  }
+  if (binary.length !== 32) return null;
+
+  return unpadded.replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+/**
+ * Validates an optional Reality `shortId` (`sid` / `short-id`):
+ * when present and non-empty, must be an even-length hexadecimal string of 2–16 chars (0–8 bytes).
+ */
+function parseRealityShortId(raw: unknown): { valid: true; shortId?: string } | { valid: false } {
+  if (raw === undefined || raw === null) {
+    return { valid: true };
+  }
+  if (typeof raw !== 'string') {
+    return { valid: false };
+  }
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return { valid: true };
+  }
+  if (!REALITY_SHORT_ID_PATTERN.test(trimmed)) {
+    return { valid: false };
+  }
+  return { valid: true, shortId: trimmed };
 }
 
 function parseBooleanFlag(raw: unknown): boolean | undefined {
@@ -370,9 +424,27 @@ type SplitUriParts = {
   userinfo: string;
   server: string;
   port: number;
+  rawQuery: string;
   params: URLSearchParams;
   fragment: string | null;
 };
+
+/**
+ * Extracts a query parameter while preserving literal `+` characters (unlike
+ * `URLSearchParams`, which decodes `+` as space and breaks unencoded standard Base64).
+ */
+function getQueryParamPreservingPlus(rawQuery: string, key: string): string | null {
+  if (!rawQuery) return null;
+  for (const segment of rawQuery.split('&')) {
+    if (!segment) continue;
+    const eqIdx = segment.indexOf('=');
+    const rawName = eqIdx === -1 ? segment : segment.slice(0, eqIdx);
+    if (safeDecodeUriComponent(rawName) !== key) continue;
+    const rawValue = eqIdx === -1 ? '' : segment.slice(eqIdx + 1);
+    return safeDecodeUriComponent(rawValue);
+  }
+  return null;
+}
 
 /**
  * Splits a standard proxy URI (`scheme://userinfo@host:port[/path][?query][#fragment]`)
@@ -408,6 +480,7 @@ function splitProxyUri(uri: string, schemeLength: number): SplitUriParts | null 
     userinfo,
     server: hostPort.server,
     port: hostPort.port,
+    rawQuery: queryStr,
     params: new URLSearchParams(queryStr),
     fragment,
   };
@@ -899,17 +972,30 @@ function parseVlessUri(uri: string): SingleParseOutcome {
 
   let tls: NodeTlsConfig | undefined;
   if (security === 'reality') {
-    const publicKey = parseNonEmptyString(parts.params.get('pbk'));
+    const rawPbk = getQueryParamPreservingPlus(parts.rawQuery, 'pbk');
+    const publicKey = parseRealityPublicKey(rawPbk);
     if (!publicKey) {
       return {
         ok: false,
         reason: 'malformed',
         protocol: 'vless',
         name: parts.fragment ?? undefined,
-        message: 'VLESS Reality 节点缺少公钥 pbk。',
+        message: rawPbk?.trim()
+          ? 'VLESS Reality 节点公钥 pbk 无效（需为 32 字节 Base64/Base64URL）。'
+          : 'VLESS Reality 节点缺少公钥 pbk。',
       };
     }
-    const shortId = parseNonEmptyString(parts.params.get('sid')) ?? undefined;
+    const shortIdResult = parseRealityShortId(parts.params.get('sid'));
+    if (!shortIdResult.valid) {
+      return {
+        ok: false,
+        reason: 'malformed',
+        protocol: 'vless',
+        name: parts.fragment ?? undefined,
+        message: 'VLESS Reality 节点 shortId 无效（需为 0–16 位偶数长度十六进制）。',
+      };
+    }
+    const shortId = shortIdResult.shortId;
     tls = {
       enabled: true,
       ...(sni ? { serverName: sni } : {}),
@@ -986,17 +1072,30 @@ function parseTrojanUri(uri: string): SingleParseOutcome {
 
   let tls: NodeTlsConfig | undefined;
   if (security === 'reality') {
-    const publicKey = parseNonEmptyString(parts.params.get('pbk'));
+    const rawPbk = getQueryParamPreservingPlus(parts.rawQuery, 'pbk');
+    const publicKey = parseRealityPublicKey(rawPbk);
     if (!publicKey) {
       return {
         ok: false,
         reason: 'malformed',
         protocol: 'trojan',
         name: parts.fragment ?? undefined,
-        message: 'Trojan Reality 节点缺少公钥 pbk。',
+        message: rawPbk?.trim()
+          ? 'Trojan Reality 节点公钥 pbk 无效（需为 32 字节 Base64/Base64URL）。'
+          : 'Trojan Reality 节点缺少公钥 pbk。',
       };
     }
-    const shortId = parseNonEmptyString(parts.params.get('sid')) ?? undefined;
+    const shortIdResult = parseRealityShortId(parts.params.get('sid'));
+    if (!shortIdResult.valid) {
+      return {
+        ok: false,
+        reason: 'malformed',
+        protocol: 'trojan',
+        name: parts.fragment ?? undefined,
+        message: 'Trojan Reality 节点 shortId 无效（需为 0–16 位偶数长度十六进制）。',
+      };
+    }
+    const shortId = shortIdResult.shortId;
     tls = {
       enabled: true,
       ...(sni ? { serverName: sni } : {}),
@@ -1177,35 +1276,58 @@ function parseSingleUri(uri: string): SingleParseOutcome {
   }
 }
 
+type RealityOptsInvalidReason = 'invalid_object' | 'missing_public_key' | 'invalid_public_key' | 'invalid_short_id';
+
 function parseClashRealityOpts(
   raw: Record<string, unknown>,
 ):
   | { present: false }
   | { present: true; valid: true; publicKey: string; shortId?: string }
-  | { present: true; valid: false } {
+  | { present: true; valid: false; reason: RealityOptsInvalidReason } {
   const realityRaw = raw['reality-opts'] ?? raw.realityOpts;
   if (realityRaw === undefined || realityRaw === null) {
     return { present: false };
   }
   if (typeof realityRaw !== 'object' || Array.isArray(realityRaw)) {
-    return { present: true, valid: false };
+    return { present: true, valid: false, reason: 'invalid_object' };
   }
   const obj = realityRaw as Record<string, unknown>;
-  const publicKey = parseNonEmptyString(obj['public-key'] ?? obj.publicKey);
+  const rawPublicKey = obj['public-key'] ?? obj.publicKey;
+  const publicKey = parseRealityPublicKey(rawPublicKey);
   if (!publicKey) {
-    return { present: true, valid: false };
+    const hasRaw = typeof rawPublicKey === 'string' && rawPublicKey.trim().length > 0;
+    return { present: true, valid: false, reason: hasRaw ? 'invalid_public_key' : 'missing_public_key' };
   }
-  const shortId = parseNonEmptyString(obj['short-id'] ?? obj.shortId) ?? undefined;
-  return { present: true, valid: true, publicKey, shortId };
+  const shortIdResult = parseRealityShortId(obj['short-id'] ?? obj.shortId);
+  if (!shortIdResult.valid) {
+    return { present: true, valid: false, reason: 'invalid_short_id' };
+  }
+  return { present: true, valid: true, publicKey, shortId: shortIdResult.shortId };
 }
 
-function buildClashTls(raw: Record<string, unknown>, defaultEnabled: boolean): NodeTlsConfig | undefined | 'invalid' {
+function formatClashRealityError(protocolLabel: string, reason: RealityOptsInvalidReason): string {
+  switch (reason) {
+    case 'missing_public_key':
+      return `${protocolLabel} Reality 节点缺少公钥。`;
+    case 'invalid_public_key':
+      return `${protocolLabel} Reality 节点公钥 public-key 无效（需为 32 字节 Base64/Base64URL）。`;
+    case 'invalid_short_id':
+      return `${protocolLabel} Reality 节点 short-id 无效（需为 0–16 位偶数长度十六进制）。`;
+    case 'invalid_object':
+      return `${protocolLabel} Reality 配置格式无效。`;
+  }
+}
+
+function buildClashTls(
+  raw: Record<string, unknown>,
+  defaultEnabled: boolean,
+): { ok: true; tls: NodeTlsConfig | undefined } | { ok: false; reason: RealityOptsInvalidReason } {
   const reality = parseClashRealityOpts(raw);
-  if (reality.present && !reality.valid) return 'invalid';
+  if (reality.present && !reality.valid) return { ok: false, reason: reality.reason };
 
   const explicitTls = parseBooleanFlag(raw.tls);
   const enabled = reality.present ? true : (explicitTls ?? defaultEnabled);
-  if (!enabled) return undefined;
+  if (!enabled) return { ok: true, tls: undefined };
 
   const serverName = parseNonEmptyString(raw.servername ?? raw.sni) ?? undefined;
   const insecure = parseBooleanFlag(raw['skip-cert-verify'] ?? raw.skipCertVerify ?? raw.insecure);
@@ -1214,19 +1336,22 @@ function buildClashTls(raw: Record<string, unknown>, defaultEnabled: boolean): N
     parseNonEmptyString(raw['client-fingerprint'] ?? raw.clientFingerprint ?? raw.fingerprint) ?? undefined;
 
   return {
-    enabled: true,
-    ...(serverName ? { serverName } : {}),
-    ...(insecure !== undefined ? { insecure } : {}),
-    ...(alpn ? { alpn } : {}),
-    ...(fingerprint ? { fingerprint } : {}),
-    ...(reality.present
-      ? {
-          reality: {
-            publicKey: reality.publicKey,
-            ...(reality.shortId ? { shortId: reality.shortId } : {}),
-          },
-        }
-      : {}),
+    ok: true,
+    tls: {
+      enabled: true,
+      ...(serverName ? { serverName } : {}),
+      ...(insecure !== undefined ? { insecure } : {}),
+      ...(alpn ? { alpn } : {}),
+      ...(fingerprint ? { fingerprint } : {}),
+      ...(reality.present
+        ? {
+            reality: {
+              publicKey: reality.publicKey,
+              ...(reality.shortId ? { shortId: reality.shortId } : {}),
+            },
+          }
+        : {}),
+    },
   };
 }
 
@@ -1319,10 +1444,11 @@ function parseClashProxyItem(item: unknown): SingleParseOutcome {
           message: 'VMess 节点 UUID 或 alterId 无效。',
         };
       }
-      const tls = buildClashTls(raw, false);
-      if (tls === 'invalid') {
+      const tlsResult = buildClashTls(raw, false);
+      if (!tlsResult.ok) {
         return { ok: false, reason: 'malformed', protocol: 'vmess', name, message: 'VMess 节点 TLS 配置无效。' };
       }
+      const tls = tlsResult.tls;
       const security = parseNonEmptyString(raw.cipher) ?? 'auto';
       const transport = buildTransportFromClash(raw);
       const packetEncoding = parseNonEmptyString(raw['packet-encoding'] ?? raw.packetEncoding) ?? undefined;
@@ -1346,10 +1472,17 @@ function parseClashProxyItem(item: unknown): SingleParseOutcome {
       if (!uuid) {
         return { ok: false, reason: 'malformed', protocol: 'vless', name, message: 'VLESS 节点 UUID 无效。' };
       }
-      const tls = buildClashTls(raw, false);
-      if (tls === 'invalid') {
-        return { ok: false, reason: 'malformed', protocol: 'vless', name, message: 'VLESS Reality 节点缺少公钥。' };
+      const tlsResult = buildClashTls(raw, false);
+      if (!tlsResult.ok) {
+        return {
+          ok: false,
+          reason: 'malformed',
+          protocol: 'vless',
+          name,
+          message: formatClashRealityError('VLESS', tlsResult.reason),
+        };
       }
+      const tls = tlsResult.tls;
       const flow = parseNonEmptyString(raw.flow) ?? undefined;
       const encryption = parseNonEmptyString(raw.encryption) ?? 'none';
       const transport = buildTransportFromClash(raw);
@@ -1374,10 +1507,17 @@ function parseClashProxyItem(item: unknown): SingleParseOutcome {
       if (!password) {
         return { ok: false, reason: 'malformed', protocol: 'trojan', name, message: 'Trojan 节点缺少密码。' };
       }
-      const tls = buildClashTls(raw, true);
-      if (tls === 'invalid') {
-        return { ok: false, reason: 'malformed', protocol: 'trojan', name, message: 'Trojan Reality 节点缺少公钥。' };
+      const tlsResult = buildClashTls(raw, true);
+      if (!tlsResult.ok) {
+        return {
+          ok: false,
+          reason: 'malformed',
+          protocol: 'trojan',
+          name,
+          message: formatClashRealityError('Trojan', tlsResult.reason),
+        };
       }
+      const tls = tlsResult.tls;
       const transport = buildTransportFromClash(raw);
       return {
         ok: true,
@@ -1396,8 +1536,8 @@ function parseClashProxyItem(item: unknown): SingleParseOutcome {
       if (!password) {
         return { ok: false, reason: 'malformed', protocol: 'hysteria2', name, message: 'Hysteria2 节点缺少密码。' };
       }
-      const tls = buildClashTls(raw, true);
-      if (tls === 'invalid') {
+      const tlsResult = buildClashTls(raw, true);
+      if (!tlsResult.ok) {
         return {
           ok: false,
           reason: 'malformed',
@@ -1406,6 +1546,7 @@ function parseClashProxyItem(item: unknown): SingleParseOutcome {
           message: 'Hysteria2 节点 TLS 配置无效。',
         };
       }
+      const tls = tlsResult.tls;
       const obfsType = parseNonEmptyString(raw.obfs);
       const obfsPassword = parseNonEmptyString(raw['obfs-password'] ?? raw.obfsPassword) ?? undefined;
       const upMbps = parseMbps(raw.up);
@@ -1432,10 +1573,11 @@ function parseClashProxyItem(item: unknown): SingleParseOutcome {
       if (!uuid || !password) {
         return { ok: false, reason: 'malformed', protocol: 'tuic', name, message: 'TUIC 节点 UUID 或密码无效。' };
       }
-      const tls = buildClashTls(raw, true);
-      if (tls === 'invalid') {
+      const tlsResult = buildClashTls(raw, true);
+      if (!tlsResult.ok) {
         return { ok: false, reason: 'malformed', protocol: 'tuic', name, message: 'TUIC 节点 TLS 配置无效。' };
       }
+      const tls = tlsResult.tls;
       const congestionControl =
         parseNonEmptyString(raw['congestion-controller'] ?? raw['congestion-control'] ?? raw.congestionControl) ??
         undefined;

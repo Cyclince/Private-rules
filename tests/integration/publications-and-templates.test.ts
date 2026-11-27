@@ -1266,7 +1266,7 @@ describe('M4.3b publication backend, Class-A node bindings, delivery cache, and 
       '    tls: true',
       '    servername: www.microsoft.com',
       '    reality-opts:',
-      '      public-key: cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMTIzNDU2',
+      '      public-key: cmVhbGl0eS1wdWJsaWMta2V5LWRlbW8tMzItYnl0ZXM',
       '      short-id: abcd1234',
       '  - name: "Legacy SSR"',
       '    type: ssr',
