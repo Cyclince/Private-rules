@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { parse as parseYaml } from 'yaml';
+import { E2E_ORIGIN } from '../helpers/e2e-env';
 
-const ORIGIN = 'http://127.0.0.1:5180';
+const ORIGIN = E2E_ORIGIN;
 const JSON_HEADERS = { origin: ORIGIN, 'content-type': 'application/json' };
 
 const FORBIDDEN_PLAIN_WORDS = ['槽位', '组件', '发布', '策略组'] as const;
